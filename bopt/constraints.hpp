@@ -17,9 +17,7 @@ struct constraint_traits : public evaluator_traits<T> {
 };
 
 template <typename T>
-struct constraint_attributes {
-    
-};
+struct constraint_attributes {};
 
 template <typename T>
 struct constraint_index_map {};
@@ -55,10 +53,7 @@ class constraint : public EvaluatorBase<T> {
         return 0;
     }
 
-    // Lower bound
-    std::vector<value_type> lb;
-    // Upper bound
-    std::vector<value_type> ub;
+    std::vector<bound<value_type>> bounds;
 
    private:
 };

@@ -62,18 +62,15 @@ class Variable {
 typedef typename variable_property_traits<Variable>::id_type variable_t;
 typedef std::vector<Variable> variable_vector_t;
 
-/**
- * @brief Index map for a set of variables contained within a vector.
- *
- */
 class VariableIndexMap {
    public:
-    typedef variable_property_traits<Variable>::id_type id_type;
-    typedef std::size_t index_type;
-
-    using IndexMapType = std::unordered_map<id_type, Index>;
-
     Index size() const { return index_.size(); }
+
+    typedef std::vector<Variable> variable_vector_t;
+
+    bool contains(const Variable &v) const {
+        return variable_vector_idx.find(v.id()) != variable_vector_idx.end();
+    }
 
     bool add(const Variable &var) {
         if (contains(var)) {
@@ -82,54 +79,22 @@ class VariableIndexMap {
             return false;
         }
         // Add to index map
-        variable_index_map_.insert({var.id(), index_.size()});
+        variable_vector_idx.insert({var.id(), index_.size()});
         index_.push_back(index_.size());
         return true;
     }
 
-    bool add(const std::vector<Variable> &var) {
+    bool add(const variable_vector_t &v) {
         // Append to our map
-        for (std::size_t i = 0; i < var.size(); ++i) {
-            if (add(var[i]) == false) return false;
-        }
+        for (variable_vector_t::iterator it = v.begin(); it != v.end(); ++it)
+            if (add(*it) == false) return false;
         return true;
     }
 
-    // todo - void remove();
-
-    bool contains(const Variable &v) const {
-        return variable_index_map_.find(v.id()) != variable_index_map_.end();
-    }
-
-    /**
-     * @brief Returns the index of the variable for the associated index
-     * mapping.
-     *
-     * @param v
-     * @return const Index&
-     */
-    const Index &index(const Variable &v) const {
-        auto it = variable_index_map_.find(v.id());
-        assert(it != variable_index_map_.end() &&
-               "Variable does not exist in index map!");
-        return index_[it->second];
-    }
-
-    std::vector<Index> indices(const std::vector<Variable> &v) const {
-        std::vector<Index> indices;
-        indices.reserve(v.size());
-        for (std::size_t i = 0; i < v.size(); ++i) {
-            indices.push_back(index(v[i]));
-        }
-        // Return vector of indices
-        return indices;
-    }
-
-   private:
-    // Location of each vertex in the index map
-    std::unordered_map<id_type, index_type> variable_index_map_;
-    // Index in the current vector
-    std::vector<index_type> index_;
+    // Mapping of variables to the index vector
+    std::unordered_map<variable_id_type, index_type> variable_vector_idx;
+    // Index of each variable within the optimisation vector
+    std::std::vector<index_type> vector_idx;
 };
 
 // Operator overloading

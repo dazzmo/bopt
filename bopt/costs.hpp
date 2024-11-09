@@ -41,18 +41,30 @@ class cost : public EvaluatorBase<T> {
  * \f$.
  *
  */
-class LinearCost : public cost {
+template <typename T>
+class LinearCost : public cost<T> {
    public:
     using UniquePtr = std::unique_ptr<LinearCost>;
     using SharedPtr = std::shared_ptr<LinearCost>;
 
+    typedef evaluator_traits<LinearCost>::value_type value_type;
+    typedef evaluator_traits<LinearCost>::integer_type integer_type;
+
     LinearCost() = default;
 
-    virtual bopt_int a(const double **arg, double *res) { return 0; }
-    virtual bopt_int a_info(evaluator_out_info<LinearCost> &info) { return 0; }
+    virtual integer_type a(const value_type **arg, value_type *res) {
+        return 0;
+    }
+    virtual integer_type a_info(evaluator_out_info<LinearCost> &info) {
+        return 0;
+    }
 
-    virtual bopt_int b(const double **arg, double *res) { return 0; }
-    virtual bopt_int b_info(evaluator_out_info<LinearCost> &info) { return 0; }
+    virtual integer_type b(const value_type **arg, value_type *res) {
+        return 0;
+    }
+    virtual integer_type b_info(evaluator_out_info<LinearCost> &info) {
+        return 0;
+    }
 
    protected:
 };
@@ -67,13 +79,19 @@ class QuadraticCost : public cost {
     using SharedPtr = std::shared_ptr<QuadraticCost>;
 
     virtual bopt_int A(const double **arg, double *res) { return 0; }
-    virtual bopt_int A_info(evaluator_out_info<QuadraticCost> &info) { return 0; }
+    virtual bopt_int A_info(evaluator_out_info<QuadraticCost> &info) {
+        return 0;
+    }
 
     virtual bopt_int b(const double **arg, double *res) { return 0; }
-    virtual bopt_int b_info(evaluator_out_info<QuadraticCost> &info) { return 0; }
+    virtual bopt_int b_info(evaluator_out_info<QuadraticCost> &info) {
+        return 0;
+    }
 
     virtual bopt_int c(const double **arg, double *res) { return 0; }
-    virtual bopt_int c_info(evaluator_out_info<QuadraticCost> &info) { return 0; }
+    virtual bopt_int c_info(evaluator_out_info<QuadraticCost> &info) {
+        return 0;
+    }
 
    protected:
 };

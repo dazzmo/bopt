@@ -70,32 +70,38 @@ void qpOASESSparseSolverInstance::solve() {
         }
     }
 
+    // Lambda function
+    auto inserter_plus = [](ublas::mapped_matrix<double>& m, std::size_t i,
+                            std::size_t j, const double& v) { m(i, j) += v };
+    // auto inserter_plus = []() {m(i, j) = v};
+
     /** Quadratic costs **/
     for (const Binding<QuadraticCost>& binding :
          getCurrentProgram().getQuadraticCosts()) {
-
-        const auto& x = binding.input_index;
-        
-        auto p_indices = getCurrentProgram().getParameterIndices(binding.in[1]);
+        const auto& x = binding.input_index[0];
+        const auto& p = binding.input_index[1];
 
         std::vector<double> pi;
-        for (const auto& i : p_indices) {
+        for (const auto& i : p) {
             // Create vector of input
             pi.emplace_back(getCurrentProgram().p()[i]);
         }
 
         // Evaluate coefficients for the cost a^T x + b
-        evaluator_out_info<QuadraticCost> A, b;
+        evaluator_out_info<QuadraticCost> A_info, b_info;
         binding.get()->A_info(A);
         binding.get()->b_info(b);
 
-        binding.get()->A(std::vector<const double*>({pi.data()}).data(),
-                         {A.values});
-        binding.get()->b(std::vector<const double*>({pi.data()}).data(),
-                         {b.values});
+        evaluator_out_data<QuadraticCost> A, b;
+        binding.get()->A(
+            evaluator_input_generator<QuadraticCost>({pi.data()}).data(),
+            {A.values});
+        binding.get()->b(
+            evaluator_input_generator<QuadraticCost>({pi.data()}).data(),
+            {b.values});
 
-        setSparseBlock(matrix_data_.H, A, x_indices, x_indices);
-        setSparseBlock(matrix_data_.g, b, x_indices, {0});
+        setBlock(matrix_data_.H, A, x, x, inserter_plus);
+        setBlock(matrix_data_.g, b, x, {0}, inserter_plus);
     }
 
     /** Linear constraints **/

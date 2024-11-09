@@ -138,27 +138,6 @@ bopt::CompressedColumnStorageFormat getJacobianSparsityPattern(
     return jac;
 }
 
-template <typename T, typename F, typename A, typename IndexVectorType>
-void setBlock(boost::numeric::ublas::mapped_matrix<T, F, A> &matrix,
-              boost::numeric::ublas::mapped_matrix<T, F, A> &block,
-              const IndexVectorType &row_indices,
-              const IndexVectorType &col_indices, ) {
-    typedef typename boost::numeric::ublas::mapped_matrix<T, F, A> matrix_type;
-    typedef typename IndexVectorType::value_type index_type;
-
-    typedef typename matrix_type::iterator1 it1_t;
-    typedef typename matrix_type::iterator2 it2_t;
-
-    for (it1_t it1 = adjacency.begin1(); it1 != adjacency.end1(); it1++) {
-        for (it2_t it2 = it1.begin(); it2 != it1.end(); it2++) {
-            std::cout << "(" << it2.index1() << "," << it2.index2() << ") = ";
-            std::cout << *it2 << std::endl;
-
-            matrix(row_indices[it2.index1()], col_indices[it2.index2()]) = *it2;
-        }
-    }
-}
-
 template <typename T>
 bopt::CompressedColumnStorageFormat getHessianSparsityPattern(
     std::vector<Binding<T>> &c, const VariableIndexMap &x) {

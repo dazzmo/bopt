@@ -59,19 +59,28 @@ class Binding {
     typedef std::size_t id_type;
     typedef typename std::shared_ptr<type> type_shared_ptr;
     typedef std::vector<variable_t *> input_vector;
-    typedef std::vector<std::size_t> input_index_vector;
+    typedef std::vector<std::vector<std::size_t>> input_index_vector;
 
+    /**
+     * @brief Bind an evaluator object to a set of input variables, with
+     * indexing dictated by a VariableIndexMap
+     *
+     * @param obj
+     * @param in
+     * @param index_map
+     */
     Binding(const type_shared_ptr &obj, const std::vector<Variable> &in,
             const VariableIndexMap &index_map) {
         // Computes the indices within the map that the mapping relates to
         input_index = {};
-        for (const Variable &vi : in) {
-            input_index.push_back(index_map.index_vector[index_map.index(vi)]);
+        for (int i = 0; i < obj->n_in; ++i) {
+            input_indices.push_back({});
+            for (const Variable &vi : in) {
+                input_index.push_back(
+                    index_map.index_vector[index_map.index(vi)]);
+            }
         }
     }
-
-    Binding(const type_shared_ptr &obj, const input_vector &in)
-        : obj_(obj), in(in) {}
 
     /**
      * @brief Cast a binding of type U to a Binding of type T, if convertible.
@@ -81,15 +90,17 @@ class Binding {
      */
     template <typename U>
     Binding(const Binding<U> &b,
-            typename std::enable_if_t<std::is_convertible_v<
-                std::shared_ptr<U>, std::shared_ptr<T>>> * = nullptr)
+            typename std::enable_if_t<
+                std::is_convertible_v<typename Binding<U>::type_shared_ptr,
+                                      typename Binding<T>::type_shared_ptr>> * =
+                nullptr)
         : Binding() {
         // Maintain the same binding id
         id = b.id;
         // Convert to new pointer type
-        obj_ = static_cast<std::shared_ptr<T>>(b.obj_);
+        obj_ = static_cast<type_shared_ptr>(b.obj_);
         // Copy vectors
-        in = b.in;
+        input_index = b.input_index;
     }
 
     id_type id;
