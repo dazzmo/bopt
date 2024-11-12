@@ -6,9 +6,9 @@
 #include <string>
 
 namespace bopt {
-class DynamicLibraryHandler {
+class dynamic_library_handler {
    public:
-    DynamicLibraryHandler(const std::string& filename) {
+    dynamic_library_handler(const std::string& filename) {
         handle = dlopen(&filename[0], RTLD_LAZY);
         if (handle == 0) {
             std::cout << "Cannot open dynamic library or shared object "
@@ -16,7 +16,7 @@ class DynamicLibraryHandler {
         }
     }
 
-    ~DynamicLibraryHandler() { dlclose(handle); }
+    ~dynamic_library_handler() { dlclose(handle); }
 
     void* handle;
 

@@ -7,7 +7,6 @@
 #include <Eigen/Core>
 
 #include "bopt/ad/casadi/evaluator.hpp"
-#include "bopt/ad/casadi/function.hpp"
 #include "bopt/dlib_handler.hpp"
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
@@ -20,24 +19,23 @@ TEST(CasadiFunction, FunctionWrapperScalar) {
     sym x = sym::sym("x", n);
     // Create symbolic constraint
     sym ex = sym::dot(x, x);
+    ex += sin(dot(x, x));
 
     auto fun = ::casadi::Function("function", {x}, {ex});
 
     // Generate code
-    bopt::casadi::codegen(fun);
-
-    // Create function to evaluate it
     std::shared_ptr<bopt::DynamicLibraryHandler> handle =
-        std::make_shared<bopt::DynamicLibraryHandler>(
-            "./cg_function_6817617485236275379.so");
+        bopt::casadi::codegen(fun);
+    if (handle == nullptr) FAIL();
 
-    bopt::casadi::Evaluator test(handle, "function");
+    bopt::casadi::Evaluator<double> test(handle, "function");
 
     Eigen::VectorXd y(5);
     y.setRandom();
 
     std::vector<const double *> in = {y.data()};
-    test.eval(in.data());
+    double *out;
+    test(in.data(), out);
 }
 
 int main(int argc, char **argv) {

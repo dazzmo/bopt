@@ -7,9 +7,6 @@ namespace bopt {
 
 namespace casadi {
 
-// This evaluator class is based strongly on that of FATROP, using the same
-// interfacing strategy
-
 /* Typedefs based on casadi format */
 typedef long long int casadi_int;
 
@@ -28,7 +25,7 @@ typedef int (*casadi_checkout_t)(void);
 typedef void (*casadi_release_t)(int);
 
 template <typename T>
-class Evaluator : public EvaluatorBase<T> {
+class evaluator : public evaluator<T> {
    private:
     /// pointer to casadi codegen evaluation function
     eval_t f;
@@ -54,14 +51,18 @@ class Evaluator : public EvaluatorBase<T> {
     std::vector<casadi_int> work_vector_i;
 
    public:
+    typedef bopt::evaluator<T> Base;
+    typedef typename Base::value_type value_type;
+    typedef typename Base::index_type index_type;
+
     /**
-     * @brief Construct a new Evaluator object from a code-generated casadi
+     * @brief Construct a new evaluator object from a code-generated casadi
      * function
      *
      * @param handle
      * @param function_name
      */
-    Evaluator(const std::shared_ptr<DynamicLibraryHandler> &handle,
+    evaluator(const std::shared_ptr<DynamicLibraryHandler> &handle,
               const std::string &function_name)
         : handle_(handle) {
         void *handle_p = handle_->handle;
@@ -90,7 +91,7 @@ class Evaluator : public EvaluatorBase<T> {
         getint_t n_in_fcn = (getint_t)dlsym(
             handle_p, (function_name + (std::string) "_n_in").c_str());
         // if (dlerror()) return 1;
-        n_in = n_in_fcn();
+        this->n_in = n_in_fcn();
 
         /* Number of outputs */
         getint_t n_out_fcn = (getint_t)dlsym(
@@ -104,7 +105,8 @@ class Evaluator : public EvaluatorBase<T> {
         mem = checkout();
 
         /* Get sizes of the required work vectors */
-        casadi_int sz_arg = n_in, sz_res = n_out, sz_iw = 0, sz_w = 0;
+        casadi_int sz_arg = this->n_in, sz_res = n_out, sz_iw = 0,
+                   sz_w = 0;
         work_t work = (work_t)dlsym(
             handle_p, (function_name + (std::string) "_work").c_str());
 
@@ -127,13 +129,14 @@ class Evaluator : public EvaluatorBase<T> {
         assert(dlerror() == 0);
 
         const casadi_int *sparsity_out_ci = sp_out(0);
-        out_m = sparsity_out_ci[0];
-        out_n = sparsity_out_ci[1];
-        out_nnz = sparsity_out_ci[out_n + 2];
+        this->out_m = sparsity_out_ci[0];
+        this->out_n = sparsity_out_ci[1];
+        this->out_nnz = sparsity_out_ci[this->out_n + 2];
 
-        sparsity_out.resize(2 + out_n + 1 + out_nnz, 0);
-        sparsity_out.assign(sparsity_out_ci,
-                            sparsity_out_ci + 2 + out_n + 1 + out_nnz);
+        this->sparsity_out.resize(2 + this->out_n + 1 + this->out_nnz, 0);
+        this->sparsity_out.assign(
+            sparsity_out_ci,
+            sparsity_out_ci + 2 + this->out_n + 1 + this->out_nnz);
 
         /* Function for numerical evaluation */
         f = (eval_t)dlsym(handle_p, function_name.c_str());
@@ -141,24 +144,26 @@ class Evaluator : public EvaluatorBase<T> {
             printf("Failed to retrieve \"f\" function.\n");
         }
 
-        buffer.resize(out_nnz, 0.0);
+        this->buffer.resize(this->out_nnz, 0.0);
     }
 
-    index_type operator()(const double **arg) override {
+    index_type operator()(const value_type **arg, value_type *ret) override {
         w = work_vector_d.data();
         iw = work_vector_i.data();
-        for (int i = 0; i < n_in; i++) {
+        for (int i = 0; i < this->n_in; i++) {
             arg_vec[i] = arg[i];
         }
-        res_vec[0] = buffer.data();
-        if (f(arg_vec.data(), res_vec.data(), iw, w, mem)) return 1;
-        return 0;
+        res_vec[0] = this->buffer.data();
+        ret = this->buffer.data();
+        if (f(arg_vec.data(), res_vec.data(), iw, w, mem)) return index_type(1);
+        return index_type(0);
     }
 
-    bopt_int info(evaluator_out_info<Evaluator> &info) {
+    index_type info(evaluator_out_info<Evaluator> &info) {
         info.out_m = this->out_m;
         info.out_n = this->out_n;
         info.out_nnz = this->out_nnz;
+        return index_type(0);
     }
 
     ~Evaluator() {

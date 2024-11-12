@@ -27,12 +27,12 @@ namespace ublas = boost::numeric::ublas;
  */
 template <class MatrixContainer, class Evaluator, typename IndexVectorType,
           class MatrixInserterFunction>
-void setBlock(MatrixContainer &matrix,
-              const evaluator_out_info<Evaluator> &block_info,
-              const evaluator_out_data<Evaluator> &block_data,
-              const IndexVectorType &row_indices,
-              const IndexVectorType &col_indices,
-              const MatrixInserterFunction &inserter) {
+void set_block(MatrixContainer &matrix,
+               const evaluator_out_info<Evaluator> &block_info,
+               const evaluator_out_data<Evaluator> &block_data,
+               const IndexVectorType &row_indices,
+               const IndexVectorType &col_indices,
+               const MatrixInserterFunction &inserter) {
     // Typedefs
     typedef MatrixContainer matrix_type;
     typedef typename evaluator_out_info<Evaluator>::index_type index_type;

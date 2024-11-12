@@ -28,9 +28,9 @@ using namespace boost::accumulators;
  * constructor.
  *
  */
-class Profiler {
+class profiler {
  public:
-  typedef std::chrono::steady_clock Clock;
+  typedef std::chrono::steady_clock clock;
   typedef accumulator_set<double,
                           stats<tag::mean, tag::variance, tag::min, tag::max>>
       acc_t;
@@ -38,16 +38,16 @@ class Profiler {
    * @brief Generates a report for all profilers
    *
    */
-  Profiler();
+  profiler();
 
   /**
    * @brief Create a new scoped profiler
    *
    * @param name
    */
-  Profiler(const char* name);
+  profiler(const char* name);
 
-  ~Profiler();
+  ~profiler();
 
  private:
   std::string name_;

@@ -13,37 +13,25 @@ template <typename T>
 struct binding_traits {
     typedef typename T::type type;
     typedef typename T::id_type id_type;
-    typedef typename T::input_vector input_vector;
+    typedef typename T::index_vector index_vector;
+    typedef typename T::evaluator_type evaluator_type;
+    typedef typename T::evaluator_unique_ptr evaluator_unique_ptr;
+    typedef typename T::evaluator_shared_ptr evaluator_shared_ptr;
 };
 
-template <typename T>
+template <typename binding>
 struct binding_attributes {
-    binding_traits<T>::id_type id(T &binding) const { return binding.id(); }
-
-    binding_traits<T>::type object() const { return *T.get(); }
-
-    binding_traits<T>::input_vector input_vector() const {
-        return T.input_vector();
-    }
-};
-
-template <typename Binding, typename IndexVectorType>
-struct binding_index_map {
-    typedef typename binding_traits<Binding>::type type;
-    typedef typename binding_traits<Binding>::input_vector input_vector;
-
-    template <typename VariableIndexMap>
-    binding_index_map(const &Binding binding,
-                      const VariableIndexMap &index_map) {
-        // Locate vector locations for each input
-        for (input_vector::iterator it =
-                 binding_attributes<type>::input_vector(binding).begin();
-             it != binding_attributes<type>::input_vector().end(); ++it) {
-            input_index.push_back(index_map.find(it));
-        }
+    binding_traits<binding>::id_type id(binding &binding) const {
+        return binding.id();
     }
 
-    IndexVectorType input_index;
+    binding_traits<binding>::evaluator_type object(binding &binding) const {
+        return *binding.get();
+    }
+
+    binding_traits<binding>::input_vector input_vector() const {
+        return binding.input_vector();
+    }
 };
 
 /**
@@ -52,14 +40,19 @@ struct binding_index_map {
  *
  * @tparam T
  */
-template <class T>
-class Binding {
+template <class Evaluator, class I = std::size_t>
+class binding {
    public:
-    typedef typename T type;
-    typedef std::size_t id_type;
-    typedef typename std::shared_ptr<type> type_shared_ptr;
-    typedef std::vector<variable_t *> input_vector;
-    typedef std::vector<std::vector<std::size_t>> input_index_vector;
+    typedef typename evaluator_traits<Evaluator>::value_type value_type;
+    typedef typename evaluator_traits<Evaluator>::index_type index_type;
+    typedef I id_type;
+
+    typedef Evaluator evaluator_type;
+
+    typedef typename std::unique_ptr<evaluator_type> evaluator_unique_ptr;
+    typedef typename std::shared_ptr<evaluator_type> evaluator_shared_ptr;
+
+    typedef std::vector<I> index_vector;
 
     /**
      * @brief Bind an evaluator object to a set of input variables, with
@@ -69,48 +62,50 @@ class Binding {
      * @param in
      * @param index_map
      */
-    Binding(const type_shared_ptr &obj, const std::vector<Variable> &in,
-            const VariableIndexMap &index_map) {
+    binding(const evaluator_shared_ptr &obj,
+            const std::vector<index_vector> &input_indices) {
         // Computes the indices within the map that the mapping relates to
-        input_index = {};
-        for (int i = 0; i < obj->n_in; ++i) {
-            input_indices.push_back({});
-            for (const Variable &vi : in) {
-                input_index.push_back(
-                    index_map.index_vector[index_map.index(vi)]);
-            }
+        assert(evaluator_attributes<evaluator_type>::n_in(*obj) ==
+                   input_indices.size() &&
+               "Incorrect number of input index vectors for evaluator binding");
+
+        for (index_type i = 0; i < obj->n_in; ++i) {
+            input_indices.push_back(input_indices[i]);
         }
     }
 
     /**
-     * @brief Cast a binding of type U to a Binding of type T, if convertible.
+     * @brief Cast a binding of type U to a binding of type T, if convertible.
      *
      * @tparam U
      * @param b
      */
     template <typename U>
-    Binding(const Binding<U> &b,
-            typename std::enable_if_t<
-                std::is_convertible_v<typename Binding<U>::type_shared_ptr,
-                                      typename Binding<T>::type_shared_ptr>> * =
-                nullptr)
-        : Binding() {
+    binding(const binding<U> &b,
+            typename std::enable_if_t<std::is_convertible_v<
+                typename binding<U>::evaluator_shared_ptr,
+                typename binding<T>::evaluator_shared_ptr>> * = nullptr)
+        : binding() {
         // Maintain the same binding id
         id = b.id;
         // Convert to new pointer type
-        obj_ = static_cast<type_shared_ptr>(b.obj_);
+        evaluator_ = static_cast<evaluator_shared_ptr>(b.evaluator_);
         // Copy vectors
         input_index = b.input_index;
     }
 
+    /**
+     * @brief ID of the binding
+     *
+     */
     id_type id;
 
-    std::shared_ptr<T> get() const { return obj_; }
+    evaluator_shared_ptr get() const { return evaluator_; }
 
-    input_index_vector input_index;
+    std::vector<index_vector> input_indices;
 
    private:
-    std::shared_ptr<T> obj_;
+    evaluator_shared_ptr evaluator_;
 };
 
 }  // namespace bopt

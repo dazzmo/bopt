@@ -2,30 +2,42 @@
 
 #include <memory>
 
-#include "bopt/function.hpp"
 #include "bopt/types.hpp"
 
 namespace bopt {
 
-template <typename Cost>
+template <typename T>
 struct cost_traits {
-    bool has_gradient;
-    bool has_hessian;
+    typedef typename T::ptr_type ptr_type;
+    typedef typename T::value_type value_type;
+    typedef typename T::integer_type integer_type;
+    typedef typename T::input_vector input_vector;
 };
 
-template <class T>
-class cost : public EvaluatorBase<T> {
+template <typename T>
+struct cost_attributes {
+    // bool has_gradient(const T &cost) const {return cost}
+};
+
+template <class T, class I = std::size_t>
+class cost : public evaluator<T> {
    public:
-    typedef typename T value_type;
+    typedef T value_type;
+    typedef int integer_type;
+    typedef I id_type;
+    typedef std::shared_ptr<cost<T, I>> ptr_type;
+    typedef std::vector<T> input_vector;
 
    public:
     id_type id;
     std::string name;
 
-    virtual bopt_int jac(const value_type **arg, value_type *res) { return 0; }
+    virtual index_type jac(const value_type **arg, value_type *res) {
+        return 0;
+    }
 
-    virtual bopt_int hes(const value_type **arg, const value_type **lam,
-                         value_type *res) {
+    virtual index_type hes(const value_type **arg, const value_type **lam,
+                           value_type *res) {
         return 0;
     }
 
@@ -42,27 +54,27 @@ class cost : public EvaluatorBase<T> {
  *
  */
 template <typename T>
-class LinearCost : public cost<T> {
+class linear_cost : public cost<T> {
    public:
-    using UniquePtr = std::unique_ptr<LinearCost>;
-    using SharedPtr = std::shared_ptr<LinearCost>;
+    using UniquePtr = std::unique_ptr<linear_cost>;
+    using SharedPtr = std::shared_ptr<linear_cost>;
 
-    typedef evaluator_traits<LinearCost>::value_type value_type;
-    typedef evaluator_traits<LinearCost>::integer_type integer_type;
+    typedef typename cost<T>::value_type value_type;
+    typedef typename cost<T>::integer_type integer_type;
 
-    LinearCost() = default;
+    linear_cost() = default;
 
     virtual integer_type a(const value_type **arg, value_type *res) {
         return 0;
     }
-    virtual integer_type a_info(evaluator_out_info<LinearCost> &info) {
+    virtual integer_type a_info(evaluator_out_info<linear_cost> &info) {
         return 0;
     }
 
     virtual integer_type b(const value_type **arg, value_type *res) {
         return 0;
     }
-    virtual integer_type b_info(evaluator_out_info<LinearCost> &info) {
+    virtual integer_type b_info(evaluator_out_info<linear_cost> &info) {
         return 0;
     }
 
@@ -73,23 +85,27 @@ class LinearCost : public cost<T> {
  * @brief A cost of the form 0.5 x^T A x + b^T x + c
  *
  */
-class QuadraticCost : public cost {
+template <typename T>
+class quadratic_cost : public cost<T> {
    public:
-    using UniquePtr = std::unique_ptr<QuadraticCost>;
-    using SharedPtr = std::shared_ptr<QuadraticCost>;
+    using UniquePtr = std::unique_ptr<quadratic_cost>;
+    using SharedPtr = std::shared_ptr<quadratic_cost>;
 
-    virtual bopt_int A(const double **arg, double *res) { return 0; }
-    virtual bopt_int A_info(evaluator_out_info<QuadraticCost> &info) {
+    typedef typename cost<T>::value_type value_type;
+    typedef typename cost<T>::integer_type integer_type;
+
+    virtual integer_type A(const double **arg, double *res) { return 0; }
+    virtual integer_type A_info(evaluator_out_info<quadratic_cost> &info) {
         return 0;
     }
 
-    virtual bopt_int b(const double **arg, double *res) { return 0; }
-    virtual bopt_int b_info(evaluator_out_info<QuadraticCost> &info) {
+    virtual integer_type b(const double **arg, double *res) { return 0; }
+    virtual integer_type b_info(evaluator_out_info<quadratic_cost> &info) {
         return 0;
     }
 
-    virtual bopt_int c(const double **arg, double *res) { return 0; }
-    virtual bopt_int c_info(evaluator_out_info<QuadraticCost> &info) {
+    virtual integer_type c(const double **arg, double *res) { return 0; }
+    virtual integer_type c_info(evaluator_out_info<quadratic_cost> &info) {
         return 0;
     }
 

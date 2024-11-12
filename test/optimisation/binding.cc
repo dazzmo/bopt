@@ -59,8 +59,8 @@ class CustomLinearCost : public bopt::LinearCost {
     }
 
    private:
-    std::shared_ptr<bopt::EvaluatorBase> c_;
-    std::shared_ptr<bopt::EvaluatorBase> b_;
+    std::shared_ptr<bopt::evaluator> c_;
+    std::shared_ptr<bopt::evaluator> b_;
 };
 
 TEST(Optimisation, BindScalarCost) {

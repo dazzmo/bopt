@@ -8,10 +8,11 @@ enable_testing()
 
 # Create list of files
 SET(TEST_FILES
-# casadi/codegen.cc
-# optimisation/binding.cc
+casadi/codegen.cc
+solvers/qpoases.cc
 core/sparse.cpp
 core/evaluator.cpp
+core/constraint.cpp
 )
 
 include(GoogleTest)

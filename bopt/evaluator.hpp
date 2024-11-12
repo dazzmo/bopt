@@ -21,15 +21,15 @@ struct evaluator_attributes {
     }
 };
 
-// template<typename Evaluator>
+// template <typename Evaluator>
 // struct evaluator_input_generator {
 //     typedef typename Evaluator::value_type value_type;
 
-//     std::vector<const value_type*> operator()(std::array<value_type> &input)
-//     {
-//         return std::vector<const value_type>(input);
+//     std::vector<const value_type *> operator()(
+//         std::array<value_type *> &input) {
+//         return std::vector<const value_type *>(input);
 //     }
-// }
+// };
 
 struct evaluator_matrix_type {
     enum type { Dense, Sparse };
@@ -59,7 +59,6 @@ struct evaluator_out_info {
 template <typename Evaluator>
 struct evaluator_out_data {
     typedef typename evaluator_traits<Evaluator>::value_type value_type;
-
     value_type *values;
 };
 
@@ -69,7 +68,7 @@ struct evaluator_out_data {
  */
 template <typename T, typename I = std::size_t,
           template <class> class VectorType = std::vector>
-class EvaluatorBase {
+class evaluator {
    public:
     typedef T value_type;
     typedef I index_type;
@@ -77,7 +76,7 @@ class EvaluatorBase {
    public:
     virtual index_type operator()(const value_type **arg, value_type *ret) = 0;
 
-    virtual index_type info(evaluator_out_info<EvaluatorBase> &info) {
+    virtual index_type info(evaluator_out_info<evaluator> &info) {
         return 0;
     }
 

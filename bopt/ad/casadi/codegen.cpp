@@ -3,7 +3,8 @@
 namespace bopt {
 namespace casadi {
 
-void codegen(const ::casadi::Function &f, const std::string &dir) {
+std::shared_ptr<bopt::DynamicLibraryHandler> codegen(
+    const ::casadi::Function &f, const std::string &dir) {
     // Get current path
     auto path = std::filesystem::current_path();
     // Change to new path
@@ -13,7 +14,7 @@ void codegen(const ::casadi::Function &f, const std::string &dir) {
         std::cerr << e.what() << '\n';
         // Return to existing path
         std::filesystem::current_path(path);
-        return;
+        return nullptr;
     }
 
     // Create hash
@@ -32,8 +33,14 @@ void codegen(const ::casadi::Function &f, const std::string &dir) {
         }
     }
 
+    // Provide dynamic library handler for the provided shared library
+    std::shared_ptr<bopt::DynamicLibraryHandler> handle =
+        std::make_shared<bopt::DynamicLibraryHandler>("./" + lib_name + ".so");
+
     // Return back to normal path
     std::filesystem::current_path(path);
+
+    return handle;
 }
 
 }  // namespace casadi

@@ -4,7 +4,7 @@ namespace bopt {
 
 // Operator overloading
 
-std::ostream &operator<<(std::ostream &os, bopt::Variable var) {
+std::ostream &operator<<(std::ostream &os, bopt::variable var) {
     return os << var.name();
 }
 

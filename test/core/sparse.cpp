@@ -10,9 +10,9 @@
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
 
-class TestEvaluator : public bopt::EvaluatorBase<double> {
+class TestEvaluator : public bopt::evaluator<double> {
    public:
-    typedef typename bopt::EvaluatorBase<double> Base;
+    typedef typename bopt::evaluator<double> Base;
 
     TestEvaluator() {
         out_m = 2;
@@ -59,9 +59,9 @@ class TestEvaluator : public bopt::EvaluatorBase<double> {
     }
 };
 
-class TestEvaluatorDense : public bopt::EvaluatorBase<double> {
+class TestEvaluatorDense : public bopt::evaluator<double> {
    public:
-    typedef typename bopt::EvaluatorBase<double> Base;
+    typedef typename bopt::evaluator<double> Base;
 
     TestEvaluatorDense() {
         out_m = 2;

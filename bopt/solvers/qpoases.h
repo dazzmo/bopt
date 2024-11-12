@@ -81,16 +81,12 @@ struct qpOASESSolverOptions : public SolverBase::SolverOptions {
 
 struct qpOASESSolverResults : public SolverBase::ResultsData {};
 
-class qpOASESSolverInstanceBase {};
-
-class qpOASESSolverInstance {};
-
 class qpOASESSparseSolverInstance {
    public:
     qpOASESSparseSolverInstance() = default;
     qpOASESSparseSolverInstance(MathematicalProgram& program);
 
-    ~QPOASESSolverInstance();
+    ~qpOASESSparseSolverInstance();
 
     void reset();
     void solve();
@@ -122,51 +118,32 @@ class qpOASESSparseSolverInstance {
     qpOASESSolverResults results_;
 };
 
-class QPOASESSolverInstance : public SolverBase {
+template <typename MatrixType, typename VectorType>
+struct qpoases_data {
+    MatrixType H;
+    VectorType g;
+    MatrixType A;
+    VectorType ubA;
+    VectorType lbA;
+
+    VectorType lbx;
+    VectorType ubx;
+};
+
+class qpOASESSolverInstance : public SolverBase {
    public:
-    struct QPOASESProgramData {
-       public:
-        QPOASESProgramData() = default;
-        ~QPOASESProgramData() = default;
+    typedef ublas::matrix<double> matrix_data_type;
+    typedef std::vector<double> vector_data_type;
 
-        QPOASESProgramData(const Index& nx, const Index& ng) {
-            // todo - use qpOASES::Matrix
-            H = MatrixX::Zero(nx, nx);
-            g = VectorX::Zero(nx);
-            A = MatrixX::Zero(ng, nx);
+    qpoases_data<matrix_data_type, vector_data_type> data;
 
-            lbx = VectorX::Zero(nx);
-            ubx = VectorX::Zero(nx);
+    qpOASESSolverInstance() = default;
+    qpOASESSolverInstance(MathematicalProgram& prog);
 
-            constexpr double inf = std::numeric_limits<double>::infinity();
-            lbx.setConstant(-inf);
-            ubx.setConstant(inf);
-
-            lbA = VectorX::Zero(ng);
-            ubA = VectorX::Zero(ng);
-        }
-
-        MatrixX H;
-        VectorX g;
-
-        MatrixX A;
-
-        VectorX lbx;
-        VectorX ubx;
-
-        VectorX lbA;
-        VectorX ubA;
-    };
-
-    QPOASESSolverInstance() = default;
-    QPOASESSolverInstance(MathematicalProgram& prog);
-
-    ~QPOASESSolverInstance();
+    ~qpOASESSolverInstance();
 
     void reset();
     void solve();
-    void solveDense();
-    void solveSparse();
 
     /**
      * @brief Get the current return status of the program

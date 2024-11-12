@@ -164,7 +164,7 @@ class SolverBase {
     // solver.solve();
     // solver.getResults();
 
-    MathematicalProgram& getCurrentProgram() { return program_; }
+    MathematicalProgram& program() { return program_; }
 
    private:
     bool is_solved_ = false;

@@ -10,9 +10,9 @@
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
 
-class TestEvaluator : public bopt::EvaluatorBase<double, std::size_t, std::vector> {
+class TestEvaluator : public bopt::evaluator<double, std::size_t, std::vector> {
    public:
-    typedef typename bopt::EvaluatorBase<double, std::size_t, std::vector> Base;
+    typedef typename bopt::evaluator<double, std::size_t, std::vector> Base;
 
     index_type operator()(const value_type **arg, value_type *res) override {
         return index_type(0);

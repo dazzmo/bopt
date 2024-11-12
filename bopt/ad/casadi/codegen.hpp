@@ -4,8 +4,10 @@
 #include <dlfcn.h>
 
 #include <casadi/casadi.hpp>
-#include <filesystem>
 #include <cassert>
+#include <filesystem>
+
+#include "bopt/dlib_handler.hpp"
 
 namespace bopt {
 namespace casadi {
@@ -18,7 +20,8 @@ namespace casadi {
  * @param dir Directory to store the binary
  *
  */
-void codegen(const ::casadi::Function &f, const std::string &dir = "./");
+std::shared_ptr<bopt::DynamicLibraryHandler> codegen(
+    const ::casadi::Function &f, const std::string &dir = "./");
 
 }  // namespace casadi
 }  // namespace bopt
