@@ -6,10 +6,10 @@
 <br>
 <div align="center">
 
-  <h1 align="center">The Basic OPTimisation (BOPT) Library</h1>
+  <h1 align="center">Basic OPTimisation (BOPT) Library</h1>
 
   <p align="left">
-    A work-in-progress optimisation library to express optimisation problems and provide a common interface to solvers, as well as offering a framework to create and develop custom solvers.
+    A work-in-progress optimisation library to express optimisation problems and provide a common interface to solvers, as well as offering a framework to create and develop custom optimisation programs. This library is designed to be as generic as possible to allow any type of BLAS package to be interfaced to it.
   </p>
 </div>
 
@@ -29,7 +29,6 @@ In addition, we provide add-ons for automatic differentiation tools to provide t
 ### Prerequisites
 
 bopt requires the following third-party libraries in order to be built and installed.
-* [Eigen3](https://gitlab.com/libeigen/eigen)
 * [Boost](https://www.boost.org/) (Version 1.70 or higher)
 
 For testing purposes we have (this is later be a toggle-able option):
