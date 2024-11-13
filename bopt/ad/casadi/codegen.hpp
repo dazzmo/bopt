@@ -20,7 +20,7 @@ namespace casadi {
  * @param dir Directory to store the binary
  *
  */
-std::shared_ptr<bopt::DynamicLibraryHandler> codegen(
+std::shared_ptr<bopt::dynamic_library_handler> codegen(
     const ::casadi::Function &f, const std::string &dir = "./");
 
 }  // namespace casadi

@@ -10,8 +10,10 @@ template <typename T>
 struct cost_traits {
     typedef typename T::ptr_type ptr_type;
     typedef typename T::value_type value_type;
+    typedef typename T::index_type index_type;
     typedef typename T::integer_type integer_type;
-    typedef typename T::input_vector input_vector;
+
+    typedef typename T::shared_ptr shared_ptr;
 };
 
 template <typename T>
@@ -19,31 +21,34 @@ struct cost_attributes {
     // bool has_gradient(const T &cost) const {return cost}
 };
 
-template <class T, class I = std::size_t>
-class cost : public evaluator<T> {
+template <class ValueType, class IntegerType = int,
+          class IndexType = std::size_t>
+class cost : public evaluator<ValueType, IntegerType, IndexType> {
    public:
-    typedef T value_type;
-    typedef int integer_type;
-    typedef I id_type;
-    typedef std::shared_ptr<cost<T, I>> ptr_type;
-    typedef std::vector<T> input_vector;
+    typedef evaluator<ValueType, IntegerType, IndexType> Base;
+
+    typedef typename Base::value_type value_type;
+    typedef typename Base::index_type index_type;
+    typedef typename Base::integer_type integer_type;
+
+    typedef IndexType id_type;
 
    public:
     id_type id;
     std::string name;
 
-    virtual index_type jac(const value_type **arg, value_type *res) {
+    virtual integer_type jac(const value_type **arg, value_type *res) {
         return 0;
     }
 
-    virtual index_type hes(const value_type **arg, const value_type **lam,
-                           value_type *res) {
+    virtual integer_type hes(const value_type **arg, const value_type **lam,
+                             value_type *res) {
         return 0;
     }
 
-    virtual index_type jac_info(evaluator_out_info<cost> &info) { return 0; }
+    virtual integer_type jac_info(evaluator_out_info<cost> &info) { return 0; }
 
-    virtual index_type hes_info(evaluator_out_info<cost> &info) { return 0; }
+    virtual integer_type hes_info(evaluator_out_info<cost> &info) { return 0; }
 
    private:
 };
@@ -60,6 +65,7 @@ class linear_cost : public cost<T> {
     using SharedPtr = std::shared_ptr<linear_cost>;
 
     typedef typename cost<T>::value_type value_type;
+    typedef typename cost<T>::index_type index_type;
     typedef typename cost<T>::integer_type integer_type;
 
     linear_cost() = default;

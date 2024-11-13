@@ -4,7 +4,7 @@ namespace bopt {
 
 using namespace boost::accumulators;
 
-Profiler::Profiler() {
+profiler::profiler() {
 #if defined(BOPT_USE_PROFILING)
   LOG(INFO) << "Calls\tMean (secs)\tStdDev\tMin (sec)\tMax (secs)\n";
   for (std::map<std::string, acc_t>::iterator p = map_.begin(); p != map_.end();
@@ -20,7 +20,7 @@ Profiler::Profiler() {
 #endif
 }
 
-Profiler::Profiler(const char* name) : name_(name) {
+profiler::profiler(const char* name) : name_(name) {
 #if defined(BOPT_USE_PROFILING)
   // Record start time
   start_ = clock::now();
@@ -29,7 +29,7 @@ Profiler::Profiler(const char* name) : name_(name) {
 
 // todo - write to file
 
-Profiler::~Profiler() {
+profiler::~profiler() {
 #if defined(BOPT_USE_PROFILING)
   auto dur = clock::now() - start_;
   std::map<std::string, acc_t>::iterator p = map_.find(name_);

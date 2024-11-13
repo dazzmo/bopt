@@ -51,7 +51,7 @@ class IpoptSolverInstance : public Ipopt::TNLP, public SolverBase {
     Eigen::SparseMatrix<double> lag_hes;
   };
 
-  IpoptSolverInstance(MathematicalProgram& prog);
+  IpoptSolverInstance(mathematical_program& prog);
 
   ~IpoptSolverInstance() {}
 
@@ -105,12 +105,12 @@ class IpoptSolverInstance : public Ipopt::TNLP, public SolverBase {
 
 class IpoptSolver {
  public:
-  IpoptSolver(MathematicalProgram& program) : program_(program) {}
+  IpoptSolver(mathematical_program& program) : program_(program) {}
 
   int solve();
 
  private:
-  MathematicalProgram& program_;
+  mathematical_program& program_;
 };
 
 }  // namespace solvers

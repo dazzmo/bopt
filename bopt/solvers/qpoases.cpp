@@ -5,9 +5,9 @@
 namespace bopt {
 namespace solvers {
 
-qpOASESSolverInstance::qpOASESSolverInstance(MathematicalProgram& program)
+qpoases_solver_instance::qpoases_solver_instance(mathematical_program& program)
     : SolverBase(program) {
-    LOG(INFO) << "qpOASESSolverInstance::qpOASESSolverInstance";
+    LOG(INFO) << "qpoases_solver_instance::qpoases_solver_instance";
     // Create problem
     int nx = program.numberOfDecisionVariables();
     int ng = program.numberOfConstraints();
@@ -15,9 +15,9 @@ qpOASESSolverInstance::qpOASESSolverInstance(MathematicalProgram& program)
     qp_ = std::make_unique<qpOASES::SQProblem>(nx, ng);
 }
 
-qpOASESSolverInstance::~qpOASESSolverInstance() = default;
+qpoases_solver_instance::~qpoases_solver_instance() = default;
 
-void qpOASESSolverInstance::solve() {
+void qpoases_solver_instance::solve() {
     // Matrix inserter functions
     auto inserter_add_to = [](ublas::matrix<double>& m, std::size_t i,
                               std::size_t j, const double& v) { m(i, j) += v };
@@ -189,10 +189,10 @@ void qpOASESSolverInstance::solve() {
     }
 };
 
-void qpOASESSolverInstance::reset() { info_.number_of_solves = 0; }
+void qpoases_solver_instance::reset() { info_.number_of_solves = 0; }
 
 // qpOASESSparseSolverInstance::qpOASESSparseSolverInstance(
-//     MathematicalProgram& program)
+//     mathematical_program& program)
 //     : SolverBase(program) {
 //     LOG(INFO) << "qpOASESSparseSolverInstance::qpOASESSparseSolverInstance";
 //     // Create problem

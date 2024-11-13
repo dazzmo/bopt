@@ -13,7 +13,7 @@ TEST(Constraint, BoundingBox) {
     std::vector<double> ub = {1.0, 1.0}, lb = {-1.0, -1.0};
 
     // auto bb = bopt::BoundingBoxConstraint<double>();
-    auto bb2 = bopt::BoundingBoxConstraint<double>(2, lb, ub);
+    auto bb2 = bopt::bounding_box_constraint<double>(2, lb, ub);
     bb2.bounds({}, lb.data(), ub.data());
 }
 
@@ -23,6 +23,6 @@ int main(int argc, char **argv) {
     testing::InitGoogleTest(&argc, argv);
     FLAGS_logtostderr = 1;
     int status = RUN_ALL_TESTS();
-    bopt::Profiler summary;
+    bopt::profiler summary;
     return status;
 }

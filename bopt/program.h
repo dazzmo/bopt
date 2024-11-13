@@ -5,7 +5,6 @@
 
 #include "bopt/ad/casadi/codegen.hpp"
 #include "bopt/ad/casadi/eigen.hpp"
-#include "bopt/ad/casadi/function.hpp"
 #include "bopt/binding.h"
 #include "bopt/common.hpp"
 #include "bopt/constraints.hpp"
@@ -20,33 +19,37 @@ namespace solvers {
 class SolverBase;
 }
 
-template <class MatrixContainer, class BindingType, class MatrixElementInserter>
+template <class MatrixContainer, class bindingType, class MatrixElementInserter>
 void getJacobianStructure(MatrixContainer &J,
-                          std::vector<Binding<BindingType>> &bindings,
-                          const variableIndexMap &index_map,
+                          std::vector<binding<bindingType>> &bindings,
                           const MatrixElementInserter &inserter) {
     // Typdefs
-    typedef typename evaluator_traits<BindingType>::index_type index_type;
-    typedef typename evaluator_traits<BindingType>::value_type value_type;
+    typedef typename evaluator_traits<bindingType>::index_type index_type;
+    typedef typename evaluator_traits<bindingType>::value_type value_type;
+    typedef evaluator_out_info<bindingType> evaluator_out_info_t;
 
     index_type cnt = index_type(0);
     for (auto &b : bindings) {
         // For each non-zero element of the hessian, get their variable
         // coordinates and convert to their vector locations based on x
         index_type idx_x, idx_y;
-        evaluator_out_info<BindingType> info;
+        evaluator_out_info_t info;
         b.get()->jac_info(info);
 
         // Determine locations for each non-zero entry
         for (index_type col = 0; col < info.out_m; ++col) {
-            index_type start = indptr[col];
-            index_type end = indptr[col + 1];
+            index_type start =
+                ccs_traits<evaluator_out_info_t>::indptr(info)[col];
+            index_type end =
+                ccs_traits<evaluator_out_info_t>::indptr(info)[col + 1];
 
             for (index_type row = start; row < end; ++row) {
                 // Get index of entry
-                index_type idx = ind[row];
+                index_type idx =
+                    ccs_traits<evaluator_out_info_t>::indices(info)[row];
                 // Add entry to full Jacobian
-                inserter(J, index_map.index(idx), cnt + col, value_type(0));
+                inserter(J, b.get()->input_indices[0][idx], cnt + col,
+                         value_type(0));
             }
         }
 
@@ -54,32 +57,36 @@ void getJacobianStructure(MatrixContainer &J,
     }
 }
 
-template <class MatrixContainer, class BindingType, class MatrixElementInserter>
+template <class MatrixContainer, class bindingType, class MatrixElementInserter>
 void getHessianStructure(MatrixContainer &H,
-                         std::vector<Binding<BindingType>> &bindings,
-                         const variableIndexMap &index_map,
+                         std::vector<binding<bindingType>> &bindings,
                          const MatrixElementInserter &inserter) {
     // Typdefs
-    typedef typename evaluator_traits<BindingType>::index_type index_type;
-    typedef typename evaluator_traits<BindingType>::value_type value_type;
+    typedef typename evaluator_traits<bindingType>::index_type index_type;
+    typedef typename evaluator_traits<bindingType>::value_type value_type;
+    typedef evaluator_out_info<bindingType> evaluator_out_info_t;
 
     for (auto &b : bindings) {
         // For each non-zero element of the hessian, get their variable
         // coordinates and convert to their vector locations based on x
         index_type idx_x, idx_y;
-        evaluator_out_info<BindingType> info;
+        evaluator_out_info_t info;
         b.get()->jac_info(info);
 
         // Determine locations for each non-zero entry
         for (index_type col = 0; col < info.out_m; ++col) {
-            index_type start = indptr[col];
-            index_type end = indptr[col + 1];
+            index_type start =
+                ccs_traits<evaluator_out_info_t>::indptr(info)[col];
+            index_type end =
+                ccs_traits<evaluator_out_info_t>::indptr(info)[col + 1];
 
             for (index_type row = start; row < end; ++row) {
                 // Get index of entry
-                index_type idx = ind[row];
+                index_type idx =
+                    ccs_traits<evaluator_out_info_t>::indices(info)[row];
                 // Add entry to full Jacobian
-                inserter(H, index_map.index(idx), cnt + col, value_type(0));
+                inserter(H, b.get()->input_indices[0][idx],
+                         b.get()->input_indices[0][col], value_type(0));
             }
         }
     }
@@ -90,98 +97,98 @@ void getHessianStructure(MatrixContainer &H,
  * s.t. g_l \le g(x) \le q_u, x_l \le x \le x_u \f$
  *
  */
-template <typename T = double>
-class MathematicalProgram : public ConstraintBindingSet, public CostBindingSet {
+template <typename ValueType = double>
+class mathematical_program {
    public:
     friend class solvers::SolverBase;
 
-    typedef T value_type;
+    typedef ValueType value_type;
+    typedef std::size_t index_type;
+    typedef std::string string_type;
 
-    using Index = std::size_t;
-    using String = std::string;
-
-    MathematicalProgram() = default;
-    MathematicalProgram(const String &name) : name_(name) {}
+    mathematical_program() = default;
+    mathematical_program(const string_type &name) : name_(name) {}
 
     /**
      * @brief Name of the program
      *
-     * @return const String&
+     * @return const string_type&
      */
-    const String &name() const { return name_; }
-
-    Index numberOfDecisionvariables() const { return x_idx_map_.size(); }
-
-    Index numberOfParameters() const { return p_idx_map_.size(); }
+    const string_type &name() const { return name_; }
 
     /**
      * @brief Decision variables initial values
      *
      * @return const std::vector<double>&
      */
-    const std::vector<double> &x0() const { return x0_; }
+    const std::vector<value_type> &variable_initial_values() const {
+        return x0_;
+    }
 
     /**
      * @brief Decision variables upper bound vector
      *
-     * @return const std::vector<double>&
+     * @return const std::vector<value_type>&
      */
-    const std::vector<double> &xbu() const { return xb_.upper; }
+    const vector_bounds<value_type> &variable_bounds() const { return xb_; }
 
-    /**
-     * @brief Decision variables lower bound vector
-     *
-     * @return const std::vector<double>&
-     */
-    const std::vector<double> &xbl() const { return xb_.lower; }
 
     /**
      * @brief Parameter vector
      *
-     * @return const std::vector<double>&
+     * @return const std::vector<value_type>&
      */
-    const std::vector<double> &p() const { return p_; }
+    const std::vector<value_type> &p() const { return p_; }
 
     void add_variable(
-        const variable &v, const double &v0 = 0.0,
-        const double &bl = -std::numeric_limits<double>::infinity(),
-        const double &bu = std::numeric_limits<double>::infinity()) {
+        const variable &v, const value_type &v0 = value_type(0),
+        const value_type &bl = -std::numeric_limits<value_type>::infinity(),
+        const value_type &bu = std::numeric_limits<value_type>::infinity()) {
         variables_.push_back(v);
         variable_index_.push_back(variables_.size());
 
         // Update decision variable vector sizes
         x0_.emplace_back(v0);
-        xb_.lower.emplace_back(bl);
-        xb_.upper.emplace_back(bu);
+        xb_.m_values.emplace_back(bound_element<value_type>(bl, bu));
     }
 
-    void add_parameter(const variable &p, const double &val = 0.0) {
-        p_idx_map_.add(p);
+    void add_parameter(const variable &p, const value_type &val = 0.0) {
+        parameters_.push_back(p);
+        parameter_index_.push_back(parameters_.size());
         // Update parameter vector sizes
         p_.emplace_back(val);
     }
 
-    const Index &variable_index(const variable &v) const {
-        return x_idx_map_.index(v);
+    index_type variable_index(const variable &v) const {
+        const auto &it = std::find(variables_.begin(), variables_.end(), v);
+        if (it != variables_.end()) {
+            return std::distance(variables_.begin(), it);
+        }
+        throw std::runtime_error("Variable does not exist");
     }
 
-    std::vector<Index> getDecisionvariableIndices(
-        const variable_vector_t &x) const {
-        std::vector<Index> indices = {};
-        for (const auto &xi : x) {
-            indices.emplace_back(getDecisionvariableIndex(xi));
+    std::vector<index_type> variable_indices(
+        const std::vector<variable> &v) const {
+        std::vector<index_type> indices = {};
+        for (const auto &vi : v) {
+            indices.emplace_back(variable_index(vi));
         }
         return indices;
     }
 
-    const Index &getParameterIndex(const variable &p) const {
-        return p_idx_map_.index(p);
+    index_type parameter_index(const variable &p) const {
+        const auto &it = std::find(parameters_.begin(), parameters_.end(), p);
+        if (it != parameters_.end()) {
+            return std::distance(parameters_.begin(), it);
+        }
+        throw std::runtime_error("Parameter does not exist");
     }
 
-    std::vector<Index> getParameterIndices(const variable_vector_t &p) const {
-        std::vector<Index> indices = {};
+    std::vector<index_type> parameter_indices(
+        const std::vector<variable> &p) const {
+        std::vector<index_type> indices = {};
         for (const auto &pi : p) {
-            indices.emplace_back(getParameterIndex(pi));
+            indices.emplace_back(parameter_index(pi));
         }
         return indices;
     }
@@ -201,70 +208,82 @@ class MathematicalProgram : public ConstraintBindingSet, public CostBindingSet {
         set(xb_.lower, variable_index(v), lb);
     }
 
-    // Costs
+    // costs
+    typedef cost<value_type> cost_t;
+    typedef linear_cost<value_type> linear_cost_t;
+    typedef quadratic_cost<value_type> quadratic_cost_t;
 
-    typedef typename cost_traits<cost<value_type>>::ptr_type cost_ptr;
-    typedef typename cost_traits<cost<value_type>>::ptr_type cost_input;
+    template <typename CostType>
+    void add_cost(const typename evaluator_traits<CostType>::shared_ptr &cost,
+                  const std::vector<std::vector<variable>> &x,
+                  const std::vector<std::vector<variable>> &p) {
+        // Create binding
+        std::vector<std::vector<index_type>> indices = {};
+        for (index_type i = 0; i < x.size(); ++i) {
+            indices.push_back(variable_indices(x[i]));
+        }
+        for (index_type i = 0; i < p.size(); ++i) {
+            indices.push_back(parameter_indices(p[i]));
+        }
 
-    void addCost(const cost_ptr &c, const cost_input &in) {
-        // Create a binding for the constraint
-        costs_generic_.push_back(Binding<cost<value_type>>(con, in));
+        // Create binding
+        add_cost_binding(binding<CostType>(cost, indices));
     }
 
-    typedef typename std::vector<Binding<LinearCost<value_type>>>
-        linear_cost_vector;
-
-    const linear_cost_vector &linearCosts() const { return costs_linear_; }
-
-    typedef
-        typename cost_traits<LinearCost<value_type>>::ptr_type linear_cost_ptr;
-
-    void addLinearCost(const linear_cost_ptr &c, const cost_input &in) {
-        // Create a binding for the constraint
-        costs_linear_.push_back(Binding<LinearCost<value_type>>(con, in));
+    void add_cost_binding(const binding<cost_t> &binding) {
+        costs_generic_.push_back(binding);
     }
 
-    std::vector<Binding<Cost>> getAllCosts() const {
-        std::vector<Binding<Cost>> vec;
+    void add_cost_binding(const binding<linear_cost_t> &binding) {
+        costs_linear_.push_back(binding);
+    }
+
+    void add_cost_binding(const binding<quadratic_cost_t> &binding) {
+        costs_quadratic_.push_back(binding);
+    }
+
+    std::vector<binding<cost_t>> get_all_costs() const {
+        std::vector<binding<cost_t>> vec;
         vec.insert(vec.begin(), costs_generic_.begin(), costs_generic_.end());
         vec.insert(vec.end(), costs_linear_.begin(), costs_linear_.end());
-        vec.insert(vec.end(), quadratic_.begin(), quadratic_.end());
+        vec.insert(vec.end(), costs_quadratic_.begin(), costs_quadratic_.end());
         // Return vector of all costs
         return vec;
     }
 
-    // Constraints
+    // constraints
 
-    typedef typename constraint_traits<constraint<value_type>>::ptr_type
-        constraint_ptr;
-    typedef typename constraint_traits<constraint<value_type>>::ptr_type
-        constraint_input;
+    typedef constraint<value_type> constraint_t;
+    typedef linear_constraint<value_type> linear_constraint_t;
 
-    void addConstraint(const constraint_ptr &c, const constraint_input &in) {
-        // Create a binding for the constraint
-        constraints_generic_.push_back(
-            Binding<constraint<value_type>>(con, in));
+    template <typename ConstraintType>
+    void add_constraint(
+        const typename constraint_traits<ConstraintType>::shared_ptr &cost,
+        const std::vector<std::vector<variable>> &x,
+        const std::vector<std::vector<variable>> &p) {
+        // Create binding
+        std::vector<std::vector<index_type>> indices = {};
+        for (index_type i = 0; i < x.size(); ++i) {
+            indices.push_back(variable_indices(x[i]));
+        }
+        for (index_type i = 0; i < p.size(); ++i) {
+            indices.push_back(parameter_indices(p[i]));
+        }
+
+        // Create binding
+        add_constraint_binding(binding<ConstraintType>(cost, indices));
     }
 
-    typedef typename std::vector<Binding<LinearConstraint<value_type>>>
-        linear_constraint_vector;
-
-    const linear_constraint_vector &linearCosts() const {
-        return constraints_linear_;
+    void add_constraint_binding(const binding<constraint_t> &binding) {
+        constraints_generic_.push_back(binding);
     }
 
-    typedef typename constraint_traits<LinearConstraint<value_type>>::ptr_type
-        linear_constraint_ptr;
-
-    void addLinearConstraint(const linear_constraint_ptr &c,
-                             const cost_input &in) {
-        // Create a binding for the constraint
-        constraints_linear_.push_back(
-            Binding<LinearConstraint<value_type>>(con, in));
+    void add_constraint_binding(const binding<linear_constraint_t> &binding) {
+        constraints_linear_.push_back(binding);
     }
 
-    std::vector<Binding<Constraint>> getAllConstraints() const {
-        std::vector<Binding<Constraint>> vec;
+    std::vector<binding<constraint_t>> get_all_constraints() const {
+        std::vector<binding<constraint_t>> vec;
         vec.insert(vec.begin(), constraints_generic_.begin(),
                    constraints_generic_.end());
         vec.insert(vec.end(), constraints_linear_.begin(),
@@ -279,30 +298,30 @@ class MathematicalProgram : public ConstraintBindingSet, public CostBindingSet {
     // where it can be overwritten or something?
 
     // Name
-    String name_;
+    string_type name_;
 
     // Decision variables initial value
     std::vector<value_type> x0_;
     // Decision variable bounds
-    Bounds<value_type> xb_;
+    vector_bounds<value_type> xb_;
 
-    std::vector<variable_t> variables_;
+    std::vector<variable> variables_;
     std::vector<std::size_t> variable_index_;
 
     // Parameter values
-    std::vector<double> p_;
+    std::vector<value_type> p_;
 
-    std::vector<variable_t> parameters_;
+    std::vector<variable> parameters_;
     std::vector<std::size_t> parameter_index_;
 
-    // Constraint bindings
-    std::vector<Binding<constraint<value_type>>> constraints_generic_;
-    std::vector<Binding<LinearConstraint<value_type>>> constraints_linear_;
+    // constraint bindings
+    std::vector<binding<constraint_t>> constraints_generic_;
+    std::vector<binding<linear_constraint_t>> constraints_linear_;
 
-    // Cost bindings
-    std::vector<Binding<cost<value_type>>> costs_generic_;
-    std::vector<Binding<LinearCost<value_type>>> costs_linear_;
-    std::vector<Binding<QuadraticCost<value_type>>> quadratic_;
+    // cost bindings
+    std::vector<binding<cost_t>> costs_generic_;
+    std::vector<binding<linear_cost_t>> costs_linear_;
+    std::vector<binding<quadratic_cost_t>> costs_quadratic_;
 };
 
 }  // namespace bopt

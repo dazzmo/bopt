@@ -12,7 +12,7 @@ class OptionsBase {
    public:
     template <typename T>
     using OptionsMap = std::unordered_map<std::string, T>;
-    
+
     void setNumericalOption(const std::string& name, const double& val) {
         if (opt_num_.find(name) != opt_num_.end()) {
             opt_num_.at(name) = val;
@@ -109,6 +109,30 @@ struct ProgramResults {
     double* lam;
 };
 
+template <class ValueType, class IndexType>
+struct solver_information {
+    typedef ValueType value_type;
+    typedef IndexType index_type;
+
+    // Whether the solver was successful
+    bool success;
+    // Number of iterations performed
+    index_type iterations;
+    // Execution time
+    value_type execution_time;
+};
+
+template <class ValueType, class IndexType>
+struct solver_options {
+    typedef ValueType value_type;
+    typedef IndexType index_type;
+
+    // Number of iterations performed
+    index_type max_iterations;
+    // Execution time (s)
+    value_type max_execution_time;
+};
+
 /**
  * @brief Solver base class
  *
@@ -121,73 +145,25 @@ struct ProgramResults {
  * Any other information could be
  *
  */
-class SolverBase {
+template <class ValueType, class IntegerType = int,
+          class IndexType = std::size_t>
+class solver {
    public:
-    struct ResultsData {
-        // Optimal value for x
-        VectorX x;
+    typedef ValueType value_type;
+    typedef IntegerType integer_type;
+    typedef IndexType index_type;
 
-        // Objective value at optimal solution
-        Scalar objective_value;
+    solver(const mathematical_program<value_type>& program) : m_program(program) {}
+    ~solver() {}
 
-        // Constraint vector
-        VectorX constraint_vector;
-    };
+    void solve() {}
 
-    struct SolverInformation {
-        // Whether the solver was successful
-        bool success;
-        // Number of iterations performed
-        Index iterations;
-        Scalar execution_time;
-    };
-
-    struct SolverOptions {
-        Index max_iterations;
-    };
-
-    ResultsData getResults() const { return ResultsData(); }
-
-    SolverInformation getSolverInformation() const {
-        return SolverInformation();
-    }
-
-    SolverOptions getSolverOptions() const { return SolverOptions(); }
-    void setSolverOptions(const SolverOptions& options) {}
-
-    SolverBase(MathematicalProgram& program) : program_(program) {}
-
-    ~SolverBase() {}
-
-    void solve(const MathematicalProgram& program) {}
-
-    // solver.solve();
-    // solver.getResults();
-
-    MathematicalProgram& program() { return program_; }
+    mathematical_program<value_type>& program() { return m_program; }
 
    private:
-    bool is_solved_ = false;
     // Reference to current program in solver
-    MathematicalProgram& program_;
+    mathematical_program<value_type>& m_program;
 };
-
-enum class Operation { SET = 0, ADD };
-
-/**
- * @brief Update the sparse matrix with a block, where the rows and entries of
- * the block are indexed in the sparse matrix using the provided index vectors.
- *
- * @param M
- * @param block
- * @param row_indices
- * @param col_indices
- */
-void updateSparseMatrix(Eigen::SparseMatrix<double>& M,
-                        const Eigen::MatrixXd& block,
-                        const std::vector<Eigen::Index>& row_indices,
-                        const std::vector<Eigen::Index>& col_indices,
-                        const Operation& operation = Operation::SET);
 
 }  // namespace solvers
 }  // namespace bopt

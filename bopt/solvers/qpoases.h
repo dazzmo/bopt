@@ -3,6 +3,7 @@
 
 // #ifdef WITH_QPOASES
 
+#include <boost/numeric/ublas/matrix.hpp>
 #include <qpOASES.hpp>
 
 #include "bopt/logging.hpp"
@@ -12,6 +13,8 @@
 
 namespace bopt {
 namespace solvers {
+
+namespace ublas = boost::numeric::ublas;
 
 class qpOASESOptions : public OptionsBase {
    public:
@@ -60,7 +63,7 @@ class qpOASESOptions : public OptionsBase {
  * @brief Details for the qpOASES solver
  *
  */
-struct qpOASESSolverInfo : public SolverBase::SolverInformation {
+struct qpoases_info : public solver_information<double, std::size_t> {
     qpOASES::QProblemStatus status;
     // Return status for the qpOASES solver
     int returnStatus;
@@ -69,60 +72,23 @@ struct qpOASESSolverInfo : public SolverBase::SolverInformation {
     // Number of working sets performed
     int nWSR;
 
-    Index number_of_solves = 0;
+    index_type number_of_solves = 0;
 };
 
-struct qpOASESSolverOptions : public SolverBase::SolverOptions {
+struct qpoases_options : public solver_options<double, std::size_t> {
     // Number of working sets performed
     int nWSR;
 
     bool perform_hotstart;
 };
 
-struct qpOASESSolverResults : public SolverBase::ResultsData {};
-
-class qpOASESSparseSolverInstance {
-   public:
-    qpOASESSparseSolverInstance() = default;
-    qpOASESSparseSolverInstance(MathematicalProgram& program);
-
-    ~qpOASESSparseSolverInstance();
-
-    void reset();
-    void solve();
-
-   private:
-    std::unique_ptr<qpOASES::QProblem> qp_;
-
-    struct matrix_data {
-        CompressedColumnStorageFormat H;
-        CompressedColumnStorageFormat g;
-        CompressedColumnStorageFormat A;
-        CompressedColumnStorageFormat lbA;
-        CompressedColumnStorageFormat ubA;
-    };
-
-    struct qpoases_matrix_data {
-        qpOASES::SparseMatrix H;
-        qpOASES::SparseMatrix g;
-        qpOASES::SparseMatrix A;
-        qpOASES::SparseMatrix lbA;
-        qpOASES::SparseMatrix ubA;
-    };
-
-    matrix_data matrix_data_;
-    qpoases_matrix_data qpoases_matrix_data_;
-
-    qpOASESSolverInfo info_;
-    qpOASESSolverOptions options_;
-    qpOASESSolverResults results_;
-};
-
 template <typename MatrixType, typename VectorType>
 struct qpoases_data {
     MatrixType H;
     VectorType g;
+
     MatrixType A;
+
     VectorType ubA;
     VectorType lbA;
 
@@ -130,35 +96,20 @@ struct qpoases_data {
     VectorType ubx;
 };
 
-class qpOASESSolverInstance : public SolverBase {
+class qpoases_solver_instance : public solver<double, std::size_t> {
    public:
     typedef ublas::matrix<double> matrix_data_type;
     typedef std::vector<double> vector_data_type;
 
     qpoases_data<matrix_data_type, vector_data_type> data;
 
-    qpOASESSolverInstance() = default;
-    qpOASESSolverInstance(MathematicalProgram& prog);
+    qpoases_solver_instance() = default;
+    qpoases_solver_instance(mathematical_program<double>& prog);
 
-    ~qpOASESSolverInstance();
+    ~qpoases_solver_instance();
 
     void reset();
     void solve();
-
-    /**
-     * @brief Get the current return status of the program
-     *
-     * @return const qpOASES::QProblemStatus&
-     */
-    qpOASES::QProblemStatus GetProblemStatus() const;
-
-    /**
-     * @brief Returns the primal solution of the most recent program, if
-     * successful, otherwise returns the last successful primal solution.
-     *
-     * @return const Eigen::VectorXd&
-     */
-    const Eigen::VectorXd& getPrimalSolution();
 
    private:
     bool first_solve_ = true;
@@ -167,11 +118,8 @@ class qpOASESSolverInstance : public SolverBase {
     std::unique_ptr<qpOASES::SQProblem> qp_dense_;
     std::unique_ptr<qpOASES::SparseSolver> qp_sparse_;
 
-    qpOASESSolverResults results_;
-    qpOASESSolverOptions options_;
-    qpOASESSolverInfo info_;
-
-    QPOASESProgramData data_;
+    qpoases_options options_;
+    qpoases_info info_;
 };
 
 }  // namespace solvers

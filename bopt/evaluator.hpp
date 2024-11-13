@@ -56,6 +56,19 @@ struct evaluator_out_info {
     value_type *values;
 };
 
+template <typename EvaluatorInfo>
+struct ccs_traits {
+    typedef typename evaluator_traits<EvaluatorInfo>::index_type index_type;
+
+    constexpr index_type *indices(EvaluatorInfo &info) const {
+        return info.sparsity_out + 2;
+    }
+
+    constexpr index_type *indptr(EvaluatorInfo &info) const {
+        return info.sparsity_out + 2;
+    }
+};
+
 template <typename Evaluator>
 struct evaluator_out_data {
     typedef typename evaluator_traits<Evaluator>::value_type value_type;
@@ -66,19 +79,20 @@ struct evaluator_out_data {
  * @brief Evaluator class that computes an output given an input.
  *
  */
-template <typename T, typename I = std::size_t,
+template <typename ValueType, typename IntegerType = int,
+          typename IndexType = std::size_t,
           template <class> class VectorType = std::vector>
 class evaluator {
    public:
-    typedef T value_type;
-    typedef I index_type;
+    typedef ValueType value_type;
+    typedef IndexType index_type;
+    typedef IntegerType integer_type;
 
    public:
-    virtual index_type operator()(const value_type **arg, value_type *ret) = 0;
+    virtual integer_type operator()(const value_type **arg,
+                                    value_type *ret) = 0;
 
-    virtual index_type info(evaluator_out_info<evaluator> &info) {
-        return 0;
-    }
+    virtual integer_type info(evaluator_out_info<evaluator> &info) { return 0; }
 
     // Output data buffer
     VectorType<value_type> buffer;

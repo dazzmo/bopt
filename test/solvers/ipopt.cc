@@ -46,7 +46,7 @@ class BasicObjective {
     LOG(INFO) << program.g();
   }
 
-  dopt::MathematicalProgram program;
+  dopt::mathematical_program program;
 
  private:
 };

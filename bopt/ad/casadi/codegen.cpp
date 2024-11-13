@@ -3,7 +3,7 @@
 namespace bopt {
 namespace casadi {
 
-std::shared_ptr<bopt::DynamicLibraryHandler> codegen(
+std::shared_ptr<bopt::dynamic_library_handler> codegen(
     const ::casadi::Function &f, const std::string &dir) {
     // Get current path
     auto path = std::filesystem::current_path();
@@ -34,8 +34,8 @@ std::shared_ptr<bopt::DynamicLibraryHandler> codegen(
     }
 
     // Provide dynamic library handler for the provided shared library
-    std::shared_ptr<bopt::DynamicLibraryHandler> handle =
-        std::make_shared<bopt::DynamicLibraryHandler>("./" + lib_name + ".so");
+    std::shared_ptr<bopt::dynamic_library_handler> handle =
+        std::make_shared<bopt::dynamic_library_handler>("./" + lib_name + ".so");
 
     // Return back to normal path
     std::filesystem::current_path(path);

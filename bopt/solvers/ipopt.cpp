@@ -3,7 +3,7 @@
 namespace bopt {
 namespace solvers {
 
-IpoptSolverInstance::IpoptSolverInstance(MathematicalProgram& prog)
+IpoptSolverInstance::IpoptSolverInstance(mathematical_program& prog)
     : Ipopt::TNLP(), SolverBase(prog) {}
 
 bool IpoptSolverInstance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,

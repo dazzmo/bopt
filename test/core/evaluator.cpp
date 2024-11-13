@@ -1,11 +1,11 @@
+#define BOPT_USE_PROFILING
 #include "bopt/evaluator.hpp"
 
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
-#include <list>
-
 #include <Eigen/Core>
+#include <list>
 
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
@@ -18,8 +18,7 @@ class TestEvaluator : public bopt::evaluator<double, std::size_t, std::vector> {
         return index_type(0);
     }
 
-    index_type info(
-        bopt::evaluator_out_info<TestEvaluator> &info) {
+    index_type info(bopt::evaluator_out_info<TestEvaluator> &info) {
         info.m = 1;
         info.n = 1;
         info.nnz = 1;
@@ -30,16 +29,14 @@ class TestEvaluator : public bopt::evaluator<double, std::size_t, std::vector> {
 };
 
 TEST(Evaluator, Initialise) {
-    bopt::Profiler test("Initialise");
+    bopt::profiler test("Initialise");
     TestEvaluator eval;
-
     bopt::evaluator_out_info<TestEvaluator> info;
     eval.info(info);
 
     EXPECT_EQ(info.m, 1);
     EXPECT_EQ(info.n, 1);
     EXPECT_EQ(info.nnz, 1);
-
 }
 
 int main(int argc, char **argv) {
@@ -48,6 +45,6 @@ int main(int argc, char **argv) {
     testing::InitGoogleTest(&argc, argv);
     FLAGS_logtostderr = 1;
     int status = RUN_ALL_TESTS();
-    bopt::Profiler summary;
+    bopt::profiler summary;
     return status;
 }

@@ -13,6 +13,7 @@ template <typename T>
 struct variable_traits {
     typedef typename T::id_type id_type;
     typedef typename T::name_type name_type;
+    typedef typename T::type type;
 };
 
 struct variable_type {
@@ -21,9 +22,9 @@ struct variable_type {
 
 template <typename T>
 struct variable_attributes {
-    typedef typename variable_type::type type;
+    typedef typename variable_traits<T>::variable_type type_t;
 
-    const type &type(const T &variable) const { return variable.type(); }
+    const type_t &type(const T &variable) const { return variable.type(); }
 };
 
 /**
@@ -34,7 +35,7 @@ class variable {
    public:
     typedef std::size_t id_type;
     typedef std::string name_type;
-    typedef variable_type::type variable_type;
+    typedef variable_type::type type;
 
     variable() = default;
 
@@ -54,11 +55,8 @@ class variable {
    private:
     id_type id_;
     name_type name_;
-    variable_type type_ = variable_type::Continuous;
+    type type_ = type::Continuous;
 };
-
-typedef typename variable_traits<variable>::id_type variable_t;
-typedef std::vector<variable> variable_vector_t;
 
 // Operator overloading
 std::ostream &operator<<(std::ostream &os, variable var);
