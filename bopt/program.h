@@ -4,8 +4,7 @@
 #include <casadi/casadi.hpp>
 
 #include "bopt/ad/casadi/codegen.hpp"
-#include "bopt/ad/casadi/eigen.hpp"
-#include "bopt/binding.h"
+#include "bopt/binding.hpp"
 #include "bopt/common.hpp"
 #include "bopt/constraints.hpp"
 #include "bopt/costs.hpp"
@@ -19,14 +18,15 @@ namespace solvers {
 class SolverBase;
 }
 
-template <class MatrixContainer, class bindingType, class MatrixElementInserter>
+template <class MatrixContainer, class EvaluatorType,
+          class MatrixElementInserter>
 void getJacobianStructure(MatrixContainer &J,
-                          std::vector<binding<bindingType>> &bindings,
+                          std::vector<binding<EvaluatorType>> &bindings,
                           const MatrixElementInserter &inserter) {
     // Typdefs
-    typedef typename evaluator_traits<bindingType>::index_type index_type;
-    typedef typename evaluator_traits<bindingType>::value_type value_type;
-    typedef evaluator_out_info<bindingType> evaluator_out_info_t;
+    typedef typename evaluator_traits<EvaluatorType>::index_type index_type;
+    typedef typename evaluator_traits<EvaluatorType>::value_type value_type;
+    typedef evaluator_out_info<EvaluatorType> evaluator_out_info_t;
 
     index_type cnt = index_type(0);
     for (auto &b : bindings) {
@@ -57,14 +57,15 @@ void getJacobianStructure(MatrixContainer &J,
     }
 }
 
-template <class MatrixContainer, class bindingType, class MatrixElementInserter>
+template <class MatrixContainer, class EvaluatorType,
+          class MatrixElementInserter>
 void getHessianStructure(MatrixContainer &H,
-                         std::vector<binding<bindingType>> &bindings,
+                         std::vector<binding<EvaluatorType>> &bindings,
                          const MatrixElementInserter &inserter) {
     // Typdefs
-    typedef typename evaluator_traits<bindingType>::index_type index_type;
-    typedef typename evaluator_traits<bindingType>::value_type value_type;
-    typedef evaluator_out_info<bindingType> evaluator_out_info_t;
+    typedef typename evaluator_traits<EvaluatorType>::index_type index_type;
+    typedef typename evaluator_traits<EvaluatorType>::value_type value_type;
+    typedef evaluator_out_info<EvaluatorType> evaluator_out_info_t;
 
     for (auto &b : bindings) {
         // For each non-zero element of the hessian, get their variable
@@ -93,9 +94,12 @@ void getHessianStructure(MatrixContainer &H,
 }
 
 /**
- * @brief Represents a generic mathematical program of the form \f$ \min f(x, p)
- * s.t. g_l \le g(x) \le q_u, x_l \le x \le x_u \f$
+ * @brief Represents a generic mathematical program with constraints and costs.
  *
+ * This class represents an optimisation problem of the form:
+ * \f$ \min f(x, p) \text{ s.t. } g_l \le g(x) \le q_u, x_l \le x \le x_u \f$
+ *
+ * @tparam ValueType Type of values in the program (e.g., double).
  */
 template <typename ValueType = double>
 class mathematical_program {
@@ -106,44 +110,84 @@ class mathematical_program {
     typedef std::size_t index_type;
     typedef std::string string_type;
 
+    /**
+     * @brief Default constructor for the mathematical program.
+     */
     mathematical_program() = default;
+
+    /**
+     * @brief Constructs a mathematical program with a specified name.
+     *
+     * @param name Name of the mathematical program.
+     */
     mathematical_program(const string_type &name) : name_(name) {}
 
     /**
-     * @brief Name of the program
+     * @brief Gets the name of the mathematical program.
      *
-     * @return const string_type&
+     * @return const string_type& Reference to the program's name.
      */
     const string_type &name() const { return name_; }
 
+    /**
+     * @brief Gets the number of decision variables in the program.
+     *
+     * @return index_type Number of decision variables.
+     */
     index_type n_variables() const { return variables_.size(); }
+
+    /**
+     * @brief Gets the number of parameters in the program.
+     *
+     * @return index_type Number of parameters.
+     */
     index_type n_parameters() const { return parameters_.size(); }
+    /**
+     * @brief Gets the number of cost functions in the program.
+     *
+     * @return index_type Number of cost functions.
+     */
     index_type n_costs() const { return get_all_costs().size(); }
+    /**
+     * @brief Gets the number of constraints in the program.
+     *
+     * @return index_type Number of constraints.
+     */
     index_type n_constraints() const { return get_all_constraints().size(); }
 
     /**
-     * @brief Decision variables initial values
+     * @brief Gets the initial values of the decision variables.
      *
-     * @return const std::vector<double>&
+     * @return const std::vector<value_type>& Reference to the vector of initial
+     * values.
      */
     const std::vector<value_type> &variable_initial_values() const {
         return x0_;
     }
 
     /**
-     * @brief Decision variables upper bound vector
+     * @brief Gets the bounds for the decision variables.
      *
-     * @return const std::vector<value_type>&
+     * @return const vector_bounds<value_type>& Reference to the variable
+     * bounds.
      */
     const vector_bounds<value_type> &variable_bounds() const { return xb_; }
 
     /**
-     * @brief Parameter vector
+     * @brief Gets the parameter vector.
      *
-     * @return const std::vector<value_type>&
+     * @return const std::vector<value_type>& Reference to the parameter vector.
      */
     const std::vector<value_type> &p() const { return p_; }
 
+    /**
+     * @brief Adds a decision variable to the program.
+     *
+     * @param v Variable to add.
+     * @param v0 Initial value for the variable.
+     * @param bl Lower bound for the variable.
+     * @param bu Upper bound for the variable.
+     */
     void add_variable(
         const variable &v, const value_type &v0 = value_type(0),
         const value_type &bl = -std::numeric_limits<value_type>::infinity(),
@@ -156,6 +200,13 @@ class mathematical_program {
         xb_.m_values.emplace_back(bound_element<value_type>(bl, bu));
     }
 
+    /**
+     * @brief Adds a parameter to the program.
+     *
+     *
+     * @param p Parameter to add.
+     * @param val Value to initialise the parameter to.
+     */
     void add_parameter(const variable &p, const value_type &val = 0.0) {
         parameters_.push_back(p);
         parameter_index_.push_back(parameters_.size());
@@ -270,10 +321,9 @@ class mathematical_program {
     typedef bounding_box_constraint<value_type> bounding_box_constraint_t;
 
     template <typename ConstraintType>
-    void add_constraint(
-        const typename constraint_traits<ConstraintType>::shared_ptr &cost,
-        const std::vector<std::vector<variable>> &x,
-        const std::vector<std::vector<variable>> &p) {
+    void add_constraint(const std::shared_ptr<ConstraintType> &cost,
+                        const std::vector<std::vector<variable>> &x,
+                        const std::vector<std::vector<variable>> &p) {
         // Create binding
         std::vector<std::vector<index_type>> indices = {};
         for (index_type i = 0; i < x.size(); ++i) {

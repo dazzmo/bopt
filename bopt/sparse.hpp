@@ -25,17 +25,16 @@ namespace ublas = boost::numeric::ublas;
  * @param col_indices
  * @param inserter
  */
-template <class MatrixContainer, class Evaluator, typename IndexVectorType,
-          class MatrixInserterFunction>
-void set_block(MatrixContainer &matrix,
-               const evaluator_out_info<Evaluator> &block_info,
-               const evaluator_out_data<Evaluator> &block_data,
+template <class MatrixContainer, class EvaluatorOutInfo, class EvaluatorOutData,
+          typename IndexVectorType, class MatrixInserterFunction>
+void set_block(MatrixContainer &matrix, const EvaluatorOutInfo &block_info,
+               const EvaluatorOutData &block_data,
                const IndexVectorType &row_indices,
                const IndexVectorType &col_indices,
                const MatrixInserterFunction &inserter) {
     // Typedefs
     typedef MatrixContainer matrix_type;
-    typedef typename evaluator_out_info<Evaluator>::index_type index_type;
+    typedef typename EvaluatorOutInfo::index_type index_type;
 
     assert(row_indices.size() == block_info.m &&
            col_indices.size() == block_info.n &&
@@ -58,10 +57,8 @@ void set_block(MatrixContainer &matrix,
         LOG(INFO) << "Sparse";
 
         // Access elements of the evaluator block
-        index_type *colind =
-            ccs_traits<evaluator_out_info<Evaluator>>::indices(block_info);
-        index_type *indices =
-            ccs_traits<evaluator_out_info<Evaluator>>::indptr(block_info);
+        index_type *colind = ccs_traits<EvaluatorOutInfo>::indices(block_info);
+        index_type *indices = ccs_traits<EvaluatorOutInfo>::indptrs(block_info);
 
         for (index_type col = 0; col < block_info.n; ++col) {
             index_type start = colind[col];

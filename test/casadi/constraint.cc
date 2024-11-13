@@ -22,7 +22,7 @@ TEST(CasadiConstraint, Constraint) {
     std::shared_ptr<bopt::constraint<double>> c =
         std::make_shared<bopt::casadi::constraint<double>>(ex, x, sym());
 
-    bopt::evaluator_out_info<bopt::constraint<double>> info;
+    bopt::evaluator_out_info<typename bopt::constraint<double>::evaluator_t> info;
     c->jac_info(info);
 
     LOG(INFO) << info.n;

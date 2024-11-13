@@ -45,10 +45,10 @@ class binding {
     typedef typename evaluator_traits<Evaluator>::index_type index_type;
     typedef I id_type;
 
-    typedef Evaluator evaluator_type;
+    typedef Evaluator evaluator_t;
 
-    typedef typename std::unique_ptr<evaluator_type> evaluator_unique_ptr;
-    typedef typename std::shared_ptr<evaluator_type> evaluator_shared_ptr;
+    typedef typename std::unique_ptr<evaluator_t> evaluator_unique_ptr;
+    typedef typename std::shared_ptr<evaluator_t> evaluator_shared_ptr;
 
     typedef std::vector<I> index_vector;
 
@@ -64,8 +64,8 @@ class binding {
             const std::vector<index_vector> &input_indices)
         : input_indices({}), evaluator_(obj) {
         // Computes the indices within the map that the mapping relates to
-        //   todo - fix this
-        // assert(obj->n_in == input_indices.size() &&
+        // assert(evaluator_attributes<evaluator_t>::n_in(*obj) ==
+        // input_indices.size() &&
         //        "Incorrect number of input index vectors for evaluator
         //        binding");
         this->input_indices = input_indices;
@@ -101,6 +101,30 @@ class binding {
    private:
     evaluator_shared_ptr evaluator_;
 };
+
+// template <class EvaluatorType>
+// void evaluate_binding(binding<EvaluatorType> &binding) {
+//     typedef typename EvaluatorType::evaluator_t evaluator_info_t;
+//     typedef typename EvaluatorType::evaluator_t evaluator_data_t;
+    
+//     auto x_indices = binding.input_indices[0];
+//     auto p_indices = binding.input_indices[1];
+
+//     // todo - shorten this
+//     std::vector<double> pi;
+//     for (const auto &i : p_indices) {
+//         // Create vector of input
+//         pi.emplace_back(program().p()[i]);
+//     }
+
+//     evaluator_info_t info;
+//     evaluator_out_data<linear_cost<double>> a_data(a_info);
+//     binding.get()->a_info(a_info);
+
+//     // Evaluate coefficients for the cost a^T x + b
+//     binding.get()->a(std::vector<const double *>({pi.data()}).data(),
+//                      {a_data.values.data()});
+// }
 
 }  // namespace bopt
 

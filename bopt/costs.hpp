@@ -25,11 +25,13 @@ template <class ValueType, class IntegerType = int,
           class IndexType = std::size_t>
 class cost : public evaluator<ValueType, IntegerType, IndexType> {
    public:
-    typedef evaluator<ValueType, IntegerType, IndexType> Base;
+    typedef evaluator<ValueType, IntegerType, IndexType> evaluator_t;
 
-    typedef typename Base::value_type value_type;
-    typedef typename Base::index_type index_type;
-    typedef typename Base::integer_type integer_type;
+    typedef typename evaluator_t::value_type value_type;
+    typedef typename evaluator_t::index_type index_type;
+    typedef typename evaluator_t::integer_type integer_type;
+    typedef typename evaluator_t::out_info_t out_info_t;
+    typedef typename evaluator_t::out_data_t out_data_t;
 
     typedef IndexType id_type;
 
@@ -46,9 +48,9 @@ class cost : public evaluator<ValueType, IntegerType, IndexType> {
         return 0;
     }
 
-    virtual integer_type jac_info(evaluator_out_info<cost> &info) { return 0; }
+    virtual integer_type jac_info(out_info_t &info) { return 0; }
 
-    virtual integer_type hes_info(evaluator_out_info<cost> &info) { return 0; }
+    virtual integer_type hes_info(out_info_t &info) { return 0; }
 
    private:
 };
@@ -68,19 +70,24 @@ class linear_cost : public cost<T> {
     typedef typename cost<T>::index_type index_type;
     typedef typename cost<T>::integer_type integer_type;
 
+    typedef typename cost<T>::evaluator_t evaluator_t;
+
+    typedef typename evaluator_t::out_info_t out_info_t;
+    typedef typename evaluator_t::out_data_t out_data_t;
+
     linear_cost() = default;
 
     virtual integer_type a(const value_type **arg, value_type *res) {
         return 0;
     }
-    virtual integer_type a_info(evaluator_out_info<linear_cost> &info) {
+    virtual integer_type a_info(out_info_t &info) {
         return 0;
     }
 
     virtual integer_type b(const value_type **arg, value_type *res) {
         return 0;
     }
-    virtual integer_type b_info(evaluator_out_info<linear_cost> &info) {
+    virtual integer_type b_info(out_info_t &info) {
         return 0;
     }
 
@@ -100,18 +107,23 @@ class quadratic_cost : public cost<T> {
     typedef typename cost<T>::value_type value_type;
     typedef typename cost<T>::integer_type integer_type;
 
+    typedef typename cost<T>::evaluator_t evaluator_t;
+
+    typedef typename evaluator_t::out_info_t out_info_t;
+    typedef typename evaluator_t::out_data_t out_data_t;
+
     virtual integer_type A(const double **arg, double *res) { return 0; }
-    virtual integer_type A_info(evaluator_out_info<quadratic_cost> &info) {
+    virtual integer_type A_info(out_info_t &info) {
         return 0;
     }
 
     virtual integer_type b(const double **arg, double *res) { return 0; }
-    virtual integer_type b_info(evaluator_out_info<quadratic_cost> &info) {
+    virtual integer_type b_info(out_info_t &info) {
         return 0;
     }
 
     virtual integer_type c(const double **arg, double *res) { return 0; }
-    virtual integer_type c_info(evaluator_out_info<quadratic_cost> &info) {
+    virtual integer_type c_info(out_info_t &info) {
         return 0;
     }
 

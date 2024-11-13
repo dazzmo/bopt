@@ -10,7 +10,6 @@ option(WITH_IPOPT "Build with IPOPT functionality" OFF)
 # Collect source files
 SET(${PROJECT_NAME}_SOURCES
 solvers/base.cpp
-solvers/qpoases.cpp
 # bounds.cc
 profiler.cpp
 ad/casadi/codegen.cpp
@@ -38,17 +37,22 @@ if(bopt_USE_PROFILING)
   add_definitions(-Dbopt_USE_PROFILING)
 endif()
 
+# Optional solvers to include 
+
+# qpOASES
 if(WITH_QPOASES)
   message(STATUS "Including qpOASES as numeric optimization solver")
   find_package(qpOASES REQUIRED)
   list(APPEND ${PROJECT_NAME}_LIBRARIES qpOASES)
+  list(APPEND ${PROJECT_NAME}_SOURCES solvers/qpoases.cpp)
   add_compile_definitions(WITH_QPOASES)
 endif(WITH_QPOASES)
 
+# IPOPT
 if(WITH_IPOPT)
   message(STATUS "Including IPOPT as numeric optimization solver")
   list(APPEND ${PROJECT_NAME}_LIBRARIES ipopt)
-  list(APPEND ${PROJECT_NAME}_SOURCES solvers/ipopt.cc)
+  list(APPEND ${PROJECT_NAME}_SOURCES solvers/ipopt.cpp)
   add_compile_definitions(WITH_IPOPT)
 endif(WITH_IPOPT)
 

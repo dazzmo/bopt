@@ -1,4 +1,4 @@
-#include "bopt/solvers/qpoases.h"
+#include "bopt/solvers/qpoases.hpp"
 
 #include "bopt/sparse.hpp"
 
@@ -55,8 +55,8 @@ void qpoases_solver_instance::solve() {
             pi.emplace_back(program().p()[i]);
         }
 
-        evaluator_out_info<linear_cost<double>> a_info;
-        evaluator_out_data<linear_cost<double>> a_data(a_info);
+        linear_cost<double>::out_info_t a_info;
+        linear_cost<double>::out_data_t a_data(a_info);
         binding.get()->a_info(a_info);
 
         // Evaluate coefficients for the cost a^T x + b
@@ -82,7 +82,7 @@ void qpoases_solver_instance::solve() {
         }
 
         // Evaluate coefficients for the cost a^T x + b
-        evaluator_out_info<quadratic_cost<double>> A_info, b_info;
+        quadratic_cost<double>::out_info_t A_info, b_info;
         binding.get()->A_info(A_info);
         binding.get()->b_info(b_info);
 
@@ -114,9 +114,8 @@ void qpoases_solver_instance::solve() {
         }
 
         // Evaluate coefficients for the cost a^T x + b
-        evaluator_out_info<linear_constraint<double>> A_info, b_info;
-        evaluator_out_data<linear_constraint<double>> A_data(A_info),
-            b_data(b_info);
+        linear_constraint<double>::out_info_t A_info, b_info;
+        linear_constraint<double>::out_data_t A_data(A_info), b_data(b_info);
         binding.get()->A_info(A_info);
         binding.get()->b_info(b_info);
 

@@ -6,39 +6,32 @@
 
 namespace bopt {
 
+struct evaluator_matrix_type {
+    enum type { Dense, Sparse };
+};
+
 template <typename Evaluator>
 struct evaluator_traits {
     typedef typename Evaluator::value_type value_type;
     typedef typename Evaluator::index_type index_type;
+    typedef typename Evaluator::integer_type integer_type;
 };
 
 template <typename Evaluator>
 struct evaluator_attributes {
     typedef typename Evaluator::index_type index_type;
 
-    index_type n_in(const Evaluator &evaluator) const {
+    static constexpr index_type &n_in(const Evaluator &evaluator) {
         return evaluator.n_in();
     }
-};
-
-// template <typename Evaluator>
-// struct evaluator_input_generator {
-//     typedef typename Evaluator::value_type value_type;
-
-//     std::vector<const value_type *> operator()(
-//         std::array<value_type *> &input) {
-//         return std::vector<const value_type *>(input);
-//     }
-// };
-
-struct evaluator_matrix_type {
-    enum type { Dense, Sparse };
 };
 
 template <typename Evaluator>
 struct evaluator_out_info {
     typedef typename evaluator_traits<Evaluator>::index_type index_type;
     typedef typename evaluator_traits<Evaluator>::value_type value_type;
+    typedef typename evaluator_traits<Evaluator>::integer_type integer_type;
+
     typedef evaluator_matrix_type::type matrix_type;
 
     // Whether the output is dense or sparse
@@ -56,6 +49,11 @@ struct evaluator_out_info {
     value_type *values = nullptr;
 };
 
+/**
+ * @brief Column Compressed Storage representation
+ *
+ * @tparam EvaluatorInfo
+ */
 template <typename EvaluatorInfo>
 struct ccs_traits {
     typedef typename evaluator_traits<EvaluatorInfo>::index_type index_type;
@@ -64,7 +62,7 @@ struct ccs_traits {
         return (info.sparsity_out + 2);
     }
 
-    static constexpr index_type *indptr(const EvaluatorInfo &info) {
+    static constexpr index_type *indptrs(const EvaluatorInfo &info) {
         return (info.sparsity_out + 2 + info.m + 1);
     }
 };
@@ -96,19 +94,28 @@ class evaluator {
     typedef ValueType value_type;
     typedef IndexType index_type;
     typedef IntegerType integer_type;
+    typedef evaluator_out_info<evaluator> out_info_t;
+    typedef evaluator_out_data<evaluator> out_data_t;
 
    public:
     virtual integer_type operator()(const value_type **arg,
                                     value_type *ret) = 0;
 
-    virtual integer_type info(evaluator_out_info<evaluator> &info) { return 0; }
+    virtual integer_type info(out_info_t &info) { return 0; }
 
     // Output data buffer
     VectorType<value_type> buffer;
 
+    /**
+     * @brief Number of inputs for the evaluator.
+     *
+     * @return const index_type& Number of inputs required by the evaluator.
+     */
+    const index_type &n_in() const { return n_in_; }
+
    protected:
     // Number of input vectors for the function
-    index_type n_in;
+    index_type n_in_;
     // Number of rows in output matrix
     index_type out_n;
     // Number of columns in output matrix

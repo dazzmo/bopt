@@ -4,14 +4,14 @@
 #include <Eigen/Core>
 #include <memory>
 
-#include "bopt/logging.hpp"
 #include "bopt/bounds.hpp"
 #include "bopt/evaluator.hpp"
+#include "bopt/logging.hpp"
 
 namespace bopt {
 
 template <typename T>
-struct constraint_traits : public evaluator_traits<T> {
+struct constraint_traits {
     typedef typename T::id_type id_type;
 
     typedef typename T::shared_ptr shared_ptr;
@@ -22,20 +22,20 @@ template <typename T>
 struct constraint_attributes {};
 
 template <typename T>
-struct constraint_index_map {};
-
-template <typename T>
 class constraint : public evaluator<T> {
    public:
-    typedef std::size_t id_type;
-
     typedef std::shared_ptr<constraint> shared_ptr;
     typedef std::unique_ptr<constraint> unique_ptr;
 
-    typedef evaluator<T> Base;
-    typedef typename Base::value_type value_type;
-    typedef typename Base::index_type index_type;
-    typedef typename Base::integer_type integer_type;
+    typedef std::size_t id_type;
+
+    typedef evaluator<T> evaluator_t;
+
+    typedef typename evaluator_traits<evaluator_t>::value_type value_type;
+    typedef typename evaluator_traits<evaluator_t>::index_type index_type;
+    typedef typename evaluator_traits<evaluator_t>::integer_type integer_type;
+    typedef typename evaluator_t::out_info_t out_info_t;
+    typedef typename evaluator_t::out_data_t out_data_t;
 
     constraint() = default;
 
@@ -51,18 +51,13 @@ class constraint : public evaluator<T> {
         return integer_type(0);
     }
 
-    virtual integer_type hes(const value_type **arg, const value_type **lam,
-                             value_type *res) {
+    virtual integer_type hes(const value_type **arg, value_type *res) {
         return integer_type(0);
     }
 
-    virtual integer_type jac_info(evaluator_out_info<constraint> &info) {
-        return integer_type(0);
-    }
+    virtual integer_type jac_info(out_info_t &info) { return integer_type(0); }
 
-    virtual integer_type hes_info(evaluator_out_info<constraint> &info) {
-        return integer_type(0);
-    }
+    virtual integer_type hes_info(out_info_t &info) { return integer_type(0); }
 
     vector_bounds<value_type> bounds;
 
@@ -79,6 +74,8 @@ class linear_constraint : public constraint<T> {
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
     typedef typename Base::integer_type integer_type;
+    typedef typename Base::out_info_t out_info_t;
+    typedef typename Base::out_data_t out_data_t;
 
     linear_constraint() = default;
     linear_constraint(const index_type &sz,
@@ -89,7 +86,7 @@ class linear_constraint : public constraint<T> {
         return integer_type(0);
     }
 
-    virtual integer_type A_info(evaluator_out_info<linear_constraint> &info) {
+    virtual integer_type A_info(out_info_t &info) {
         LOG(INFO) << "In default class";
         return integer_type(0);
     }
@@ -98,9 +95,7 @@ class linear_constraint : public constraint<T> {
         return integer_type(0);
     }
 
-    virtual integer_type b_info(evaluator_out_info<linear_constraint> &info) {
-        return integer_type(0);
-    }
+    virtual integer_type b_info(out_info_t &info) { return integer_type(0); }
 
    private:
 };
@@ -112,9 +107,11 @@ class bounding_box_constraint : public constraint<T> {
     typedef std::unique_ptr<bounding_box_constraint> unique_ptr;
 
     typedef constraint<T> Base;
-    typedef typename Base::value_type value_type;
-    typedef typename Base::index_type index_type;
-    typedef typename Base::integer_type integer_type;
+    typedef typename evaluator_traits<Base>::value_type value_type;
+    typedef typename evaluator_traits<Base>::index_type index_type;
+    typedef typename evaluator_traits<Base>::integer_type integer_type;
+    typedef typename Base::out_info_t out_info_t;
+    typedef typename Base::out_data_t out_data_t;
 
     bounding_box_constraint() = default;
 

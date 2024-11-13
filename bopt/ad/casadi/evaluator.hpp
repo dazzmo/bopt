@@ -56,6 +56,8 @@ class evaluator : public bopt::evaluator<T> {
     typedef typename Base::index_type index_type;
     typedef typename Base::integer_type integer_type;
 
+    typedef typename bopt::evaluator_out_info<Base> evaluator_out_info;
+
     /**
      * @brief Construct a new evaluator object from a code-generated casadi
      * function
@@ -92,7 +94,7 @@ class evaluator : public bopt::evaluator<T> {
         getint_t n_in_fcn = (getint_t)dlsym(
             handle_p, (function_name + (std::string) "_n_in").c_str());
         // if (dlerror()) return 1;
-        this->n_in = n_in_fcn();
+        this->n_in_ = n_in_fcn();
 
         /* Number of outputs */
         getint_t n_out_fcn = (getint_t)dlsym(
@@ -106,7 +108,7 @@ class evaluator : public bopt::evaluator<T> {
         mem = checkout();
 
         /* Get sizes of the required work vectors */
-        casadi_int sz_arg = this->n_in, sz_res = n_out, sz_iw = 0, sz_w = 0;
+        casadi_int sz_arg = this->n_in_, sz_res = n_out, sz_iw = 0, sz_w = 0;
         work_t work = (work_t)dlsym(
             handle_p, (function_name + (std::string) "_work").c_str());
 
@@ -150,16 +152,17 @@ class evaluator : public bopt::evaluator<T> {
     integer_type operator()(const value_type **arg, value_type *ret) override {
         w = work_vector_d.data();
         iw = work_vector_i.data();
-        for (int i = 0; i < this->n_in; i++) {
+        for (int i = 0; i < this->n_in_; i++) {
             arg_vec[i] = arg[i];
         }
         res_vec[0] = this->buffer.data();
         ret = this->buffer.data();
-        if (f(arg_vec.data(), res_vec.data(), iw, w, mem)) return integer_type(1);
+        if (f(arg_vec.data(), res_vec.data(), iw, w, mem))
+            return integer_type(1);
         return integer_type(0);
     }
 
-    integer_type info(evaluator_out_info<evaluator> &info) {
+    integer_type info(evaluator_out_info &info) {
         info.m = this->out_m;
         info.n = this->out_n;
         info.nnz = this->out_nnz;

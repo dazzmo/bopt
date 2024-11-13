@@ -1,5 +1,5 @@
 
-#include "bopt/binding.h"
+#include "bopt/binding.hpp"
 
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
