@@ -153,7 +153,8 @@ class solver {
     typedef IntegerType integer_type;
     typedef IndexType index_type;
 
-    solver(const mathematical_program<value_type>& program) : m_program(program) {}
+    // todo - make this const?
+    solver(mathematical_program<value_type>& program) : m_program(program) {}
     ~solver() {}
 
     void solve() {}

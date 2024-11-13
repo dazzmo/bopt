@@ -4,6 +4,7 @@
 #include <Eigen/Core>
 #include <memory>
 
+#include "bopt/logging.hpp"
 #include "bopt/bounds.hpp"
 #include "bopt/evaluator.hpp"
 
@@ -34,6 +35,7 @@ class constraint : public evaluator<T> {
     typedef evaluator<T> Base;
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
+    typedef typename Base::integer_type integer_type;
 
     constraint() = default;
 
@@ -45,21 +47,21 @@ class constraint : public evaluator<T> {
     id_type id;
     std::string name;
 
-    virtual bopt_int jac(const value_type **arg, value_type *res) { return 0; }
-
-    virtual bopt_int hes(const value_type **arg, const value_type **lam,
-                         value_type *res) {
-        return 0;
+    virtual integer_type jac(const value_type **arg, value_type *res) {
+        return integer_type(0);
     }
 
-    virtual index_type jac_info(index_type *n, index_type *m, index_type *nnz,
-                                index_type *indices, index_type *indptr) {
-        return 0;
+    virtual integer_type hes(const value_type **arg, const value_type **lam,
+                             value_type *res) {
+        return integer_type(0);
     }
 
-    virtual index_type hes_info(index_type *n, index_type *m, index_type *nnz,
-                                index_type *indices, index_type *indptr) {
-        return 0;
+    virtual integer_type jac_info(evaluator_out_info<constraint> &info) {
+        return integer_type(0);
+    }
+
+    virtual integer_type hes_info(evaluator_out_info<constraint> &info) {
+        return integer_type(0);
     }
 
     vector_bounds<value_type> bounds;
@@ -76,24 +78,28 @@ class linear_constraint : public constraint<T> {
     typedef constraint<T> Base;
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
+    typedef typename Base::integer_type integer_type;
 
     linear_constraint() = default;
     linear_constraint(const index_type &sz,
                       const bound_type::type &type = bound_type::Unbounded)
         : constraint<T>(sz, type) {}
 
-    virtual bopt_int A(const double **arg, double *res) { return 0; }
-
-    virtual bopt_int A_info(bopt_int *n, bopt_int *m, bopt_int *nnz,
-                            bopt_int *ind, bopt_int *inptr) {
-        return 0;
+    virtual integer_type A(const double **arg, double *res) {
+        return integer_type(0);
     }
 
-    virtual bopt_int b(const double **arg, double *res) { return 0; }
+    virtual integer_type A_info(evaluator_out_info<linear_constraint> &info) {
+        LOG(INFO) << "In default class";
+        return integer_type(0);
+    }
 
-    virtual bopt_int b_info(bopt_int *n, bopt_int *m, bopt_int *nnz,
-                            bopt_int *ind, bopt_int *inptr) {
-        return 0;
+    virtual integer_type b(const double **arg, double *res) {
+        return integer_type(0);
+    }
+
+    virtual integer_type b_info(evaluator_out_info<linear_constraint> &info) {
+        return integer_type(0);
     }
 
    private:
@@ -108,6 +114,7 @@ class bounding_box_constraint : public constraint<T> {
     typedef constraint<T> Base;
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
+    typedef typename Base::integer_type integer_type;
 
     bounding_box_constraint() = default;
 
@@ -133,9 +140,9 @@ class bounding_box_constraint : public constraint<T> {
      * @param ret
      * @return index_type
      */
-    index_type operator()(const value_type **arg, value_type *ret) override {
+    integer_type operator()(const value_type **arg, value_type *ret) override {
         // todo - bounds
-        return index_type(0);
+        return integer_type(0);
     }
 
    private:

@@ -45,34 +45,43 @@ struct evaluator_out_info {
     matrix_type type = matrix_type::Dense;
 
     // Number of rows in output matrix
-    index_type m;
+    index_type m = 0;
     // Number of columns in output matrix
-    index_type n;
+    index_type n = 0;
     // Number of non-zero entries in output matrix
-    index_type nnz;
+    index_type nnz = 0;
     // Sparsity pattern in CCS format (with size and nnz elements included)
-    index_type *sparsity_out;
+    index_type *sparsity_out = nullptr;
     // Values
-    value_type *values;
+    value_type *values = nullptr;
 };
 
 template <typename EvaluatorInfo>
 struct ccs_traits {
     typedef typename evaluator_traits<EvaluatorInfo>::index_type index_type;
 
-    constexpr index_type *indices(EvaluatorInfo &info) const {
-        return info.sparsity_out + 2;
+    static constexpr index_type *indices(const EvaluatorInfo &info) {
+        return (info.sparsity_out + 2);
     }
 
-    constexpr index_type *indptr(EvaluatorInfo &info) const {
-        return info.sparsity_out + 2;
+    static constexpr index_type *indptr(const EvaluatorInfo &info) {
+        return (info.sparsity_out + 2 + info.m + 1);
     }
 };
 
 template <typename Evaluator>
 struct evaluator_out_data {
     typedef typename evaluator_traits<Evaluator>::value_type value_type;
-    value_type *values;
+    evaluator_out_data(const evaluator_out_info<Evaluator> &info) {
+        values.assign(info.nnz, value_type(0));
+    }
+    std::vector<value_type> values;
+};
+
+template <typename Evaluator>
+struct evaluator_out_data_ptr {
+    typedef typename evaluator_traits<Evaluator>::value_type value_type;
+    value_type *values = nullptr;
 };
 
 /**

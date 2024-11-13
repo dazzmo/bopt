@@ -25,7 +25,7 @@ typedef int (*casadi_checkout_t)(void);
 typedef void (*casadi_release_t)(int);
 
 template <typename T>
-class evaluator : public evaluator<T> {
+class evaluator : public bopt::evaluator<T> {
    private:
     /// pointer to casadi codegen evaluation function
     eval_t f;
@@ -54,6 +54,7 @@ class evaluator : public evaluator<T> {
     typedef bopt::evaluator<T> Base;
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
+    typedef typename Base::integer_type integer_type;
 
     /**
      * @brief Construct a new evaluator object from a code-generated casadi
@@ -62,7 +63,7 @@ class evaluator : public evaluator<T> {
      * @param handle
      * @param function_name
      */
-    evaluator(const std::shared_ptr<DynamicLibraryHandler> &handle,
+    evaluator(const std::shared_ptr<dynamic_library_handler> &handle,
               const std::string &function_name)
         : handle_(handle) {
         void *handle_p = handle_->handle;
@@ -105,8 +106,7 @@ class evaluator : public evaluator<T> {
         mem = checkout();
 
         /* Get sizes of the required work vectors */
-        casadi_int sz_arg = this->n_in, sz_res = n_out, sz_iw = 0,
-                   sz_w = 0;
+        casadi_int sz_arg = this->n_in, sz_res = n_out, sz_iw = 0, sz_w = 0;
         work_t work = (work_t)dlsym(
             handle_p, (function_name + (std::string) "_work").c_str());
 
@@ -147,7 +147,7 @@ class evaluator : public evaluator<T> {
         this->buffer.resize(this->out_nnz, 0.0);
     }
 
-    index_type operator()(const value_type **arg, value_type *ret) override {
+    integer_type operator()(const value_type **arg, value_type *ret) override {
         w = work_vector_d.data();
         iw = work_vector_i.data();
         for (int i = 0; i < this->n_in; i++) {
@@ -155,18 +155,18 @@ class evaluator : public evaluator<T> {
         }
         res_vec[0] = this->buffer.data();
         ret = this->buffer.data();
-        if (f(arg_vec.data(), res_vec.data(), iw, w, mem)) return index_type(1);
-        return index_type(0);
+        if (f(arg_vec.data(), res_vec.data(), iw, w, mem)) return integer_type(1);
+        return integer_type(0);
     }
 
-    index_type info(evaluator_out_info<Evaluator> &info) {
-        info.out_m = this->out_m;
-        info.out_n = this->out_n;
-        info.out_nnz = this->out_nnz;
-        return index_type(0);
+    integer_type info(evaluator_out_info<evaluator> &info) {
+        info.m = this->out_m;
+        info.n = this->out_n;
+        info.nnz = this->out_nnz;
+        return integer_type(0);
     }
 
-    ~Evaluator() {
+    ~evaluator() {
         // Release thread-local (not thread-safe)
         release(mem);
         // Free memory (thread-safe)
@@ -174,7 +174,7 @@ class evaluator : public evaluator<T> {
     }
 
    private:
-    std::shared_ptr<DynamicLibraryHandler> handle_;
+    std::shared_ptr<dynamic_library_handler> handle_;
 };
 
 }  // namespace casadi

@@ -116,6 +116,11 @@ class mathematical_program {
      */
     const string_type &name() const { return name_; }
 
+    index_type n_variables() const { return variables_.size(); }
+    index_type n_parameters() const { return parameters_.size(); }
+    index_type n_costs() const { return get_all_costs().size(); }
+    index_type n_constraints() const { return get_all_constraints().size(); }
+
     /**
      * @brief Decision variables initial values
      *
@@ -131,7 +136,6 @@ class mathematical_program {
      * @return const std::vector<value_type>&
      */
     const vector_bounds<value_type> &variable_bounds() const { return xb_; }
-
 
     /**
      * @brief Parameter vector
@@ -230,6 +234,14 @@ class mathematical_program {
         add_cost_binding(binding<CostType>(cost, indices));
     }
 
+    std::vector<binding<cost_t>> &generic_costs() { return costs_generic_; }
+    std::vector<binding<linear_cost_t>> &linear_costs() {
+        return costs_linear_;
+    }
+    std::vector<binding<quadratic_cost_t>> &quadratic_costs() {
+        return costs_quadratic_;
+    }
+
     void add_cost_binding(const binding<cost_t> &binding) {
         costs_generic_.push_back(binding);
     }
@@ -255,6 +267,7 @@ class mathematical_program {
 
     typedef constraint<value_type> constraint_t;
     typedef linear_constraint<value_type> linear_constraint_t;
+    typedef bounding_box_constraint<value_type> bounding_box_constraint_t;
 
     template <typename ConstraintType>
     void add_constraint(
@@ -272,6 +285,18 @@ class mathematical_program {
 
         // Create binding
         add_constraint_binding(binding<ConstraintType>(cost, indices));
+    }
+
+    std::vector<binding<constraint_t>> &generic_constraints() {
+        return constraints_generic_;
+    }
+    std::vector<binding<linear_constraint_t>> &linear_constraints() {
+        return constraints_linear_;
+    }
+
+    std::vector<binding<bounding_box_constraint_t>> &
+    bounding_box_constraints() {
+        return constraints_bounding_box_;
     }
 
     void add_constraint_binding(const binding<constraint_t> &binding) {
@@ -317,6 +342,7 @@ class mathematical_program {
     // constraint bindings
     std::vector<binding<constraint_t>> constraints_generic_;
     std::vector<binding<linear_constraint_t>> constraints_linear_;
+    std::vector<binding<bounding_box_constraint_t>> constraints_bounding_box_;
 
     // cost bindings
     std::vector<binding<cost_t>> costs_generic_;

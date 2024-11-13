@@ -5,14 +5,27 @@
 namespace bopt {
 namespace solvers {
 
-qpoases_solver_instance::qpoases_solver_instance(mathematical_program& program)
-    : SolverBase(program) {
+qpoases_solver_instance::qpoases_solver_instance(
+    mathematical_program<double>& program)
+    : solver(program) {
     LOG(INFO) << "qpoases_solver_instance::qpoases_solver_instance";
+
     // Create problem
-    int nx = program.numberOfDecisionVariables();
-    int ng = program.numberOfConstraints();
+    int nx = program.n_variables();
+    int ng = program.n_constraints();
 
     qp_ = std::make_unique<qpOASES::SQProblem>(nx, ng);
+
+    // Create matrix data
+    data.H.resize(nx, nx);
+    data.g.resize(nx);
+
+    data.A.resize(ng, nx);
+    data.lbA.resize(ng);
+    data.ubA.resize(ng);
+
+    data.lbA.resize(nx);
+    data.ubA.resize(nx);
 }
 
 qpoases_solver_instance::~qpoases_solver_instance() = default;
@@ -20,17 +33,20 @@ qpoases_solver_instance::~qpoases_solver_instance() = default;
 void qpoases_solver_instance::solve() {
     // Matrix inserter functions
     auto inserter_add_to = [](ublas::matrix<double>& m, std::size_t i,
-                              std::size_t j, const double& v) { m(i, j) += v };
+                              std::size_t j, const double& v) { m(i, j) += v; };
+
+    auto vector_add_to = [](std::vector<double>& m, std::size_t i,
+                            std::size_t j, const double& v) { m[i] += v; };
 
     auto inserter_set_to = [](ublas::matrix<double>& m, std::size_t i,
-                              std::size_t j, const double& v) { m(i, j) = v };
+                              std::size_t j, const double& v) { m(i, j) = v; };
 
     /** Linear costs **/
     LOG(INFO) << "linear costs";
-    for (const Binding<LinearCost<double>>& binding :
-         program().getLinearCosts()) {
-        auto x_indices = binding.input_index[0];
-        auto p_indices = binding.input_index[1];
+    for (const binding<linear_cost<double>>& binding :
+         program().linear_costs()) {
+        auto x_indices = binding.input_indices[0];
+        auto p_indices = binding.input_indices[1];
 
         // todo - shorten this
         std::vector<double> pi;
@@ -39,22 +55,25 @@ void qpoases_solver_instance::solve() {
             pi.emplace_back(program().p()[i]);
         }
 
-        evaluator_out_info<LinearCost<double>> a_info;
-        evaluator_out_data<LinearCost<double>> a_data;
+        evaluator_out_info<linear_cost<double>> a_info;
+        evaluator_out_data<linear_cost<double>> a_data(a_info);
         binding.get()->a_info(a_info);
 
         // Evaluate coefficients for the cost a^T x + b
         binding.get()->a(std::vector<const double*>({pi.data()}).data(),
-                         {a_data.values});
+                         {a_data.values.data()});
 
-        setBlock(data.g, a_info, a_data, x_indices, {0}, inserter_add_to);
+        set_block(data.g, a_info, a_data, x_indices, {0}, vector_add_to);
     }
 
+    LOG(INFO) << "g = " << data.g;
+
+    LOG(INFO) << "quadratic costs";
     /** Quadratic costs **/
-    for (const Binding<QuadraticCost>& binding :
-         program().getQuadraticCosts()) {
-        auto x_indices = binding.input_index[0];
-        auto p_indices = binding.input_index[1];
+    for (const binding<quadratic_cost<double>>& binding :
+         program().quadratic_costs()) {
+        auto x_indices = binding.input_indices[0];
+        auto p_indices = binding.input_indices[1];
 
         std::vector<double> pi;
         for (const auto& i : p_indices) {
@@ -63,29 +82,30 @@ void qpoases_solver_instance::solve() {
         }
 
         // Evaluate coefficients for the cost a^T x + b
-        evaluator_out_info<QuadraticCost> A_info, b_info;
+        evaluator_out_info<quadratic_cost<double>> A_info, b_info;
         binding.get()->A_info(A_info);
         binding.get()->b_info(b_info);
 
-        evaluator_out_data<QuadraticCost> A, b;
-        binding.get()->A(
-            evaluator_input_generator<QuadraticCost>({pi.data()}).data(),
-            {A.values});
-        binding.get()->b(
-            evaluator_input_generator<QuadraticCost>({pi.data()}).data(),
-            {b.values});
+        // evaluator_out_data<quadratic_cost<double>> A_data, b_data;
+        // binding.get()->A(std::vector<const double*>({pi.data()}).data(),
+        //                  {A_data.values});
+        // binding.get()->b(std::vector<const double*>({pi.data()}).data(),
+        //                  {b_data.values});
 
-        setBlock(data.H, a_info, A_data, x_indices, inserter_add_to);
-        setBlock(data.g, b_info, b_data, x_indices, {0}, inserter_add_to);
+        // set_block(data.H, A_info, A_data, x_indices, x_indices,
+        //           inserter_add_to);
+        // set_block(data.g, b_info, b_data, x_indices, {0}, vector_add_to);
     }
 
     /** Linear constraints **/
     LOG(INFO) << "linear constraints";
     std::size_t cnt = 0;
-    for (const Binding<LinearConstraint>& binding :
-         program().getLinearConstraints()) {
-        auto x_indices = binding.input_index[0];
-        auto p_indices = binding.input_index[1];
+    for (const binding<linear_constraint<double>>& binding :
+         program().linear_constraints()) {
+        LOG(INFO) << "x";
+        auto x_indices = binding.input_indices[0];
+        LOG(INFO) << "p";
+        auto p_indices = binding.input_indices[1];
 
         std::vector<double> pi;
         for (const auto& i : p_indices) {
@@ -94,32 +114,40 @@ void qpoases_solver_instance::solve() {
         }
 
         // Evaluate coefficients for the cost a^T x + b
-        evaluator_out_info<LinearConstraint> A_info, b_info;
-        evaluator_out_data<LinearConstraint> A_data, b_data;
+        evaluator_out_info<linear_constraint<double>> A_info, b_info;
+        evaluator_out_data<linear_constraint<double>> A_data(A_info),
+            b_data(b_info);
         binding.get()->A_info(A_info);
         binding.get()->b_info(b_info);
 
         binding.get()->A(std::vector<const double*>({pi.data()}).data(),
-                         {A_data.values});
+                         {A_data.values.data()});
         binding.get()->b(std::vector<const double*>({pi.data()}).data(),
-                         {b_data.values});
+                         {b_data.values.data()});
 
         // Create row indices
-        std::vector<evaluator_traits<LinearConstraint>::index_type> row_indices;
+        std::vector<evaluator_traits<linear_constraint<double>>::index_type>
+            row_indices;
         for (index_type i = 0; i < A_info.n; ++i) {
             row_indices.push_back(cnt + i);
         };
+        LOG(INFO) << "setting block";
 
-        setBlock(data.A, A_info, A_data, row_indices, x_indices,
-                 inserter_set_to);
+        set_block(data.A, A_info, A_data, row_indices, x_indices,
+                  inserter_set_to);
+
+        LOG(INFO) << "block set";
 
         // Add to each bound
-        std::vector<double> lbA, ubA;
 
         for (index_type i = 0; i < b_info.n; ++i) {
-            ubA[row_indices[i]] = binding.get()->bounds[i].upper - b.data[i];
-            lbA[row_indices[i]] = binding.get()->bounds[i].lower - b.data[i];
+            data.ubA[row_indices[i]] =
+                binding.get()->bounds[i].upper - b_data.values[i];
+            data.lbA[row_indices[i]] =
+                binding.get()->bounds[i].lower - b_data.values[i];
         }
+
+        LOG(INFO) << "bounds made";
 
         // Increase constraint index
         cnt += A_info.n;
@@ -127,52 +155,31 @@ void qpoases_solver_instance::solve() {
 
     /** Bounding box constraints **/
     LOG(INFO) << "bounding box constraints";
-    for (const Binding<BoundingBoxConstraint>& binding :
-         program().getBoundingBoxConstraints()) {
-        auto x_indices = binding.input_index[0];
-        auto p_indices = binding.input_index[1];
+    for (const binding<bounding_box_constraint<double>>& binding :
+         program().bounding_box_constraints()) {
+        auto x_indices = binding.input_indices[0];
+        auto p_indices = binding.input_indices[1];
 
-        std::vector<double> pi;
-        for (const auto& i : p_indices) {
-            // Create vector of input
-            pi.emplace_back(program().p()[i]);
-        }
-
-        // Evaluate coefficients for the cost a^T x + b
-        evaluator_out_info<BoundingBoxConstraint> c_info;
-        evaluator_out_data<BoundingBoxConstraint> c_data;
-        binding.get()->info(info);
-
-        // todo - bounds can be parameterised (e.g. lbx(p), ubx(p))
-        binding.get()->bounds(std::vector<const double*>({pi.data()}).data(),
-                              binding.get()->bounds.lower,
-                              binding.get()->bounds.upper);
-
-        // Create row indices
-        std::vector<evaluator_traits<LinearConstraint>::index_type> row_indices;
-        for (index_type i = 0; i < A_info.n; ++i) {
-            row_indices.push_back(cnt + i);
-        };
-
-        for (index_type i = 0; i < info.n; ++i) {
-            data.ubx[row_indices[i]] = binding.get()->bounds.upper[i];
-            data.lbx[row_indices[i]] = binding.get()->bounds.lower[i];
-        }
+        // todo - fix this
+        // todo - xbu = std::min(xbu[i], bound.upper)
+        // todo - xbl = std::max(xbl[i], bound.lower)
     }
 
     int nWSR = options_.nWSR;
 
     // Solve
     if (info_.number_of_solves > 0 && options_.perform_hotstart) {
-        Profiler("qpoases_solver");
+        profiler("qpoases_solver");
         // Use previous solution to hot-start the program
-        qp_->hotstart(H.data(), g_data.data(), A.data(), data.lbx.data(),
-                      data.ubx.data(), data.lbA.data(), data.ubA.data(), nWSR);
+        qp_->hotstart(data.H.data().begin(), data.g.data(),
+                      data.A.data().begin(), data.lbx.data(), data.ubx.data(),
+                      data.lbA.data(), data.ubA.data(), nWSR);
     } else {
-        Profiler("qpoases_solver");
+        profiler("qpoases_solver");
         // Initialise the program and solve it
-        qp_->init(H.data(), g_data.data(), A.data(), data.lbx.data(),
-                  data.ubx.data(), data.lbA.data(), data.ubA.data(), nWSR);
+        qp_->init(data.H.data().begin(), data.g.data(), data.A.data().begin(),
+                  data.lbx.data(), data.ubx.data(), data.lbA.data(),
+                  data.ubA.data(), nWSR);
     }
 
     // Collect information
@@ -185,7 +192,7 @@ void qpoases_solver_instance::solve() {
     // Get results
     if (info_.status == qpOASES::QProblemStatus::QPS_SOLVED) {
         info_.success = true;
-        qp_->getPrimalSolution(results_.x.data());
+        // qp_->getPrimalSolution(results_.x.data());
     }
 };
 
@@ -247,7 +254,7 @@ void qpoases_solver_instance::reset() { info_.number_of_solves = 0; }
 
 //     /** Linear costs **/
 //     LOG(INFO) << "linear costs";
-//     for (const Binding<LinearCost>& binding : program().getLinearCosts()) {
+//     for (const binding<linear_cost>& binding : program().getlinear_costs()) {
 //         auto x_indices = program().getDecisionVariableIndices(binding.in[0]);
 //         auto p_indices = program().getParameterIndices(binding.in[1]);
 
@@ -265,15 +272,16 @@ void qpoases_solver_instance::reset() { info_.number_of_solves = 0; }
 //         binding.get()->b(std::vector<const double*>({pi.data()}).data(),
 //         {&b});
 
-//         // setBlock(matrix_data_.H, a_info, a_data, x, inserter_add_to);
-//         // setBlock(matrix_data_.g, b_info, b_data, x, {0}, inserter_add_to);
+//         // set_block(matrix_data_.H, a_info, a_data, x, inserter_add_to);
+//         // set_block(matrix_data_.g, b_info, b_data, x, {0},
+//         inserter_add_to);
 //     }
 
 //     /** Quadratic costs **/
-//     for (const Binding<QuadraticCost>& binding :
-//          program().getQuadraticCosts()) {
-//         const auto& x = binding.input_index[0];
-//         const auto& p = binding.input_index[1];
+//     for (const binding<quadratic_cost<double>>& binding :
+//          program().getquadratic_cost<double>s()) {
+//         const auto& x = binding.input_indices[0];
+//         const auto& p = binding.input_indices[1];
 
 //         std::vector<double> pi;
 //         for (const auto& i : p) {
@@ -282,28 +290,28 @@ void qpoases_solver_instance::reset() { info_.number_of_solves = 0; }
 //         }
 
 //         // Evaluate coefficients for the cost a^T x + b
-//         evaluator_out_info<QuadraticCost> A_info, b_info;
+//         evaluator_out_info<quadratic_cost<double>> A_info, b_info;
 //         binding.get()->A_info(A_info);
 //         binding.get()->b_info(b_info);
 
-//         evaluator_out_data<QuadraticCost> A, b;
+//         evaluator_out_data<quadratic_cost<double>> A, b;
 //         binding.get()->A(
-//             evaluator_input_generator<QuadraticCost>({pi.data()}).data(),
+//             evaluator_input_generator<quadratic_cost<double>>({pi.data()}).data(),
 //             {A.values});
 //         binding.get()->b(
-//             evaluator_input_generator<QuadraticCost>({pi.data()}).data(),
+//             evaluator_input_generator<quadratic_cost<double>>({pi.data()}).data(),
 //             {b.values});
 
-//         setBlock(matrix_data_.H, A_info, A_data, x, x, inserter_add_to);
-//         setBlock(matrix_data_.g, b_info, b_data, x, {0}, inserter_add_to);
+//         set_block(matrix_data_.H, A_info, A_data, x, x, inserter_add_to);
+//         set_block(matrix_data_.g, b_info, b_data, x, {0}, inserter_add_to);
 //     }
 
 //     /** Linear constraints **/
 //     LOG(INFO) << "linear constraints";
 //     std::size_t cnt = 0;
-//     for (const Binding<LinearConstraint>& binding :
-//          program().getLinearConstraints()) {
-//         const auto& x = binding.input_index;
+//     for (const binding<linear_constraint<double>>& binding :
+//          program().getlinear_constraint<double>s()) {
+//         const auto& x = binding.input_indices;
 
 //         auto p_indices = program().getParameterIndices(binding.in[1]);
 
@@ -314,7 +322,7 @@ void qpoases_solver_instance::reset() { info_.number_of_solves = 0; }
 //         }
 
 //         // Evaluate coefficients for the cost a^T x + b
-//         evaluator_out_info<LinearConstraint> A, b;
+//         evaluator_out_info<linear_constraint<double>> A, b;
 //         binding.get()->A_info(A);
 //         binding.get()->b_info(b);
 
@@ -324,7 +332,7 @@ void qpoases_solver_instance::reset() { info_.number_of_solves = 0; }
 //         binding.get()->b(std::vector<const double*>({pi.data()}).data(),
 //                          {b.data()});
 
-//         setBlock(matrix_data_.A, A_info, A_data, x, x, inserter_add_to);
+//         set_block(matrix_data_.A, A_info, A_data, x, x, inserter_add_to);
 
 //         // Add to each bound
 

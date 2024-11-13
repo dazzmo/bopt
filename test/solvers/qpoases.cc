@@ -1,4 +1,5 @@
 
+#define BOPT_USE_PROFILING
 #include "bopt/solvers/qpoases.h"
 
 #include <gflags/gflags.h>
@@ -22,8 +23,9 @@ class CostFunction : public bopt::linear_cost<value_type> {
 class ConstraintFunction : public bopt::linear_constraint<value_type> {
    public:
     typedef std::shared_ptr<ConstraintFunction> shared_ptr;
+    typedef bopt::linear_constraint<double> linear_constraint;
 
-    ConstraintFunction() : bopt::linear_constraint<value_type>(1) {
+    ConstraintFunction() : linear_constraint(1) {
         this->out_n = 1;
     }
 
@@ -31,27 +33,29 @@ class ConstraintFunction : public bopt::linear_constraint<value_type> {
         return integer_type(0);
     }
 
-    integer_type A_info(bopt::evaluator_out_info<ConstraintFunction> &info) {
+    integer_type A_info(bopt::evaluator_out_info<linear_constraint> &info) override {
         info.m = 1;
         info.n = 1;
         info.nnz = 1;
+        info.type = bopt::evaluator_matrix_type::Dense;
         return integer_type(0);
     }
 
     integer_type A(const value_type **arg, value_type *res) {
-        res[0] = arg[1][0];
+        res[0] = arg[0][0];
         return integer_type(0);
     }
 
-    integer_type b_info(bopt::evaluator_out_info<ConstraintFunction> &info) {
+    integer_type b_info(bopt::evaluator_out_info<linear_constraint> &info) {
         info.m = 1;
         info.n = 1;
         info.nnz = 1;
+        info.type = bopt::evaluator_matrix_type::Dense;
         return integer_type(0);
     }
 
     integer_type b(const value_type **arg, value_type *res) {
-        res[0] = arg[1][1];
+        res[0] = arg[0][1];
         return integer_type(0);
     }
 
@@ -75,7 +79,7 @@ TEST(qpoases, LinearProgram) {
      *
      */
 
-    program.add_variable(x);
+    program.add_variable(x, 0.0, -5.0, 5.0);
     program.add_parameter(p1);
     program.add_parameter(p2);
 
@@ -92,6 +96,10 @@ TEST(qpoases, LinearProgram) {
     for (const auto &x : program.variable_bounds().m_values) {
         LOG(INFO) << x.lower << " " << x.upper;
     }
+
+    // Solve the program
+    bopt::solvers::qpoases_solver_instance qp(program);
+    qp.solve();
 }
 
 int main(int argc, char **argv) {

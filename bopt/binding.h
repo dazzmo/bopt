@@ -62,7 +62,7 @@ class binding {
      */
     binding(const evaluator_shared_ptr &obj,
             const std::vector<index_vector> &input_indices)
-        : input_indices({}) {
+        : input_indices({}), evaluator_(obj) {
         // Computes the indices within the map that the mapping relates to
         //   todo - fix this
         // assert(obj->n_in == input_indices.size() &&
@@ -83,13 +83,9 @@ class binding {
             typename std::enable_if_t<std::is_convertible_v<
                 typename binding<Other>::evaluator_shared_ptr,
                 typename binding<Evaluator>::evaluator_shared_ptr>> * = nullptr)
-        : binding() {
+        : binding(static_cast<evaluator_shared_ptr>(b.get()), b.input_indices) {
         // Maintain the same binding id
         id = b.id;
-        // Convert to new pointer type
-        evaluator_ = static_cast<evaluator_shared_ptr>(b.evaluator_);
-        // Copy vectors
-        input_indices = b.input_indices;
     }
 
     /**

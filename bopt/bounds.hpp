@@ -156,7 +156,7 @@ class vector_bounds {
 };
 
 template <typename T>
-const inline bool is_satisfied(
+inline bool is_satisfied(
     const std::vector<T> &values, const vector_bounds<T> &b,
     const typename bound_traits<T>::value_type &eps =
         std::numeric_limits<typename bound_traits<T>::value_type>::epsilon()) {

@@ -77,7 +77,7 @@ struct qpoases_info : public solver_information<double, std::size_t> {
 
 struct qpoases_options : public solver_options<double, std::size_t> {
     // Number of working sets performed
-    int nWSR;
+    int nWSR = 100;
 
     bool perform_hotstart;
 };
@@ -115,8 +115,7 @@ class qpoases_solver_instance : public solver<double, std::size_t> {
     bool first_solve_ = true;
     int n_solves_ = 0;
 
-    std::unique_ptr<qpOASES::SQProblem> qp_dense_;
-    std::unique_ptr<qpOASES::SparseSolver> qp_sparse_;
+    std::unique_ptr<qpOASES::SQProblem> qp_;
 
     qpoases_options options_;
     qpoases_info info_;

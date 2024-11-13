@@ -42,9 +42,12 @@ void set_block(MatrixContainer &matrix,
            "Indices provided are not same size as provided block");
 
     if (block_info.type == evaluator_matrix_type::type::Dense) {
+        LOG(INFO) << "Dense";
         // Populate matrix in a dense manner
-        for (index_type col = 0; col < block_info.m; ++col) {
-            for (index_type row = 0; row < block_info.n; ++row) {
+        for (index_type col = 0; col < block_info.n; ++col) {
+            for (index_type row = 0; row < block_info.m; ++row) {
+                LOG(INFO) << "Accessing (" << row_indices[row] << ", "
+                          << col_indices[col] << ")";
                 // Assume column-major
                 inserter(matrix, row_indices[row], col_indices[col],
                          block_data.values[col * block_info.m + row]);
@@ -52,10 +55,13 @@ void set_block(MatrixContainer &matrix,
         }
 
     } else {
+        LOG(INFO) << "Sparse";
+
         // Access elements of the evaluator block
-        index_type *colind = (block_info.sparsity_out + 2);
+        index_type *colind =
+            ccs_traits<evaluator_out_info<Evaluator>>::indices(block_info);
         index_type *indices =
-            (block_info.sparsity_out + (2 + block_info.m + 1));
+            ccs_traits<evaluator_out_info<Evaluator>>::indptr(block_info);
 
         for (index_type col = 0; col < block_info.n; ++col) {
             index_type start = colind[col];
