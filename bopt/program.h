@@ -239,6 +239,8 @@ class mathematical_program {
         return indices;
     }
 
+    vector_bounds<value_type> &variable_bounds() { return xb_; }
+
     index_type parameter_index(const variable &p) const {
         const auto &it = std::find(parameters_.begin(), parameters_.end(), p);
         if (it != parameters_.end()) {

@@ -33,6 +33,11 @@ qpoases_solver_instance::qpoases_solver_instance(
 
     data.lbx.resize(nx);
     data.ubx.resize(nx);
+
+    for(int i = 0; i < nx; ++i) {
+        set(data.lbx, i, program.variable_bounds()[i].lower);
+        set(data.ubx, i, program.variable_bounds()[i].upper);
+    }
 }
 
 qpoases_solver_instance::~qpoases_solver_instance() = default;
@@ -160,7 +165,16 @@ void qpoases_solver_instance::solve() {
 
     int nWSR = options_.nWSR;
 
-    qp_->setHessianType(qpOASES::HessianType::HST_SEMIDEF);
+    qp_->setHessianType(qpOASES::HessianType::HST_POSDEF);
+
+    VLOG(10) << data.H;
+    VLOG(10) << data.g;
+    VLOG(10) << data.A;
+    VLOG(10) << data.lbA;
+    VLOG(10) << data.ubA;
+
+    VLOG(10) << data.lbx;
+    VLOG(10) << data.ubx;
 
     // Solve
     if (info_.number_of_solves > 0 && options_.perform_hotstart) {

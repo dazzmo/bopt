@@ -19,7 +19,7 @@ TEST(qpoases, LinearProgram) {
     std::vector<bopt::variable> x;
     for (int i = 0; i < 10; ++i) {
         x.push_back(bopt::variable("x" + std::to_string(i)));
-        program.add_variable(x.back(), 0.0, -5.0, 5.0);
+        program.add_variable(x.back(), 0.0, -50.0, 50.0);
     }
 
     // Create constraint with casadi
@@ -31,7 +31,7 @@ TEST(qpoases, LinearProgram) {
 
     program.add_linear_constraint(
         bopt::casadi::linear_constraint<double>::create(
-            expr, xs, sym_t(), bopt::bound_type::StrictlyNegative),
+            expr, xs, sym_t(), bopt::bound_type::Equality),
         {{x}}, {{}});
 
     sym_t cost = sym_t::dot(xs, xs);
