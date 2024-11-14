@@ -41,7 +41,10 @@ class constraint : public evaluator<T> {
 
     constraint(const index_type &sz,
                const bound_type::type &type = bound_type::Unbounded)
-        : bounds(sz, type) {}
+        : bounds(sz, type) {
+        this->out_m = sz;
+        this->out_n = 1;
+    }
 
    public:
     id_type id;
@@ -128,6 +131,10 @@ class bounding_box_constraint : public constraint<T> {
 
     bounding_box_constraint(const index_type &sz, const bound_type::type &type)
         : constraint<T>(sz, type) {}
+
+    virtual integer_type update_bounds(const value_type **arg) {
+        return integer_type(0);
+    }
 
     /**
      * @brief Evaluates the bounds of the bounding box constraint, returning the

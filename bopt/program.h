@@ -153,7 +153,15 @@ class mathematical_program {
      *
      * @return index_type Number of constraints.
      */
-    index_type n_constraints() const { return get_all_constraints().size(); }
+    index_type n_constraints() const {
+        index_type n = 0;
+        for (const auto &c : get_all_constraints()) {
+            typename constraint<value_type>::out_info_t info;
+            c.get()->info(info);
+            n += info.m;
+        }
+        return n;
+    }
 
     /**
      * @brief Gets the initial values of the decision variables.
@@ -263,46 +271,62 @@ class mathematical_program {
         set(xb_.lower, variable_index(v), lb);
     }
 
-    // costs
-    typedef cost<value_type> cost_t;
-    typedef linear_cost<value_type> linear_cost_t;
-    typedef quadratic_cost<value_type> quadratic_cost_t;
+    typedef std::vector<std::vector<variable>> input_variable_vector;
+    typedef std::vector<std::vector<variable>> input_parameter_vector;
+    typedef std::vector<std::vector<index_type>> input_index_vector;
 
-    template <typename CostType>
-    void add_cost(const typename evaluator_traits<CostType>::shared_ptr &cost,
-                  const std::vector<std::vector<variable>> &x,
-                  const std::vector<std::vector<variable>> &p) {
-        // Create binding
-        std::vector<std::vector<index_type>> indices = {};
+    input_index_vector create_input_index_vector(
+        const input_variable_vector &x, const input_parameter_vector &p) {
+        input_index_vector indices = {};
         for (index_type i = 0; i < x.size(); ++i) {
             indices.push_back(variable_indices(x[i]));
         }
         for (index_type i = 0; i < p.size(); ++i) {
             indices.push_back(parameter_indices(p[i]));
         }
+        return indices;
+    }
 
+    // costs
+    typedef cost<value_type> cost_t;
+    typedef linear_cost<value_type> linear_cost_t;
+    typedef quadratic_cost<value_type> quadratic_cost_t;
+
+    void add_cost(const typename cost<value_type>::shared_ptr &cost,
+                  const input_variable_vector &x,
+                  const input_parameter_vector &p) {
         // Create binding
-        add_cost_binding(binding<CostType>(cost, indices));
+        input_index_vector indices = create_input_index_vector(x, p);
+        // Create binding
+        costs_generic_.push_back(binding<cost_t>(cost, indices));
+    }
+
+    void add_linear_cost(
+        const typename linear_cost<value_type>::shared_ptr &cost,
+        const input_variable_vector &x, const input_parameter_vector &p) {
+        // Create binding
+        input_index_vector indices = create_input_index_vector(x, p);
+        // Create binding
+        costs_linear_.push_back(binding<linear_cost_t>(cost, indices));
+    }
+
+    void add_quadratic_cost(
+        const typename quadratic_cost<value_type>::shared_ptr &cost,
+        const input_variable_vector &x, const input_parameter_vector &p) {
+        // Create binding
+        input_index_vector indices = create_input_index_vector(x, p);
+        // Create binding
+        costs_quadratic_.push_back(binding<quadratic_cost_t>(cost, indices));
     }
 
     std::vector<binding<cost_t>> &generic_costs() { return costs_generic_; }
+
     std::vector<binding<linear_cost_t>> &linear_costs() {
         return costs_linear_;
     }
+
     std::vector<binding<quadratic_cost_t>> &quadratic_costs() {
         return costs_quadratic_;
-    }
-
-    void add_cost_binding(const binding<cost_t> &binding) {
-        costs_generic_.push_back(binding);
-    }
-
-    void add_cost_binding(const binding<linear_cost_t> &binding) {
-        costs_linear_.push_back(binding);
-    }
-
-    void add_cost_binding(const binding<quadratic_cost_t> &binding) {
-        costs_quadratic_.push_back(binding);
     }
 
     std::vector<binding<cost_t>> get_all_costs() const {
@@ -320,21 +344,23 @@ class mathematical_program {
     typedef linear_constraint<value_type> linear_constraint_t;
     typedef bounding_box_constraint<value_type> bounding_box_constraint_t;
 
-    template <typename ConstraintType>
-    void add_constraint(const std::shared_ptr<ConstraintType> &cost,
-                        const std::vector<std::vector<variable>> &x,
-                        const std::vector<std::vector<variable>> &p) {
+    void add_constraint(
+        const typename constraint<value_type>::shared_ptr &constraint,
+        const input_variable_vector &x, const input_parameter_vector &p) {
         // Create binding
-        std::vector<std::vector<index_type>> indices = {};
-        for (index_type i = 0; i < x.size(); ++i) {
-            indices.push_back(variable_indices(x[i]));
-        }
-        for (index_type i = 0; i < p.size(); ++i) {
-            indices.push_back(parameter_indices(p[i]));
-        }
+        input_index_vector indices = create_input_index_vector(x, p);
+        // Create binding
+        add_constraint_binding(binding<constraint_t>(constraint, indices));
+    }
 
+    void add_linear_constraint(
+        const typename linear_constraint<value_type>::shared_ptr &constraint,
+        const input_variable_vector &x, const input_parameter_vector &p) {
         // Create binding
-        add_constraint_binding(binding<ConstraintType>(cost, indices));
+        input_index_vector indices = create_input_index_vector(x, p);
+        // Create binding
+        constraints_linear_.push_back(
+            binding<linear_constraint_t>(constraint, indices));
     }
 
     std::vector<binding<constraint_t>> &generic_constraints() {
@@ -347,14 +373,6 @@ class mathematical_program {
     std::vector<binding<bounding_box_constraint_t>> &
     bounding_box_constraints() {
         return constraints_bounding_box_;
-    }
-
-    void add_constraint_binding(const binding<constraint_t> &binding) {
-        constraints_generic_.push_back(binding);
-    }
-
-    void add_constraint_binding(const binding<linear_constraint_t> &binding) {
-        constraints_linear_.push_back(binding);
     }
 
     std::vector<binding<constraint_t>> get_all_constraints() const {

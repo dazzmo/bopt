@@ -58,30 +58,19 @@ class expression_evaluator : public bopt::evaluator<T> {
         return (*f_eval_)(arg, res);
     }
 
-    integer_type info(out_info_t &info) override {
-        f_eval_->info(info);
-        return integer_type(0);
-    }
+    integer_type info(out_info_t &info) override { return f_eval_->info(info); }
 
     integer_type jac(const value_type **arg, value_type *res) {
-        (*j_eval_)(arg, res);
-        return integer_type(0);
+        return (*j_eval_)(arg, res);
     }
 
     integer_type hes(const value_type **arg, value_type *res) {
-        (*h_eval_)(arg, res);
-        return integer_type(0);
+        return (*h_eval_)(arg, res);
     }
 
-    integer_type jac_info(out_info_t &info) {
-        j_eval_->info(info);
-        return integer_type(0);
-    }
+    integer_type jac_info(out_info_t &info) { return j_eval_->info(info); }
 
-    integer_type hes_info(out_info_t &info) {
-        h_eval_->info(info);
-        return integer_type(0);
-    }
+    integer_type hes_info(out_info_t &info) { return h_eval_->info(info); }
 
    private:
     std::unique_ptr<casadi_evaluator_t> f_eval_;
@@ -91,6 +80,7 @@ class expression_evaluator : public bopt::evaluator<T> {
 
 template <typename T>
 class linear_expression_evaluator : public expression_evaluator<T> {
+   public:
     typedef expression_evaluator<T> Base;
 
     typedef typename Base::sym_t sym_t;
@@ -109,7 +99,7 @@ class linear_expression_evaluator : public expression_evaluator<T> {
         : Base(expression, x, p) {
         // Compute linear expression coefficients
         sym_t A, b;
-        sym_t::linear_coefficients(expression, x, A, b);
+        sym_t::linear_coeff(expression, x, A, b, true);
 
         function_t f_A("f_A", {x, p}, {A});
         function_t f_b("f_b", {x, p}, {b});
@@ -123,24 +113,17 @@ class linear_expression_evaluator : public expression_evaluator<T> {
 
    public:
     integer_type A(const value_type **arg, value_type *res) {
-        (*A_eval_)(arg, res);
-        return integer_type(0);
+        LOG(INFO) << "EVALUATING A";
+        return (*A_eval_)(arg, res);
     }
 
-    integer_type A_info(out_info_t &info) {
-        A_eval_->info(info);
-        return integer_type(0);
-    }
+    integer_type A_info(out_info_t &info) { return A_eval_->info(info); }
 
     integer_type b(const value_type **arg, value_type *res) {
-        (*b_eval_)(arg, res);
-        return integer_type(0);
+        return (*b_eval_)(arg, res);
     }
 
-    integer_type b_info(out_info_t &info) {
-        b_eval_->info(info);
-        return integer_type(0);
-    }
+    integer_type b_info(out_info_t &info) { return b_eval_->info(info); }
 
    private:
     std::unique_ptr<casadi_evaluator_t> A_eval_;
@@ -149,6 +132,7 @@ class linear_expression_evaluator : public expression_evaluator<T> {
 
 template <typename T>
 class quadratic_expression_evaluator : public expression_evaluator<T> {
+   public:
     typedef expression_evaluator<T> Base;
 
     typedef typename Base::sym_t sym_t;
@@ -167,7 +151,7 @@ class quadratic_expression_evaluator : public expression_evaluator<T> {
         : Base(expression, x, p) {
         // Compute linear expression coefficients
         sym_t A, b, c;
-        sym_t::linear_coefficients(expression, x, A, b, c);
+        sym_t::quadratic_coeff(expression, x, A, b, c, true);
 
         function_t f_A("f_A", {x, p}, {A});
         function_t f_b("f_b", {x, p}, {b});

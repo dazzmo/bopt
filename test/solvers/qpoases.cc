@@ -5,52 +5,39 @@
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
-#include "bopt/ad/casadi.hpp"
+#include "bopt/ad/casadi/casadi.hpp"
 #include "bopt/logging.hpp"
 #include "bopt/variable.hpp"
 
-using sym = ::casadi::SX;
-using dm = ::casadi::DM;
-
-namespace dcas = bopt::casadi;
+using sym_t = ::casadi::SX;
 
 typedef double value_type;
 
 TEST(qpoases, LinearProgram) {
     bopt::mathematical_program<double> program("basic program");
 
-    auto x = bopt::variable("x");
-    auto p1 = bopt::variable("p1");
-    auto p2 = bopt::variable("p2");
-
-    // Eventually, we'll use casadi and simply go
-    /**
-     * sym x;
-     * sym c = x * x;
-     *
-     * constraint b = make_constraint(c, x);
-     * program.add_constraint(b, x);
-     *
-     */
-
-    program.add_variable(x, 0.0, -5.0, 5.0);
-    program.add_parameter(p1);
-    program.add_parameter(p2);
+    std::vector<bopt::variable> x;
+    for (int i = 0; i < 10; ++i) {
+        x.push_back(bopt::variable("x" + std::to_string(i)));
+        program.add_variable(x.back(), 0.0, -5.0, 5.0);
+    }
 
     // Create constraint with casadi
+    sym_t xs = sym_t::sym("x", 10);
+    sym_t expr = sym_t(2, 1);
 
-    program.add_constraint(ptr, {{x}}, {{p1, p2}});
+    expr(0) = 1.0 * xs(1) + 2.0 * xs(2) + 1;
+    expr(1) = 3.0 * xs(3) + 4.0 * xs(4) - 1;
 
-    program.set_parameter(p1, 1.0);
-    program.set_parameter(p2, -1.0);
+    program.add_linear_constraint(
+        bopt::casadi::linear_constraint<double>::create(
+            expr, xs, sym_t(), bopt::bound_type::StrictlyNegative),
+        {{x}}, {{}});
 
-    for (const auto &pi : program.p()) {
-        LOG(INFO) << pi;
-    }
-
-    for (const auto &x : program.variable_bounds().m_values) {
-        LOG(INFO) << x.lower << " " << x.upper;
-    }
+    sym_t cost = sym_t::dot(xs, xs);
+    program.add_quadratic_cost(
+        bopt::casadi::quadratic_cost<double>::create(cost, xs, sym_t()), {{x}},
+        {{}});
 
     // Solve the program
     bopt::solvers::qpoases_solver_instance qp(program);

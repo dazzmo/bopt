@@ -33,6 +33,8 @@ class cost : public evaluator<ValueType, IntegerType, IndexType> {
     typedef typename evaluator_t::out_info_t out_info_t;
     typedef typename evaluator_t::out_data_t out_data_t;
 
+    typedef std::shared_ptr<cost> shared_ptr;
+
     typedef IndexType id_type;
 
    public:
@@ -43,8 +45,7 @@ class cost : public evaluator<ValueType, IntegerType, IndexType> {
         return 0;
     }
 
-    virtual integer_type hes(const value_type **arg, const value_type **lam,
-                             value_type *res) {
+    virtual integer_type hes(const value_type **arg, value_type *res) {
         return 0;
     }
 
@@ -63,9 +64,6 @@ class cost : public evaluator<ValueType, IntegerType, IndexType> {
 template <typename T>
 class linear_cost : public cost<T> {
    public:
-    using UniquePtr = std::unique_ptr<linear_cost>;
-    using SharedPtr = std::shared_ptr<linear_cost>;
-
     typedef typename cost<T>::value_type value_type;
     typedef typename cost<T>::index_type index_type;
     typedef typename cost<T>::integer_type integer_type;
@@ -75,21 +73,19 @@ class linear_cost : public cost<T> {
     typedef typename evaluator_t::out_info_t out_info_t;
     typedef typename evaluator_t::out_data_t out_data_t;
 
+    typedef std::shared_ptr<linear_cost> shared_ptr;
+
     linear_cost() = default;
 
     virtual integer_type a(const value_type **arg, value_type *res) {
         return 0;
     }
-    virtual integer_type a_info(out_info_t &info) {
-        return 0;
-    }
+    virtual integer_type a_info(out_info_t &info) { return 0; }
 
     virtual integer_type b(const value_type **arg, value_type *res) {
         return 0;
     }
-    virtual integer_type b_info(out_info_t &info) {
-        return 0;
-    }
+    virtual integer_type b_info(out_info_t &info) { return 0; }
 
    protected:
 };
@@ -112,20 +108,16 @@ class quadratic_cost : public cost<T> {
     typedef typename evaluator_t::out_info_t out_info_t;
     typedef typename evaluator_t::out_data_t out_data_t;
 
+    typedef std::shared_ptr<quadratic_cost> shared_ptr;
+
     virtual integer_type A(const double **arg, double *res) { return 0; }
-    virtual integer_type A_info(out_info_t &info) {
-        return 0;
-    }
+    virtual integer_type A_info(out_info_t &info) { return 0; }
 
     virtual integer_type b(const double **arg, double *res) { return 0; }
-    virtual integer_type b_info(out_info_t &info) {
-        return 0;
-    }
+    virtual integer_type b_info(out_info_t &info) { return 0; }
 
     virtual integer_type c(const double **arg, double *res) { return 0; }
-    virtual integer_type c_info(out_info_t &info) {
-        return 0;
-    }
+    virtual integer_type c_info(out_info_t &info) { return 0; }
 
    protected:
 };

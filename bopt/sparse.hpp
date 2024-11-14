@@ -70,12 +70,13 @@ void set_block(MatrixContainer &matrix, const EvaluatorOutInfo &block_info,
            "Indices provided are not same size as provided block");
 
     if (block_info.type == evaluator_matrix_type::type::Dense) {
-        LOG(INFO) << "Dense";
+        VLOG(10) << "Dense";
         // Populate matrix in a dense manner
         for (index_type col = 0; col < block_info.n; ++col) {
             for (index_type row = 0; row < block_info.m; ++row) {
-                LOG(INFO) << "Accessing (" << row_indices[row] << ", "
-                          << col_indices[col] << ")";
+                VLOG(10) << "Accessing (" << row_indices[row] << ", "
+                         << col_indices[col] << ") to insert "
+                         << block_data.values[col * block_info.m + row];
                 // Assume column-major
                 inserter(matrix, row_indices[row], col_indices[col],
                          block_data.values[col * block_info.m + row]);
@@ -83,11 +84,11 @@ void set_block(MatrixContainer &matrix, const EvaluatorOutInfo &block_info,
         }
 
     } else {
-        LOG(INFO) << "Sparse";
+        VLOG(10) << "Sparse";
 
         // Access elements of the evaluator block
-        index_type *colind = ccs_traits<EvaluatorOutInfo>::indices(block_info);
-        index_type *indices = ccs_traits<EvaluatorOutInfo>::indptrs(block_info);
+        index_type *colind = ccs_traits<EvaluatorOutInfo>::indptrs(block_info);
+        index_type *indices = ccs_traits<EvaluatorOutInfo>::indices(block_info);
 
         for (index_type col = 0; col < block_info.n; ++col) {
             index_type start = colind[col];
@@ -96,11 +97,14 @@ void set_block(MatrixContainer &matrix, const EvaluatorOutInfo &block_info,
             for (index_type row = start; row < end; ++row) {
                 // Get index of entry
                 index_type idx_r = indices[row];
-                index_type idx_c = indices[col];
+                index_type idx_c = col;
+                VLOG(10) << "Accessing (" << row_indices[idx_r] << ", "
+                         << col_indices[idx_c] << ") to insert "
+                         << block_data.values[row];
 
                 // Add entry to full Jacobian
                 inserter(matrix, row_indices[idx_r], col_indices[idx_c],
-                         block_data.values[row]);
+                         block_data.values[idx_r]);
             }
         }
     }

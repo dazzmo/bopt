@@ -73,11 +73,11 @@ struct ccs_traits {
         index_type;
 
     static constexpr index_type *indices(const EvaluatorInfo &info) {
-        return (info.sparsity_out + 2);
+        return (info.sparsity_out + 2 + info.n + 1);
     }
 
     static constexpr index_type *indptrs(const EvaluatorInfo &info) {
-        return (info.sparsity_out + 2 + info.m + 1);
+        return (info.sparsity_out + 2);
     }
 };
 

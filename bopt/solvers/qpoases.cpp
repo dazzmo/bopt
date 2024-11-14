@@ -19,14 +19,20 @@ qpoases_solver_instance::qpoases_solver_instance(
 
     // Create matrix data
     data.H.resize(nx, nx);
+    data.H.clear();
+
     data.g.resize(nx);
 
     data.A.resize(ng, nx);
+    data.A.clear();
     data.lbA.resize(ng);
     data.ubA.resize(ng);
 
     data.lbA.resize(nx);
     data.ubA.resize(nx);
+
+    data.lbx.resize(nx);
+    data.ubx.resize(nx);
 }
 
 qpoases_solver_instance::~qpoases_solver_instance() = default;
@@ -62,8 +68,6 @@ void qpoases_solver_instance::solve() {
         set_block(data.g, a_info, a_data, x_indices, {0}, vector_add_to);
     }
 
-    LOG(INFO) << "g = " << data.g;
-
     LOG(INFO) << "quadratic costs";
     /** Quadratic costs **/
     for (const binding<quadratic_cost<double>>& binding :
@@ -73,36 +77,41 @@ void qpoases_solver_instance::solve() {
 
         std::vector<double> pi = create_indexed_view(program().p(), p_indices);
 
-        // Evaluate coefficients for the cost a^T x + b
+        // Evaluate coefficients for the cost x^T A x + b^T x + c
         quadratic_cost<double>::out_info_t A_info, b_info;
         binding.get()->A_info(A_info);
         binding.get()->b_info(b_info);
+        // Evaluate the coefficients
+        quadratic_cost<double>::out_data_t A_data(A_info), b_data(b_info);
+        binding.get()->A(std::vector<const double*>({pi.data()}).data(),
+                         {A_data.values.data()});
+        binding.get()->b(std::vector<const double*>({pi.data()}).data(),
+                         {b_data.values.data()});
 
-        // evaluator_out_data<quadratic_cost<double>> A_data, b_data;
-        // binding.get()->A(std::vector<const double*>({pi.data()}).data(),
-        //                  {A_data.values});
-        // binding.get()->b(std::vector<const double*>({pi.data()}).data(),
-        //                  {b_data.values});
-
-        // set_block(data.H, A_info, A_data, x_indices, x_indices,
-        //           inserter_add_to);
-        // set_block(data.g, b_info, b_data, x_indices, {0}, vector_add_to);
+        set_block(data.H, A_info, A_data, x_indices, x_indices,
+                  inserter_add_to);
+        set_block(data.g, b_info, b_data, x_indices, {0}, vector_add_to);
     }
 
     /** Linear constraints **/
     LOG(INFO) << "linear constraints";
+    // todo - custom binding row orderings, much like in variables case
     std::size_t cnt = 0;
     for (const binding<linear_constraint<double>>& binding :
          program().linear_constraints()) {
+        typedef evaluator_traits<linear_constraint<double>>::index_type
+            index_type;
+
         const auto& x_indices = binding.input_indices[0];
         const auto& p_indices = binding.input_indices[1];
 
         std::vector<double> pi = create_indexed_view(program().p(), p_indices);
 
-        // Evaluate coefficients for the cost a^T x + b
+        // Evaluate coefficients for the constraint  lbA < A x + b < ubA
         linear_constraint<double>::out_info_t A_info, b_info;
         binding.get()->A_info(A_info);
         binding.get()->b_info(b_info);
+        // Evaluate the coefficients
         linear_constraint<double>::out_data_t A_data(A_info), b_data(b_info);
         binding.get()->A(std::vector<const double*>({pi.data()}).data(),
                          {A_data.values.data()});
@@ -110,29 +119,24 @@ void qpoases_solver_instance::solve() {
                          {b_data.values.data()});
 
         // Create row indices
-        std::vector<evaluator_traits<linear_constraint<double>>::index_type>
-            row_indices;
-        for (index_type i = 0; i < A_info.n; ++i) {
+        std::vector<index_type> row_indices;
+        for (index_type i = 0; i < A_info.m; ++i) {
             row_indices.push_back(cnt + i);
         };
 
         set_block(data.A, A_info, A_data, row_indices, x_indices,
                   inserter_set_to);
 
-        LOG(INFO) << data.A;
         // Add to each bound
-
-        for (index_type i = 0; i < b_info.n; ++i) {
+        for (index_type i = 0; i < b_info.m; ++i) {
             data.ubA[row_indices[i]] =
                 binding.get()->bounds[i].upper - b_data.values[i];
             data.lbA[row_indices[i]] =
                 binding.get()->bounds[i].lower - b_data.values[i];
         }
 
-        LOG(INFO) << "bounds made";
-
         // Increase constraint index
-        cnt += A_info.n;
+        cnt += A_info.m;
     }
 
     /** Bounding box constraints **/
@@ -143,18 +147,26 @@ void qpoases_solver_instance::solve() {
         const auto& p_indices = binding.input_indices[1];
 
         std::vector<double> pi = create_indexed_view(program().p(), p_indices);
+        binding.get()->update_bounds(
+            std::vector<const double*>({pi.data()}).data());
 
-        // todo - fix this
-        // todo - xbu = std::min(xbu[i], bound.upper)
-        // todo - xbl = std::max(xbl[i], bound.lower)
+        for (index_type i = 0; i < x_indices.size(); ++i) {
+            data.ubx[x_indices[i]] = std::min(data.ubx[x_indices[i]],
+                                              binding.get()->bounds[i].upper);
+            data.lbx[x_indices[i]] = std::max(data.lbx[x_indices[i]],
+                                              binding.get()->bounds[i].lower);
+        }
     }
 
     int nWSR = options_.nWSR;
+
+    qp_->setHessianType(qpOASES::HessianType::HST_SEMIDEF);
 
     // Solve
     if (info_.number_of_solves > 0 && options_.perform_hotstart) {
         profiler("qpoases_solver");
         // Use previous solution to hot-start the program
+        // qpOASES::SymDenseMat(nx, nx, 0, data.H.data());
         qp_->hotstart(data.H.data().begin(), data.g.data(),
                       data.A.data().begin(), data.lbx.data(), data.ubx.data(),
                       data.lbA.data(), data.ubA.data(), nWSR);

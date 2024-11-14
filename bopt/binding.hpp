@@ -66,8 +66,8 @@ class binding {
         // Computes the indices within the map that the mapping relates to
         // assert(evaluator_attributes<evaluator_t>::n_in(*obj) ==
         // input_indices.size() &&
-        //        "Incorrect number of input index vectors for evaluator
-        //        binding");
+            //    "Incorrect number of input index vectors for evaluator
+            //    binding");
         this->input_indices = input_indices;
     }
 

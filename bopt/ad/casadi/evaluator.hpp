@@ -152,11 +152,11 @@ class evaluator : public bopt::evaluator<T> {
     integer_type operator()(const value_type **arg, value_type *ret) override {
         w = work_vector_d.data();
         iw = work_vector_i.data();
-        for (int i = 0; i < this->n_in_; i++) {
+        for (integer_type i = 0; i < this->n_in_; i++) {
             arg_vec[i] = arg[i];
         }
-        res_vec[0] = this->buffer.data();
-        ret = this->buffer.data();
+        // todo - currently only considering one output
+        res_vec[0] = ret;
         if (f(arg_vec.data(), res_vec.data(), iw, w, mem))
             return integer_type(1);
         return integer_type(0);
@@ -166,6 +166,8 @@ class evaluator : public bopt::evaluator<T> {
         info.m = this->out_m;
         info.n = this->out_n;
         info.nnz = this->out_nnz;
+        info.sparsity_out = this->sparsity_out.data();
+        info.type = evaluator_matrix_type::Sparse;
         return integer_type(0);
     }
 

@@ -15,17 +15,15 @@ TEST(CasadiConstraint, Constraint) {
     std::size_t n = 5;
     sym x = sym::sym("x", n);
     // Create symbolic constraint
-    sym ex = sym::dot(x, x);
-    ex += sin(dot(x, x));
+    sym ex = -3.0 * x(1) + 5.0 * x(2) + 2.0 * x(4);
 
     // Compute Jacobian
     sym jac = sym::jacobian(ex, x);
 
-    std::shared_ptr<bopt::constraint<double>> c =
-        std::make_shared<bopt::casadi::constraint<double>>(ex, x, sym());
+    std::shared_ptr<bopt::linear_constraint<double>> c =
+        std::make_shared<bopt::casadi::linear_constraint<double>>(ex, x, sym());
 
-    bopt::evaluator_out_info<typename bopt::constraint<double>::evaluator_t>
-        info;
+    bopt::linear_constraint<double>::out_info_t info;
     c->jac_info(info);
 
     EXPECT_EQ(info.m, jac.size1());
