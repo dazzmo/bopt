@@ -1,10 +1,11 @@
 
 #define BOPT_USE_PROFILING
-#include "bopt/solvers/qpoases.h"
+#include "bopt/solvers/qpoases.hpp"
 
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
+#include "bopt/ad/casadi.hpp"
 #include "bopt/logging.hpp"
 #include "bopt/variable.hpp"
 
@@ -14,52 +15,6 @@ using dm = ::casadi::DM;
 namespace dcas = bopt::casadi;
 
 typedef double value_type;
-
-class CostFunction : public bopt::linear_cost<value_type> {
-   public:
-   private:
-};
-
-class ConstraintFunction : public bopt::linear_constraint<value_type> {
-   public:
-    typedef std::shared_ptr<ConstraintFunction> shared_ptr;
-    typedef bopt::linear_constraint<double> linear_constraint;
-
-    ConstraintFunction() : linear_constraint(1) { this->out_n = 1; }
-
-    integer_type operator()(const value_type **arg, value_type *res) {
-        return integer_type(0);
-    }
-
-    integer_type A_info(
-        bopt::evaluator_out_info<linear_constraint> &info) override {
-        info.m = 1;
-        info.n = 1;
-        info.nnz = 1;
-        info.type = bopt::evaluator_matrix_type::Dense;
-        return integer_type(0);
-    }
-
-    integer_type A(const value_type **arg, value_type *res) {
-        res[0] = arg[0][0];
-        return integer_type(0);
-    }
-
-    integer_type b_info(bopt::evaluator_out_info<linear_constraint> &info) {
-        info.m = 1;
-        info.n = 1;
-        info.nnz = 1;
-        info.type = bopt::evaluator_matrix_type::Dense;
-        return integer_type(0);
-    }
-
-    integer_type b(const value_type **arg, value_type *res) {
-        res[0] = arg[0][1];
-        return integer_type(0);
-    }
-
-   private:
-};
 
 TEST(qpoases, LinearProgram) {
     bopt::mathematical_program<double> program("basic program");
@@ -81,8 +36,8 @@ TEST(qpoases, LinearProgram) {
     program.add_variable(x, 0.0, -5.0, 5.0);
     program.add_parameter(p1);
     program.add_parameter(p2);
-    std::shared_ptr<bopt::linear_constraint<double>> ptr =
-        std::make_shared<ConstraintFunction>();
+
+    // Create constraint with casadi
 
     program.add_constraint(ptr, {{x}}, {{p1, p2}});
 

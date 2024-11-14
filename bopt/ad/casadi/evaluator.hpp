@@ -1,10 +1,10 @@
+#pragma once
 #include <memory>
 
 #include "bopt/dlib_handler.hpp"
 #include "bopt/evaluator.hpp"
 
 namespace bopt {
-
 namespace casadi {
 
 /* Typedefs based on casadi format */

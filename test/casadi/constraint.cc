@@ -4,8 +4,7 @@
 
 #include <Eigen/Core>
 
-#include "bopt/ad/casadi/codegen.hpp"
-#include "bopt/ad/casadi/constraints.hpp"
+#include "bopt/ad/casadi/casadi.hpp"
 #include "bopt/dlib_handler.hpp"
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
@@ -19,15 +18,19 @@ TEST(CasadiConstraint, Constraint) {
     sym ex = sym::dot(x, x);
     ex += sin(dot(x, x));
 
+    // Compute Jacobian
+    sym jac = sym::jacobian(ex, x);
+
     std::shared_ptr<bopt::constraint<double>> c =
         std::make_shared<bopt::casadi::constraint<double>>(ex, x, sym());
 
-    bopt::evaluator_out_info<typename bopt::constraint<double>::evaluator_t> info;
+    bopt::evaluator_out_info<typename bopt::constraint<double>::evaluator_t>
+        info;
     c->jac_info(info);
 
-    LOG(INFO) << info.n;
-    LOG(INFO) << info.m;
-    LOG(INFO) << info.nnz;
+    EXPECT_EQ(info.m, jac.size1());
+    EXPECT_EQ(info.n, jac.size2());
+    EXPECT_EQ(info.nnz, jac.nnz());
 }
 
 int main(int argc, char **argv) {

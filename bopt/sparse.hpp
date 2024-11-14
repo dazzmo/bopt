@@ -10,20 +10,49 @@ namespace bopt {
 namespace ublas = boost::numeric::ublas;
 
 /**
- * @brief Sets a block within a matrix container using the values defined by an
- * Evaluator output. Row and column mappings must be provided to ensure correct
- * insertion. Matrix insertion is also required.
+ * @brief Inserts a block of data from an evaluator output into a matrix, using
+ * specified row and column mappings.
  *
- * @tparam MatrixContainer
- * @tparam Evaluator
- * @tparam IndexVectorType
- * @tparam MatrixInserterFunction
- * @param matrix
- * @param block_info
- * @param block_data
- * @param row_indices
- * @param col_indices
- * @param inserter
+ * This function sets a block within a given matrix container by inserting data
+ * derived from an `EvaluatorOutData` output. It supports both dense and sparse
+ * block types, handling each accordingly. The insertion leverages custom row
+ * and column indices for correct positioning within the larger matrix, and an
+ * inserter function is used to perform the insertion of values.
+ *
+ * @tparam MatrixContainer Type of the matrix container, representing the larger
+ * matrix structure.
+ * @tparam EvaluatorOutInfo Type containing metadata about the evaluator output,
+ * including dimensions and block type (dense or sparse).
+ * @tparam EvaluatorOutData Type representing the data output from the
+ * evaluator, containing the values to be inserted.
+ * @tparam IndexVectorType Container type for row and column index mappings.
+ * @tparam MatrixInserterFunction Type of the function or callable responsible
+ * for inserting values into the matrix.
+ *
+ * @param matrix Reference to the matrix container where the block will be
+ * inserted.
+ * @param block_info Metadata about the block, including its dimensions (m x n)
+ * and type (dense or sparse).
+ * @param block_data Output data from the evaluator, providing the values to
+ * insert into the block.
+ * @param row_indices Vector of row indices mapping the block to specific rows
+ * in the matrix container.
+ * @param col_indices Vector of column indices mapping the block to specific
+ * columns in the matrix container.
+ * @param inserter Function or callable that inserts values into `matrix` at
+ * specified row and column locations.
+ *
+ * @details
+ * - For dense blocks, values are inserted in a column-major order.
+ * - For sparse blocks, only non-zero values are inserted, as specified by the
+ * sparse structure of `block_info`.
+ * - `block_info` must include the block's size and type, which determines
+ * whether the dense or sparse insertion logic is used.
+ *
+ * @pre `row_indices.size() == block_info.m` and `col_indices.size() ==
+ * block_info.n`
+ * @warning Ensure `row_indices` and `col_indices` correctly correspond to the
+ * intended block location in the matrix.
  */
 template <class MatrixContainer, class EvaluatorOutInfo, class EvaluatorOutData,
           typename IndexVectorType, class MatrixInserterFunction>

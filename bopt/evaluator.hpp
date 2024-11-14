@@ -26,6 +26,19 @@ struct evaluator_attributes {
     }
 };
 
+template <typename EvaluatorInfo>
+struct evaluator_out_info_traits {
+    typedef typename EvaluatorInfo::value_type value_type;
+    typedef typename EvaluatorInfo::index_type index_type;
+    typedef typename EvaluatorInfo::integer_type integer_type;
+};
+
+/**
+ * @brief Evaluator output information, including output dimensions, sparsity
+ * pattern, density and number of non-zero elements.
+ *
+ * @tparam Evaluator
+ */
 template <typename Evaluator>
 struct evaluator_out_info {
     typedef typename evaluator_traits<Evaluator>::index_type index_type;
@@ -56,7 +69,8 @@ struct evaluator_out_info {
  */
 template <typename EvaluatorInfo>
 struct ccs_traits {
-    typedef typename evaluator_traits<EvaluatorInfo>::index_type index_type;
+    typedef typename evaluator_out_info_traits<EvaluatorInfo>::index_type
+        index_type;
 
     static constexpr index_type *indices(const EvaluatorInfo &info) {
         return (info.sparsity_out + 2);

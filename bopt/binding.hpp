@@ -102,11 +102,37 @@ class binding {
     evaluator_shared_ptr evaluator_;
 };
 
+/**
+ * @brief Creates a vector with the values specified from the indices provided.
+ *
+ * @tparam ValueType The types of values.
+ * @tparam IndexType The type of indices.
+ * @param values Value vector to take the values from.
+ * @param indices Vector of indices from values to insert into the new vector.
+ * @return std::vector<ValueType> Vector of values from values specified by
+ * indices.
+ */
+template <class ValueType, class IndexType>
+std::vector<ValueType> create_indexed_view(
+    const std::vector<ValueType> &values,
+    const std::vector<IndexType> &indices) {
+    typedef typename std::vector<IndexType>::const_iterator index_iterator;
+
+    std::vector<ValueType> res;
+    res.reserve(indices.size());
+
+    for (index_iterator it = indices.begin(); it != indices.end(); ++it) {
+        res.push_back(values[*it]);
+    }
+
+    return res;
+}
+
 // template <class EvaluatorType>
 // void evaluate_binding(binding<EvaluatorType> &binding) {
 //     typedef typename EvaluatorType::evaluator_t evaluator_info_t;
 //     typedef typename EvaluatorType::evaluator_t evaluator_data_t;
-    
+
 //     auto x_indices = binding.input_indices[0];
 //     auto p_indices = binding.input_indices[1];
 

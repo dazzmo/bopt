@@ -1,5 +1,6 @@
 #include "bopt/solvers/qpoases.hpp"
 
+#include "boost/numeric/ublas/io.hpp"
 #include "bopt/sparse.hpp"
 
 namespace bopt {
@@ -45,15 +46,10 @@ void qpoases_solver_instance::solve() {
     LOG(INFO) << "linear costs";
     for (const binding<linear_cost<double>>& binding :
          program().linear_costs()) {
-        auto x_indices = binding.input_indices[0];
-        auto p_indices = binding.input_indices[1];
+        const auto& x_indices = binding.input_indices[0];
+        const auto& p_indices = binding.input_indices[1];
 
-        // todo - shorten this
-        std::vector<double> pi;
-        for (const auto& i : p_indices) {
-            // Create vector of input
-            pi.emplace_back(program().p()[i]);
-        }
+        std::vector<double> pi = create_indexed_view(program().p(), p_indices);
 
         linear_cost<double>::out_info_t a_info;
         linear_cost<double>::out_data_t a_data(a_info);
@@ -72,14 +68,10 @@ void qpoases_solver_instance::solve() {
     /** Quadratic costs **/
     for (const binding<quadratic_cost<double>>& binding :
          program().quadratic_costs()) {
-        auto x_indices = binding.input_indices[0];
-        auto p_indices = binding.input_indices[1];
+        const auto& x_indices = binding.input_indices[0];
+        const auto& p_indices = binding.input_indices[1];
 
-        std::vector<double> pi;
-        for (const auto& i : p_indices) {
-            // Create vector of input
-            pi.emplace_back(program().p()[i]);
-        }
+        std::vector<double> pi = create_indexed_view(program().p(), p_indices);
 
         // Evaluate coefficients for the cost a^T x + b
         quadratic_cost<double>::out_info_t A_info, b_info;
@@ -102,23 +94,16 @@ void qpoases_solver_instance::solve() {
     std::size_t cnt = 0;
     for (const binding<linear_constraint<double>>& binding :
          program().linear_constraints()) {
-        LOG(INFO) << "x";
-        auto x_indices = binding.input_indices[0];
-        LOG(INFO) << "p";
-        auto p_indices = binding.input_indices[1];
+        const auto& x_indices = binding.input_indices[0];
+        const auto& p_indices = binding.input_indices[1];
 
-        std::vector<double> pi;
-        for (const auto& i : p_indices) {
-            // Create vector of input
-            pi.emplace_back(program().p()[i]);
-        }
+        std::vector<double> pi = create_indexed_view(program().p(), p_indices);
 
         // Evaluate coefficients for the cost a^T x + b
         linear_constraint<double>::out_info_t A_info, b_info;
-        linear_constraint<double>::out_data_t A_data(A_info), b_data(b_info);
         binding.get()->A_info(A_info);
         binding.get()->b_info(b_info);
-
+        linear_constraint<double>::out_data_t A_data(A_info), b_data(b_info);
         binding.get()->A(std::vector<const double*>({pi.data()}).data(),
                          {A_data.values.data()});
         binding.get()->b(std::vector<const double*>({pi.data()}).data(),
@@ -130,13 +115,11 @@ void qpoases_solver_instance::solve() {
         for (index_type i = 0; i < A_info.n; ++i) {
             row_indices.push_back(cnt + i);
         };
-        LOG(INFO) << "setting block";
 
         set_block(data.A, A_info, A_data, row_indices, x_indices,
                   inserter_set_to);
 
-        LOG(INFO) << "block set";
-
+        LOG(INFO) << data.A;
         // Add to each bound
 
         for (index_type i = 0; i < b_info.n; ++i) {
@@ -156,8 +139,10 @@ void qpoases_solver_instance::solve() {
     LOG(INFO) << "bounding box constraints";
     for (const binding<bounding_box_constraint<double>>& binding :
          program().bounding_box_constraints()) {
-        auto x_indices = binding.input_indices[0];
-        auto p_indices = binding.input_indices[1];
+        const auto& x_indices = binding.input_indices[0];
+        const auto& p_indices = binding.input_indices[1];
+
+        std::vector<double> pi = create_indexed_view(program().p(), p_indices);
 
         // todo - fix this
         // todo - xbu = std::min(xbu[i], bound.upper)
