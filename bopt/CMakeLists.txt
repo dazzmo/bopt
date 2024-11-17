@@ -89,5 +89,5 @@ install(TARGETS ${PROJECT_NAME}
 # Install header files
 install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
   DESTINATION include
-  FILES_MATCHING PATTERN "*.h"
+  FILES_MATCHING PATTERN "*.hpp"
 )

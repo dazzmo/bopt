@@ -23,6 +23,7 @@ template <typename T>
 class expression_evaluator : public bopt::evaluator<T> {
    public:
     typedef ::casadi::SX sym_t;
+    typedef std::vector<sym_t> sym_vector_t;
     typedef ::casadi::Function function_t;
 
     typedef bopt::evaluator<T> Base;
@@ -35,22 +36,41 @@ class expression_evaluator : public bopt::evaluator<T> {
     typedef bopt::casadi::evaluator<value_type> casadi_evaluator_t;
 
     expression_evaluator(const sym_t &expression, const sym_t &x,
-                         const sym_t &p)
+                         const sym_vector_t &p)
         : Base() {
-        function_t f("f", {x, p}, {expression});
+        sym_vector_t in = {};
+        in.push_back(x);
+        in.insert(in.end(), p.begin(), p.end());
+
+        function_t f("f", in, {expression});
         // Perform code generation to evaluate these expressions
         auto f_handle = codegen(f);
         f_eval_ = std::make_unique<casadi_evaluator_t>(f_handle, "f");
 
-        function_t j("j", {x, p}, {sym_t::jacobian(expression, x)});
+        function_t j("j", in, {sym_t::jacobian(expression, x)});
         auto j_handle = codegen(j);
         j_eval_ = std::make_unique<casadi_evaluator_t>(j_handle, "j");
 
         sym_t l = sym_t::sym("l", expression.size1());
-        function_t h("h", {x, p, l},
-                     {sym_t::hessian(sym_t::dot(expression, l), x)});
+        in.push_back(l);
+        function_t h("h", in, {sym_t::hessian(sym_t::dot(expression, l), x)});
         auto h_handle = codegen(h);
         h_eval_ = std::make_unique<casadi_evaluator_t>(h_handle, "h");
+    }
+
+    /**
+     * @brief Construct a new expression evaluator with known inputs (no
+     * jacobian or hessian computed)
+     *
+     * @param expression
+     * @param in
+     */
+    expression_evaluator(const sym_t &expression, const sym_vector_t &in)
+        : Base() {
+        function_t f("f", in, {expression});
+        // Perform code generation to evaluate these expressions
+        auto f_handle = codegen(f);
+        f_eval_ = std::make_unique<casadi_evaluator_t>(f_handle, "f");
     }
 
    public:
@@ -84,6 +104,7 @@ class linear_expression_evaluator : public expression_evaluator<T> {
     typedef expression_evaluator<T> Base;
 
     typedef typename Base::sym_t sym_t;
+    typedef typename Base::sym_vector_t sym_vector_t;
     typedef typename Base::function_t function_t;
 
     typedef typename Base::value_type value_type;
@@ -95,14 +116,24 @@ class linear_expression_evaluator : public expression_evaluator<T> {
     typedef typename Base::casadi_evaluator_t casadi_evaluator_t;
 
     linear_expression_evaluator(const sym_t &expression, const sym_t &x,
-                                const sym_t &p)
+                                const sym_vector_t &p)
         : Base(expression, x, p) {
         // Compute linear expression coefficients
         sym_t A, b;
-        sym_t::linear_coeff(expression, x, A, b, true);
+        try {
+            sym_t::linear_coeff(expression, x, A, b, true);
+        } catch (std::exception &e) {
+            throw std::runtime_error(
+                "Expression provided is not linear in specified variable "
+                "x!");
+        }
 
-        function_t f_A("f_A", {x, p}, {A});
-        function_t f_b("f_b", {x, p}, {b});
+        sym_vector_t in = {};
+        in.push_back(x);
+        in.insert(in.end(), p.begin(), p.end());
+
+        function_t f_A("f_A", in, {A});
+        function_t f_b("f_b", in, {b});
         // Perform code generation to evaluate these expressions
         auto A_handle = codegen(f_A);
         A_eval_ = std::make_unique<casadi_evaluator_t>(A_handle, "f_A");
@@ -136,6 +167,7 @@ class quadratic_expression_evaluator : public expression_evaluator<T> {
     typedef expression_evaluator<T> Base;
 
     typedef typename Base::sym_t sym_t;
+    typedef typename std::vector<sym_t> sym_vector_t;
     typedef typename Base::function_t function_t;
 
     typedef typename Base::value_type value_type;
@@ -147,15 +179,26 @@ class quadratic_expression_evaluator : public expression_evaluator<T> {
     typedef typename Base::casadi_evaluator_t casadi_evaluator_t;
 
     quadratic_expression_evaluator(const sym_t &expression, const sym_t &x,
-                                   const sym_t &p)
+                                   const sym_vector_t &p)
         : Base(expression, x, p) {
         // Compute linear expression coefficients
         sym_t A, b, c;
+        try {
+            sym_t::quadratic_coeff(expression, x, A, b, c, true);
+        } catch (std::exception &e) {
+            throw std::runtime_error(
+                "Expression provided is not quadratic in specified variable "
+                "x!");
+        }
         sym_t::quadratic_coeff(expression, x, A, b, c, true);
 
-        function_t f_A("f_A", {x, p}, {A});
-        function_t f_b("f_b", {x, p}, {b});
-        function_t f_c("f_c", {x, p}, {c});
+        sym_vector_t in = {};
+        in.push_back(x);
+        in.insert(in.end(), p.begin(), p.end());
+
+        function_t f_A("f_A", in, {A});
+        function_t f_b("f_b", in, {b});
+        function_t f_c("f_c", in, {c});
         // Perform code generation to evaluate these expressions
         auto A_handle = codegen(f_A);
         A_eval_ = std::make_unique<casadi_evaluator_t>(A_handle, "f_A");
@@ -169,7 +212,9 @@ class quadratic_expression_evaluator : public expression_evaluator<T> {
 
    public:
     integer_type A(const value_type **arg, value_type *res) {
+        LOG(INFO) << "expression A start";
         (*A_eval_)(arg, res);
+        LOG(INFO) << "expression A done";
         return integer_type(0);
     }
 

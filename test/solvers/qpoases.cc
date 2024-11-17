@@ -26,8 +26,8 @@ TEST(qpoases, LinearProgram) {
     sym_t xs = sym_t::sym("x", 10);
     sym_t expr = sym_t(2, 1);
 
-    expr(0) = 1.0 * xs(1) + 2.0 * xs(2) + 1;
-    expr(1) = 3.0 * xs(3) + 4.0 * xs(4) - 1;
+    expr(0) = 1.0 * xs(1) - 1;
+    expr(1) = 3.0 * xs(3) * xs(4) - 1;
 
     program.add_linear_constraint(
         bopt::casadi::linear_constraint<double>::create(

@@ -9,6 +9,7 @@ class cost : public bopt::cost<T> {
     typedef bopt::cost<T> Base;
 
     typedef ::casadi::SX sym_t;
+    typedef std::vector<sym_t> sym_vector_t;
 
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
@@ -18,14 +19,14 @@ class cost : public bopt::cost<T> {
    public:
     cost() = default;
 
-    cost(const sym_t &expression, const sym_t &x, const sym_t &p)
+    cost(const sym_t &expression, const sym_t &x, const sym_vector_t &p)
         : bopt::cost<T>() {
         expression_evaluator_ =
             std::make_unique<expression_evaluator<T>>(expression, x, p);
     }
 
     static inline std::shared_ptr<cost> create(const sym_t &expression,
-                                               const sym_t &x, const sym_t &p) {
+                                               const sym_t &x, const sym_vector_t &p) {
         return std::make_shared<cost>(expression, x, p);
     }
 
@@ -63,13 +64,14 @@ class linear_cost : public bopt::linear_cost<T> {
    public:
     typedef bopt::linear_cost<T> Base;
     typedef ::casadi::SX sym_t;
+    typedef std::vector<sym_t> sym_vector_t;
 
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
     typedef typename Base::integer_type integer_type;
     typedef typename Base::out_info_t out_info_t;
 
-    linear_cost(const sym_t &expression, const sym_t &x, const sym_t &p)
+    linear_cost(const sym_t &expression, const sym_t &x, const sym_vector_t &p)
         : bopt::linear_cost<T>() {
         expression_evaluator_ =
             std::make_unique<linear_expression_evaluator<T>>(expression, x, p);
@@ -77,7 +79,7 @@ class linear_cost : public bopt::linear_cost<T> {
 
     static inline std::shared_ptr<linear_cost> create(const sym_t &expression,
                                                       const sym_t &x,
-                                                      const sym_t &p) {
+                                                      const sym_vector_t &p) {
         return std::make_shared<linear_cost>(expression, x, p);
     }
 
@@ -131,13 +133,14 @@ class quadratic_cost : public bopt::quadratic_cost<T> {
    public:
     typedef bopt::quadratic_cost<T> Base;
     typedef ::casadi::SX sym_t;
+    typedef std::vector<sym_t> sym_vector_t;
 
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
     typedef typename Base::integer_type integer_type;
     typedef typename Base::out_info_t out_info_t;
 
-    quadratic_cost(const sym_t &expression, const sym_t &x, const sym_t &p)
+    quadratic_cost(const sym_t &expression, const sym_t &x, const sym_vector_t &p)
         : bopt::quadratic_cost<T>() {
         expression_evaluator_ =
             std::make_unique<quadratic_expression_evaluator<T>>(expression, x,
@@ -145,7 +148,7 @@ class quadratic_cost : public bopt::quadratic_cost<T> {
     }
 
     static inline std::shared_ptr<quadratic_cost> create(
-        const sym_t &expression, const sym_t &x, const sym_t &p) {
+        const sym_t &expression, const sym_t &x, const sym_vector_t &p) {
         return std::make_shared<quadratic_cost>(expression, x, p);
     }
 

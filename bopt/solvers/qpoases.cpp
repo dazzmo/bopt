@@ -25,16 +25,14 @@ qpoases_solver_instance::qpoases_solver_instance(
 
     data.A.resize(ng, nx);
     data.A.clear();
+
     data.lbA.resize(ng);
     data.ubA.resize(ng);
-
-    data.lbA.resize(nx);
-    data.ubA.resize(nx);
 
     data.lbx.resize(nx);
     data.ubx.resize(nx);
 
-    for(int i = 0; i < nx; ++i) {
+    for (int i = 0; i < nx; ++i) {
         set(data.lbx, i, program.variable_bounds()[i].lower);
         set(data.ubx, i, program.variable_bounds()[i].upper);
     }
@@ -57,18 +55,24 @@ void qpoases_solver_instance::solve() {
     LOG(INFO) << "linear costs";
     for (const binding<linear_cost<double>>& binding :
          program().linear_costs()) {
+        LOG(INFO) << "linear cost";
         const auto& x_indices = binding.input_indices[0];
-        const auto& p_indices = binding.input_indices[1];
 
-        std::vector<double> pi = create_indexed_view(program().p(), p_indices);
+        // Create input vector
+        std::vector<std::vector<double>> p_data;
+        std::vector<const double*> in = {};
+        for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
+            const auto& p_indices = binding.input_indices[i];
+            p_data.push_back(create_indexed_view(program().p(), p_indices));
+            in.push_back(p_data.back().data());
+        }
 
         linear_cost<double>::out_info_t a_info;
         linear_cost<double>::out_data_t a_data(a_info);
         binding.get()->a_info(a_info);
 
         // Evaluate coefficients for the cost a^T x + b
-        binding.get()->a(std::vector<const double*>({pi.data()}).data(),
-                         {a_data.values.data()});
+        binding.get()->a(in.data(), {a_data.values.data()});
 
         set_block(data.g, a_info, a_data, x_indices, {0}, vector_add_to);
     }
@@ -77,10 +81,17 @@ void qpoases_solver_instance::solve() {
     /** Quadratic costs **/
     for (const binding<quadratic_cost<double>>& binding :
          program().quadratic_costs()) {
+        LOG(INFO) << "quadratic cost";
         const auto& x_indices = binding.input_indices[0];
-        const auto& p_indices = binding.input_indices[1];
 
-        std::vector<double> pi = create_indexed_view(program().p(), p_indices);
+        // Create input vector
+        std::vector<std::vector<double>> p_data;
+        std::vector<const double*> in = {};
+        for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
+            const auto& p_indices = binding.input_indices[i];
+            p_data.push_back(create_indexed_view(program().p(), p_indices));
+            in.push_back(p_data.back().data());
+        }
 
         // Evaluate coefficients for the cost x^T A x + b^T x + c
         quadratic_cost<double>::out_info_t A_info, b_info;
@@ -88,11 +99,12 @@ void qpoases_solver_instance::solve() {
         binding.get()->b_info(b_info);
         // Evaluate the coefficients
         quadratic_cost<double>::out_data_t A_data(A_info), b_data(b_info);
-        binding.get()->A(std::vector<const double*>({pi.data()}).data(),
-                         {A_data.values.data()});
-        binding.get()->b(std::vector<const double*>({pi.data()}).data(),
-                         {b_data.values.data()});
+        LOG(INFO) << "A";
+        binding.get()->A(in.data(), {A_data.values.data()});
+        LOG(INFO) << "b";
+        binding.get()->b(in.data(), {b_data.values.data()});
 
+        LOG(INFO) << "Blocks";
         set_block(data.H, A_info, A_data, x_indices, x_indices,
                   inserter_add_to);
         set_block(data.g, b_info, b_data, x_indices, {0}, vector_add_to);
@@ -108,9 +120,15 @@ void qpoases_solver_instance::solve() {
             index_type;
 
         const auto& x_indices = binding.input_indices[0];
-        const auto& p_indices = binding.input_indices[1];
 
-        std::vector<double> pi = create_indexed_view(program().p(), p_indices);
+        // Create input vector
+        std::vector<std::vector<double>> p_data;
+        std::vector<const double*> in = {};
+        for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
+            const auto& p_indices = binding.input_indices[i];
+            p_data.push_back(create_indexed_view(program().p(), p_indices));
+            in.push_back(p_data.back().data());
+        }
 
         // Evaluate coefficients for the constraint  lbA < A x + b < ubA
         linear_constraint<double>::out_info_t A_info, b_info;
@@ -118,10 +136,8 @@ void qpoases_solver_instance::solve() {
         binding.get()->b_info(b_info);
         // Evaluate the coefficients
         linear_constraint<double>::out_data_t A_data(A_info), b_data(b_info);
-        binding.get()->A(std::vector<const double*>({pi.data()}).data(),
-                         {A_data.values.data()});
-        binding.get()->b(std::vector<const double*>({pi.data()}).data(),
-                         {b_data.values.data()});
+        binding.get()->A(in.data(), {A_data.values.data()});
+        binding.get()->b(in.data(), {b_data.values.data()});
 
         // Create row indices
         std::vector<index_type> row_indices;
@@ -149,11 +165,17 @@ void qpoases_solver_instance::solve() {
     for (const binding<bounding_box_constraint<double>>& binding :
          program().bounding_box_constraints()) {
         const auto& x_indices = binding.input_indices[0];
-        const auto& p_indices = binding.input_indices[1];
 
-        std::vector<double> pi = create_indexed_view(program().p(), p_indices);
-        binding.get()->update_bounds(
-            std::vector<const double*>({pi.data()}).data());
+        // Create input vector
+        std::vector<std::vector<double>> p_data;
+        std::vector<const double*> in = {};
+        for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
+            const auto& p_indices = binding.input_indices[i];
+            p_data.push_back(create_indexed_view(program().p(), p_indices));
+            in.push_back(p_data.back().data());
+        }
+
+        binding.get()->update_bounds(in.data());
 
         for (index_type i = 0; i < x_indices.size(); ++i) {
             data.ubx[x_indices[i]] = std::min(data.ubx[x_indices[i]],

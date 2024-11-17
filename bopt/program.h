@@ -242,6 +242,7 @@ class mathematical_program {
     vector_bounds<value_type> &variable_bounds() { return xb_; }
 
     index_type parameter_index(const variable &p) const {
+        // todo - consider a container like a map
         const auto &it = std::find(parameters_.begin(), parameters_.end(), p);
         if (it != parameters_.end()) {
             return std::distance(parameters_.begin(), it);
@@ -410,14 +411,14 @@ class mathematical_program {
     std::vector<std::size_t> parameter_index_;
 
     // constraint bindings
-    std::vector<binding<constraint_t>> constraints_generic_;
-    std::vector<binding<linear_constraint_t>> constraints_linear_;
-    std::vector<binding<bounding_box_constraint_t>> constraints_bounding_box_;
+    std::vector<binding<constraint_t>> constraints_generic_ = {};
+    std::vector<binding<linear_constraint_t>> constraints_linear_ = {};
+    std::vector<binding<bounding_box_constraint_t>> constraints_bounding_box_ = {};
 
     // cost bindings
-    std::vector<binding<cost_t>> costs_generic_;
-    std::vector<binding<linear_cost_t>> costs_linear_;
-    std::vector<binding<quadratic_cost_t>> costs_quadratic_;
+    std::vector<binding<cost_t>> costs_generic_ = {};
+    std::vector<binding<linear_cost_t>> costs_linear_ = {};
+    std::vector<binding<quadratic_cost_t>> costs_quadratic_ = {};
 };
 
 }  // namespace bopt
