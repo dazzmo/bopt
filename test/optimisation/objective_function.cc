@@ -6,7 +6,7 @@
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
 #include "bopt/costs.hpp"
-#include "bopt/program.h"
+#include "bopt/program.hpp"
 #include "bopt/symbolic/variable.hpp"
 
 using sym = ::casadi::SX;

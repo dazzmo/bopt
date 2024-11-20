@@ -3,7 +3,7 @@
 
 #include <unordered_map>
 
-#include "bopt/program.h"
+#include "bopt/program.hpp"
 
 namespace bopt {
 namespace solvers {

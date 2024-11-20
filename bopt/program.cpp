@@ -1,4 +1,4 @@
-#include "bopt/program.h"
+#include "bopt/program.hpp"
 
 namespace bopt {
 namespace optimisation {

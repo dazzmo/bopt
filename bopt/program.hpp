@@ -366,6 +366,16 @@ class mathematical_program {
             binding<linear_constraint_t>(constraint, indices));
     }
 
+    void add_bounding_box_constraint(
+        const typename bounding_box_constraint<value_type>::shared_ptr &constraint,
+        const input_variable_vector &x, const input_parameter_vector &p) {
+        // Create binding
+        input_index_vector indices = create_input_index_vector(x, p);
+        // Create binding
+        constraints_bounding_box_.push_back(
+            binding<bounding_box_constraint_t>(constraint, indices));
+    }
+
     std::vector<binding<constraint_t>> &generic_constraints() {
         return constraints_generic_;
     }

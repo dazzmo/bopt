@@ -133,48 +133,54 @@ class linear_constraint : public bopt::linear_constraint<T> {
     std::unique_ptr<linear_expression_evaluator<T>> expression_evaluator_;
 };
 
-// template <typename T>
-// class bounding_box_constraint : public bopt::bounding_box_constraint<T> {
-//    public:
-//     typedef bopt::linear_constraint<T> Base;
-//     typedef ::casadi::SX sym_t;
-//     typedef std::vector<sym_t> sym_vector_t;
+template <typename T>
+class bounding_box_constraint : public bopt::bounding_box_constraint<T> {
+   public:
+    typedef bopt::linear_constraint<T> Base;
+    typedef ::casadi::SX sym_t;
+    typedef std::vector<sym_t> sym_vector_t;
 
-//     typedef typename Base::value_type value_type;
-//     typedef typename Base::index_type index_type;
-//     typedef typename Base::integer_type integer_type;
-//     typedef typename Base::out_info_t out_info_t;
+    typedef typename Base::value_type value_type;
+    typedef typename Base::index_type index_type;
+    typedef typename Base::integer_type integer_type;
+    typedef typename Base::out_info_t out_info_t;
 
-//     bounding_box_constraint(const sym_t &lb, const sym_t &ub,
-//                             const sym_vector_t &p)
-//         : bopt::bounding_box_constraint<T>(expression.size1(),
-//                                            bound_type::Unbounded) {
-//         lb_expression_evaluator_ =
-//             std::make_unique<expression_evaluator<T>>(lb, p);
+    bounding_box_constraint(const sym_t &lb, const sym_t &ub,
+                            const sym_vector_t &p)
+        : bopt::bounding_box_constraint<T>(lb.size1(), bound_type::Unbounded), sz(lb.size1()) {
+        assert(lb.size1() == ub.size1() && "Bounds are not the same dimension");
+        lb_expression_evaluator_ =
+            std::make_unique<expression_evaluator<T>>(lb, p);
 
-//         ub_expression_evaluator_ =
-//             std::make_unique<expression_evaluator<T>>(ub, p);
-//     }
+        ub_expression_evaluator_ =
+            std::make_unique<expression_evaluator<T>>(ub, p);
+    }
 
-//     static inline std::shared_ptr<bounding_box_constraint> create(
-//         const sym_t &lb, const sym_t &ub, const sym_vector_t &p) {
-//         return std::make_shared<bounding_box_constraint>(lb, ub, p);
-//     }
+    static inline std::shared_ptr<bounding_box_constraint> create(
+        const sym_t &lb, const sym_t &ub, const sym_vector_t &p) {
+        return std::make_shared<bounding_box_constraint>(lb, ub, p);
+    }
 
-//     integer_type update_bounds(const value_type **arg) override {
-//         std::vector<value_type> lb();
-//         std::vector<value_type> ub();
+    integer_type update_bounds(const value_type **arg) override {
+        std::vector<value_type> lb(sz);
+        std::vector<value_type> ub(sz);
 
-//         (*lb_expression_evaluator_)(arg, bounds)
+        (*lb_expression_evaluator_)(arg, lb.data());
+        (*ub_expression_evaluator_)(arg, ub.data());
 
-//         return integer_type(0);
-//     }
+        for (std::size_t i = 0; i < lb.size(); ++i) {
+            this->bounds[i].set(lb[i], ub[i]);
+        }
 
-//    protected:
-//    private:
-//     std::unique_ptr<expression_evaluator<T>> lb_expression_evaluator_;
-//     std::unique_ptr<expression_evaluator<T>> ub_expression_evaluator_;
-// };
+        return integer_type(0);
+    }
+
+   protected:
+   private:
+    std::size_t sz;
+    std::unique_ptr<expression_evaluator<T>> lb_expression_evaluator_;
+    std::unique_ptr<expression_evaluator<T>> ub_expression_evaluator_;
+};
 
 }  // namespace casadi
 }  // namespace bopt

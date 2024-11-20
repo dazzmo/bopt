@@ -6,7 +6,7 @@
 
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
-#include "bopt/program.h"
+#include "bopt/program.hpp"
 #include "bopt/solvers/base.h"
 
 namespace bopt {
