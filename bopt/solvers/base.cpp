@@ -1,4 +1,4 @@
-#include "bopt/solvers/base.h"
+#include "bopt/solvers/base.hpp"
 
 namespace bopt {
 namespace solvers {

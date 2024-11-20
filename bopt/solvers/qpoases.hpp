@@ -9,7 +9,7 @@
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
-#include "bopt/solvers/base.h"
+#include "bopt/solvers/base.hpp"
 
 namespace bopt {
 namespace solvers {

@@ -3,7 +3,7 @@
 
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
-#include "bopt/planning/optimisation/collocation/base.h"
+#include "bopt/planning/optimisation/collocation/base.hpp"
 
 using SX = ::casadi::SX;
 using DM = ::casadi::DM;
