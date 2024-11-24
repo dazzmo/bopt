@@ -129,7 +129,6 @@ class linear_expression_evaluator : public expression_evaluator<T> {
         }
 
         sym_vector_t in = {};
-        in.push_back(x);
         in.insert(in.end(), p.begin(), p.end());
 
         function_t f_A("f_A", in, {A});
@@ -144,7 +143,6 @@ class linear_expression_evaluator : public expression_evaluator<T> {
 
    public:
     integer_type A(const value_type **arg, value_type *res) {
-        LOG(INFO) << "EVALUATING A";
         return (*A_eval_)(arg, res);
     }
 
@@ -193,7 +191,6 @@ class quadratic_expression_evaluator : public expression_evaluator<T> {
         sym_t::quadratic_coeff(expression, x, A, b, c, true);
 
         sym_vector_t in = {};
-        in.push_back(x);
         in.insert(in.end(), p.begin(), p.end());
 
         function_t f_A("f_A", in, {A});

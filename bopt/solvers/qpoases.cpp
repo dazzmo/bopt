@@ -96,6 +96,11 @@ void qpoases_solver_instance::solve() {
         quadratic_cost<double>::out_info_t A_info, b_info;
         binding.get()->A_info(A_info);
         binding.get()->b_info(b_info);
+
+        VLOG(10) << "A_info n = " << A_info.n << " m = " << A_info.m
+                 << " nnz = " << A_info.nnz;
+        VLOG(10) << "b_info n = " << b_info.n << " m = " << b_info.m
+                 << " nnz = " << b_info.nnz;
         // Evaluate the coefficients
         quadratic_cost<double>::out_data_t A_data(A_info), b_data(b_info);
         LOG(INFO) << "A";
@@ -126,8 +131,10 @@ void qpoases_solver_instance::solve() {
         for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
             const auto& p_indices = binding.input_indices[i];
             p_data.push_back(create_indexed_view(program().p(), p_indices));
+            VLOG(10) << "pi = " << p_data.back();
             in.push_back(p_data.back().data());
         }
+
 
         // Evaluate coefficients for the constraint  lbA < A x + b < ubA
         linear_constraint<double>::out_info_t A_info, b_info;
@@ -135,7 +142,14 @@ void qpoases_solver_instance::solve() {
         binding.get()->b_info(b_info);
         // Evaluate the coefficients
         linear_constraint<double>::out_data_t A_data(A_info), b_data(b_info);
+        VLOG(10) << "A_info n = " << A_info.n << " m = " << A_info.m
+                 << " nnz = " << A_info.nnz;
+        VLOG(10) << "b_info n = " << b_info.n << " m = " << b_info.m
+                 << " nnz = " << b_info.nnz;
+        LOG(INFO) << "A";
+        LOG(INFO) << "A data = " << A_data.values;
         binding.get()->A(in.data(), {A_data.values.data()});
+        LOG(INFO) << "b";
         binding.get()->b(in.data(), {b_data.values.data()});
 
         // Create row indices

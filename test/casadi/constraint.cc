@@ -21,7 +21,7 @@ TEST(CasadiConstraint, Constraint) {
     sym jac = sym::jacobian(ex, x);
 
     std::shared_ptr<bopt::linear_constraint<double>> c =
-        std::make_shared<bopt::casadi::linear_constraint<double>>(ex, x, sym());
+        std::make_shared<bopt::casadi::linear_constraint<double>>(ex, x, casadi::SXVector());
 
     bopt::linear_constraint<double>::out_info_t info;
     c->jac_info(info);

@@ -4,12 +4,15 @@ namespace bopt {
 namespace casadi {
 
 std::shared_ptr<bopt::dynamic_library_handler> codegen(
-    const ::casadi::Function &f, const std::string &dir) {
+    const ::casadi::Function &f) {
+    // Create a codegen file folder
+    std::filesystem::create_directories("./cg");
+    
     // Get current path
     auto path = std::filesystem::current_path();
     // Change to new path
     try {
-        std::filesystem::current_path(dir);
+        std::filesystem::current_path("./cg");
     } catch (const std::exception &e) {
         std::cerr << e.what() << '\n';
         // Return to existing path

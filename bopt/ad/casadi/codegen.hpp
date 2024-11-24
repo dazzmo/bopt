@@ -21,7 +21,7 @@ namespace casadi {
  *
  */
 std::shared_ptr<bopt::dynamic_library_handler> codegen(
-    const ::casadi::Function &f, const std::string &dir = "./");
+    const ::casadi::Function &f);
 
 }  // namespace casadi
 }  // namespace bopt

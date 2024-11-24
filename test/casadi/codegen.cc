@@ -24,11 +24,11 @@ TEST(CasadiFunction, FunctionWrapperScalar) {
     auto fun = ::casadi::Function("function", {x}, {ex});
 
     // Generate code
-    std::shared_ptr<bopt::DynamicLibraryHandler> handle =
+    std::shared_ptr<bopt::dynamic_library_handler> handle =
         bopt::casadi::codegen(fun);
     if (handle == nullptr) FAIL();
 
-    bopt::casadi::Evaluator<double> test(handle, "function");
+    bopt::casadi::evaluator<double> test(handle, "function");
 
     Eigen::VectorXd y(5);
     y.setRandom();
@@ -43,6 +43,6 @@ int main(int argc, char **argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
     int status = RUN_ALL_TESTS();
-    bopt::Profiler summary;
+    bopt::profiler summary;
     return status;
 }

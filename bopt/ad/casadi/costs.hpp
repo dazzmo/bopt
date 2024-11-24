@@ -1,5 +1,5 @@
+#include "bopt/costs.hpp"
 #include "bopt/ad/casadi/expression.hpp"
-#include "bopt/constraints.hpp"
 
 namespace bopt {
 namespace casadi {
