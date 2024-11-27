@@ -1,6 +1,4 @@
-#ifndef UTILS_CODEGEN_H
-#define UTILS_CODEGEN_H
-
+#pragma once
 #include <dlfcn.h>
 
 #include <casadi/casadi.hpp>
@@ -25,5 +23,3 @@ std::shared_ptr<bopt::dynamic_library_handler> codegen(
 
 }  // namespace casadi
 }  // namespace bopt
-
-#endif /* UTILS_CODEGEN_H */

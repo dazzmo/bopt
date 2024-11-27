@@ -6,6 +6,7 @@
 #include <filesystem>
 
 #include "bopt/ad/casadi/evaluator.hpp"
+#include "bopt/ad/casadi/codegen.hpp"
 #include "bopt/constraints.hpp"
 #include "bopt/dlib_handler.hpp"
 #include "bopt/logging.hpp"

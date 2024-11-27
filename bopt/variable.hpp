@@ -11,20 +11,20 @@ namespace bopt {
 
 template <typename T>
 struct variable_traits {
-    typedef typename T::id_type id_type;
-    typedef typename T::name_type name_type;
-    typedef typename T::type type;
+  typedef typename T::id_type id_type;
+  typedef typename T::name_type name_type;
+  typedef typename T::type type;
 };
 
 struct variable_type {
-    enum type { Continuous, Discrete };
+  enum type { Continuous, Discrete };
 };
 
 template <typename T>
 struct variable_attributes {
-    typedef typename variable_traits<T>::variable_type type_t;
+  typedef typename variable_traits<T>::variable_type type_t;
 
-    const type_t &type(const T &variable) const { return variable.type(); }
+  const type_t &type(const T &variable) const { return variable.type(); }
 };
 
 /**
@@ -32,31 +32,42 @@ struct variable_attributes {
  *
  */
 class variable {
-   public:
-    typedef std::size_t id_type;
-    typedef std::string name_type;
-    typedef variable_type::type type;
+ public:
+  typedef std::size_t id_type;
+  typedef std::string name_type;
+  typedef variable_type::type type;
 
-    variable() = default;
+  variable() = default;
 
-    variable(const name_type &name) : name_(name) {
-        static int next_id_ = id_type(0);
-        id_ = next_id_++;
-    }
+  variable(const name_type &name) : name_(name) {
+    static int next_id_ = id_type(0);
+    id_ = next_id_++;
+  }
 
-    ~variable() = default;
+  ~variable() = default;
 
-    const id_type &id() const { return id_; }
-    const name_type &name() const { return name_; }
+  const id_type &id() const { return id_; }
+  const name_type &name() const { return name_; }
 
-    bool operator<(const variable &v) const { return id() < v.id(); }
-    bool operator==(const variable &v) const { return id() == v.id(); }
+  bool operator<(const variable &v) const { return id() < v.id(); }
+  bool operator==(const variable &v) const { return id() == v.id(); }
 
-   private:
-    id_type id_;
-    name_type name_;
-    type type_ = type::Continuous;
+ private:
+  id_type id_;
+  name_type name_;
+  type type_ = type::Continuous;
 };
+
+/**
+ * @brief Create a vector of variables, all with the same name and indexed with
+ * their position in the vector.
+ *
+ * @param name Name of the variables within the vector.
+ * @param sz Size of the vector to create.
+ * @return std::vector<bopt::variable>
+ */
+std::vector<bopt::variable> create_variable_vector(const std::string &name,
+                                                   const std::size_t &sz);
 
 // Operator overloading
 std::ostream &operator<<(std::ostream &os, variable var);
