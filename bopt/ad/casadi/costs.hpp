@@ -1,3 +1,4 @@
+#pragma once
 #include "bopt/costs.hpp"
 #include "bopt/ad/casadi/expression.hpp"
 

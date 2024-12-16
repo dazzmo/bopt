@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "bopt/types.hpp"
+#include "bopt/evaluator.hpp"
 
 namespace bopt {
 

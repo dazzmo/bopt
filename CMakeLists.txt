@@ -3,7 +3,7 @@ project(bopt VERSION 0.0.1)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_FLAGS "-O3 -fPIC -O3 -march=native")
+set(CMAKE_CXX_FLAGS "-O3 -fPIC -march=native")
 
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/cmake)
 

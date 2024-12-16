@@ -4,10 +4,11 @@ find_dependency(Boost REQUIRED)
 find_dependency(casadi REQUIRED)
 find_dependency(Eigen3 REQUIRED)
 find_dependency(glog REQUIRED)
-find_dependency(pinocchio REQUIRED)
 
 # Optional dependencies
-find_dependency(qpOASES REQUIRED)
+if(WITH_QPOASES)
+    find_dependency(qpOASES REQUIRED)
+endif()
 
 # these are autogenerate by cmake
 include("${CMAKE_CURRENT_LIST_DIR}/boptTargets.cmake")

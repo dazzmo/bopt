@@ -2,23 +2,16 @@ find_package(Boost REQUIRED)
 find_package(casadi REQUIRED)
 find_package(Eigen3 3.3 REQUIRED)
 find_package(glog REQUIRED)
-find_package(pinocchio REQUIRED)
 
 option(WITH_QPOASES "Build with qpOASES functionality" OFF)
 option(WITH_IPOPT "Build with IPOPT functionality" OFF)
 
 # Collect source files
 SET(${PROJECT_NAME}_SOURCES
-solvers/base.cpp
-# bounds.cc
 profiler.cpp
+variable.cpp
+solvers/base.cpp
 ad/casadi/codegen.cpp
-# casadi/pinocchio_model.cc
-# solvers/base.cc
-# solvers/qpoases.cc
-# solvers/ipopt.cc
-# program.cc
-# variable.cc
 )
 
 SET(${PROJECT_NAME}_LIBRARIES
@@ -29,12 +22,10 @@ glog
 
 include(GNUInstallDirs)
 
-add_compile_definitions(bopt_USE_PROFILING=${OpenCV_VERSION})
+option(BOPT_USE_PROFILING "Use profiling" OFF)
 
-option(bopt_USE_PROFILING "Use profiling" OFF)
-
-if(bopt_USE_PROFILING)
-  add_definitions(-Dbopt_USE_PROFILING)
+if(BOPT_USE_PROFILING)
+  add_definitions(-DBOPT_USE_PROFILING)
 endif()
 
 # Optional solvers to include 
@@ -61,14 +52,9 @@ target_link_libraries(${PROJECT_NAME} PUBLIC ${${PROJECT_NAME}_LIBRARIES})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 
-message("CMAKE_CURRENT_LIST_DIR ${CMAKE_CURRENT_LIST_DIR}")
-
-# Jesse: not actually sure what it does, since we dont have a include folder do we need the INSTALL_INTERFACE
-# dont know about the build interface
 target_include_directories(${PROJECT_NAME}
   PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>"
-    # "$<INSTALL_INTERFACE:include>"
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wno-unused-parameter -pipe)
@@ -80,9 +66,7 @@ install(TARGETS ${PROJECT_NAME}
     EXPORT bopt-export
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
-    # Perhaps use this, instead of installing include dir
-    #PUBLIC_HEADER DESTINATION include
-    INCLUDES DESTINATION include # We need this right?
+    INCLUDES DESTINATION include
     RUNTIME DESTINATION bin
 )
 

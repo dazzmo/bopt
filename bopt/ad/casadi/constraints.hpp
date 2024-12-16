@@ -1,3 +1,4 @@
+#pragma once
 #include "bopt/ad/casadi/expression.hpp"
 #include "bopt/constraints.hpp"
 

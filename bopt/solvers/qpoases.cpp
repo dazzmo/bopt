@@ -146,11 +146,12 @@ void qpoases_solver_instance::solve() {
                  << " nnz = " << A_info.nnz;
         VLOG(10) << "b_info n = " << b_info.n << " m = " << b_info.m
                  << " nnz = " << b_info.nnz;
-        LOG(INFO) << "A";
-        LOG(INFO) << "A data = " << A_data.values;
+        VLOG(10) << "A";
         binding.get()->A(in.data(), {A_data.values.data()});
-        LOG(INFO) << "b";
+        VLOG(10) << "A data = " << A_data.values;
+        VLOG(10) << "b";
         binding.get()->b(in.data(), {b_data.values.data()});
+        VLOG(10) << "b data = " << b_data.values;
 
         // Create row indices
         std::vector<index_type> row_indices;
@@ -158,6 +159,8 @@ void qpoases_solver_instance::solve() {
             row_indices.push_back(cnt + i);
         };
 
+        VLOG(10) << "A row_indices = " << row_indices;
+        VLOG(10) << "A x_indices = " << x_indices;
         set_block(data.A, A_info, A_data, row_indices, x_indices,
                   inserter_set_to);
 
