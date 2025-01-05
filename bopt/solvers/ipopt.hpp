@@ -39,6 +39,9 @@ class ipopt_solver_instance : public Ipopt::TNLP, public solver<double> {
 
     ~ipopt_solver_instance() {}
 
+    // void solve()
+
+   private:
     bool get_nlp_info(Index& n, Index& m, Index& nnz_jac_g, Index& nnz_h_lag,
                       IndexStyleEnum& index_style);
 

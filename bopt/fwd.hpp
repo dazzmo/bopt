@@ -10,11 +10,6 @@
 
 #include "bopt/logging.hpp"
 
-namespace bopt {
+namespace bopt {}  // namespace bopt
 
-using Index = std::size_t;
-
-
-}  // namespace bopt
-
-#endif/* CORE_FWD_HPP */
+#endif /* CORE_FWD_HPP */

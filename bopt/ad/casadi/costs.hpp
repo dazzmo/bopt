@@ -1,6 +1,6 @@
 #pragma once
-#include "bopt/costs.hpp"
 #include "bopt/ad/casadi/expression.hpp"
+#include "bopt/costs.hpp"
 
 namespace bopt {
 namespace casadi {
@@ -27,32 +27,21 @@ class cost : public bopt::cost<T> {
     }
 
     static inline std::shared_ptr<cost> create(const sym_t &expression,
-                                               const sym_t &x, const sym_vector_t &p) {
+                                               const sym_t &x,
+                                               const sym_vector_t &p) {
         return std::make_shared<cost>(expression, x, p);
     }
 
-    integer_type operator()(const value_type **arg, value_type *res) override {
+    integer_type operator()(const value_type **arg, value_type **res) override {
         return (*expression_evaluator_)(arg, res);
     }
 
-    integer_type info(out_info_t &info) override {
-        return expression_evaluator_->info(info);
-    }
-
-    integer_type jac(const value_type **arg, value_type *res) override {
+    integer_type jac(const value_type **arg, value_type **res) override {
         return expression_evaluator_->jac(arg, res);
     }
 
-    integer_type jac_info(out_info_t &info) override {
-        return expression_evaluator_->jac_info(info);
-    }
-
-    integer_type hes(const value_type **arg, value_type *res) override {
+    integer_type hes(const value_type **arg, value_type **res) override {
         return expression_evaluator_->hes(arg, res);
-    }
-
-    integer_type hes_info(out_info_t &info) override {
-        return expression_evaluator_->hes_info(info);
     }
 
    protected:
@@ -141,7 +130,8 @@ class quadratic_cost : public bopt::quadratic_cost<T> {
     typedef typename Base::integer_type integer_type;
     typedef typename Base::out_info_t out_info_t;
 
-    quadratic_cost(const sym_t &expression, const sym_t &x, const sym_vector_t &p)
+    quadratic_cost(const sym_t &expression, const sym_t &x,
+                   const sym_vector_t &p)
         : bopt::quadratic_cost<T>() {
         expression_evaluator_ =
             std::make_unique<quadratic_expression_evaluator<T>>(expression, x,

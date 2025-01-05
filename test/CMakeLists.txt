@@ -8,12 +8,7 @@ enable_testing()
 
 # Create list of files
 SET(TEST_FILES
-casadi/codegen.cc
-# casadi/constraint.cc
-solvers/qpoases.cc
-# core/sparse.cpp
-# core/evaluator.cpp
-# core/constraint.cpp
+unit_test_expression.cpp
 )
 
 include(GoogleTest)
@@ -21,6 +16,6 @@ include(GoogleTest)
 foreach(current_file IN LISTS TEST_FILES)
     get_filename_component(current_folder ${current_file} DIRECTORY)
     get_filename_component(current_name ${current_file} NAME_WE)
-    add_executable("${current_folder}_${current_name}_unit_test" ${current_file})
-    target_link_libraries("${current_folder}_${current_name}_unit_test" bopt GTest::gtest_main glog gflags)
+    add_executable("${current_name}" ${current_file})
+    target_link_libraries("${current_name}" bopt GTest::gtest_main glog gflags)
 endforeach()

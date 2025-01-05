@@ -10,26 +10,21 @@
 
 namespace bopt {
 
-template <typename T>
-struct binding_traits {
-    typedef typename T::type type;
-    typedef typename T::id_type id_type;
-    typedef typename T::index_vector index_vector;
-    typedef typename T::evaluator_type evaluator_type;
-    typedef typename T::evaluator_unique_ptr evaluator_unique_ptr;
-    typedef typename T::evaluator_shared_ptr evaluator_shared_ptr;
-};
-
-template <typename Binding>
-struct binding_attributes {
-    typename binding_traits<Binding>::id_type id(Binding &binding) const {
-        return binding.id();
+template <typename IndexType>
+struct variable_indices {
+    variable_indices(const std::vector<IndexType> &indices) {
+        IndexType pre = indices[0];
+        for (const auto &i : indices) {
+            if (pre - i != IndexType(1)) {
+                is_block = false;
+            }
+            pre = i;
+        }
+        is_block = true;
     }
 
-    constexpr typename binding_traits<Binding>::evaluator_type object(
-        Binding &binding) const {
-        return *binding.get();
-    }
+    bool is_block;
+    std::vector<IndexType> indices;
 };
 
 /**
@@ -38,36 +33,27 @@ struct binding_attributes {
  *
  * @tparam T
  */
-template <class Evaluator, class I = std::size_t>
+template <class EvaluatorType>
 class binding {
    public:
-    typedef typename evaluator_traits<Evaluator>::value_type value_type;
-    typedef typename evaluator_traits<Evaluator>::index_type index_type;
-    typedef I id_type;
-
-    typedef Evaluator evaluator_t;
-
-    typedef typename std::unique_ptr<evaluator_t> evaluator_unique_ptr;
-    typedef typename std::shared_ptr<evaluator_t> evaluator_shared_ptr;
-
-    typedef std::vector<I> index_vector;
+    typedef typename std::shared_ptr<EvaluatorType> evaluator_shared_ptr;
 
     /**
      * @brief Bind an evaluator object to a set of input variables, with
      * indexing dictated by a VariableIndexMap
      *
-     * @param obj
+     * @param ptr
      * @param in
      * @param index_map
      */
-    binding(const evaluator_shared_ptr &obj,
+    binding(const std::shared_ptr<EvaluatorType> &ptr,
             const std::vector<index_vector> &input_indices)
-        : input_indices({}), evaluator_(obj) {
+        : input_indices({}), evaluator_(ptr) {
         // Computes the indices within the map that the mapping relates to
         // assert(evaluator_attributes<evaluator_t>::n_in(*obj) ==
         // input_indices.size() &&
-            //    "Incorrect number of input index vectors for evaluator
-            //    binding");
+        //    "Incorrect number of input index vectors for evaluator
+        //    binding");
         this->input_indices = input_indices;
     }
 
@@ -96,7 +82,7 @@ class binding {
 
     evaluator_shared_ptr get() const { return evaluator_; }
 
-    std::vector<index_vector> input_indices;
+    variable_indices<Eigen::Index> input_indices;
 
    private:
     evaluator_shared_ptr evaluator_;
@@ -127,30 +113,6 @@ std::vector<ValueType> create_indexed_view(
 
     return res;
 }
-
-// template <class EvaluatorType>
-// void evaluate_binding(binding<EvaluatorType> &binding) {
-//     typedef typename EvaluatorType::evaluator_t evaluator_info_t;
-//     typedef typename EvaluatorType::evaluator_t evaluator_data_t;
-
-//     auto x_indices = binding.input_indices[0];
-//     auto p_indices = binding.input_indices[1];
-
-//     // todo - shorten this
-//     std::vector<double> pi;
-//     for (const auto &i : p_indices) {
-//         // Create vector of input
-//         pi.emplace_back(program().p()[i]);
-//     }
-
-//     evaluator_info_t info;
-//     evaluator_out_data<linear_cost<double>> a_data(a_info);
-//     binding.get()->a_info(a_info);
-
-//     // Evaluate coefficients for the cost a^T x + b
-//     binding.get()->a(std::vector<const double *>({pi.data()}).data(),
-//                      {a_data.values.data()});
-// }
 
 }  // namespace bopt
 

@@ -9,9 +9,9 @@ option(WITH_IPOPT "Build with IPOPT functionality" OFF)
 # Collect source files
 SET(${PROJECT_NAME}_SOURCES
 profiler.cpp
-variable.cpp
-solvers/base.cpp
-ad/casadi/codegen.cpp
+# variable.cpp
+# solvers/base.cpp
+# ad/casadi/codegen.cpp
 )
 
 SET(${PROJECT_NAME}_LIBRARIES

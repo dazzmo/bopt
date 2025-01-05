@@ -1,157 +1,104 @@
-#ifndef CONSTRAINTS_BASE_H
-#define CONSTRAINTS_BASE_H
+#pragma once
 
 #include <Eigen/Core>
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <memory>
 
 #include "bopt/bounds.hpp"
 #include "bopt/evaluator.hpp"
+#include "bopt/expression.hpp"
 #include "bopt/logging.hpp"
 
 namespace bopt {
 
-template <typename T>
-struct constraint_traits {
-    typedef typename T::id_type id_type;
+template <typename ValueType>
+class constraint_base_tpl : public expression_tpl<ValueType> {
+   public:
+    constraint_base_tpl() = default;
+    ~constraint_base_tpl() = default;
 
-    typedef typename T::shared_ptr shared_ptr;
-    typedef typename T::unique_ptr unique_ptr;
+    constraint_base_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
+                        const bound_type &type = bound_type::Unbounded)
+        : evaluator_tpl<ValueType>(sz_in, sz_out),
+          name_(""),
+          lower_bound(sz_out),
+          upper_bound(sz_out) {
+        set_bounds_to_type(type);
+    }
+
+    const string_type &name() const { return name_; }
+    void name(const string_type &name) { name_ = name; }
+
+    void set_bounds_to_type(const bounds_type &type) {
+        set_bound_limits(type, lower_bound, upper_bound);
+    }
+
+    dense_vector_t lower_bound;
+    dense_vector_t upper_bound;
+
+   private:
+    string_type name_;
 };
 
-template <typename T>
-struct constraint_attributes {};
+// todo - print out everything about everything
 
-template <typename T>
-class constraint : public evaluator<T> {
+template <typename ValueType>
+class linear_constraint_tpl : public constraint_base_tpl<ValueType>,
+                              public linear_expression_tpl<ValueType> {
    public:
-    typedef std::shared_ptr<constraint> shared_ptr;
-    typedef std::unique_ptr<constraint> unique_ptr;
-
-    typedef std::size_t id_type;
-
-    typedef evaluator<T> evaluator_t;
-
-    typedef typename evaluator_traits<evaluator_t>::value_type value_type;
-    typedef typename evaluator_traits<evaluator_t>::index_type index_type;
-    typedef typename evaluator_traits<evaluator_t>::integer_type integer_type;
-    typedef typename evaluator_t::out_info_t out_info_t;
-    typedef typename evaluator_t::out_data_t out_data_t;
-
-    constraint() = default;
-
-    constraint(const index_type &sz,
-               const bound_type::type &type = bound_type::Unbounded)
-        : bounds(sz, type) {
-        this->out_m = sz;
-        this->out_n = 1;
-    }
-
-   public:
-    id_type id;
-    std::string name;
-
-    virtual integer_type jac(const value_type **arg, value_type *res) {
-        return integer_type(0);
-    }
-
-    virtual integer_type hes(const value_type **arg, value_type *res) {
-        return integer_type(0);
-    }
-
-    virtual integer_type jac_info(out_info_t &info) { return integer_type(0); }
-
-    virtual integer_type hes_info(out_info_t &info) { return integer_type(0); }
-
-    vector_bounds<value_type> bounds;
-
+   protected:
    private:
 };
 
-template <typename T>
-class linear_constraint : public constraint<T> {
+template <typename ValueType, typename MatrixType>
+class bounding_box_constraint_tpl : public constraint_base_tpl<ValueType> {
    public:
-    typedef std::shared_ptr<linear_constraint> shared_ptr;
-    typedef std::unique_ptr<linear_constraint> unique_ptr;
+    bounding_box_constraint_tpl() = default;
 
-    typedef constraint<T> Base;
-    typedef typename Base::value_type value_type;
-    typedef typename Base::index_type index_type;
-    typedef typename Base::integer_type integer_type;
-    typedef typename Base::out_info_t out_info_t;
-    typedef typename Base::out_data_t out_data_t;
-
-    linear_constraint() = default;
-    linear_constraint(const index_type &sz,
-                      const bound_type::type &type = bound_type::Unbounded)
-        : constraint<T>(sz, type) {}
-
-    virtual integer_type A(const double **arg, double *res) {
-        return integer_type(0);
-    }
-
-    virtual integer_type A_info(out_info_t &info) {
-        LOG(INFO) << "In default class";
-        return integer_type(0);
-    }
-
-    virtual integer_type b(const double **arg, double *res) {
-        return integer_type(0);
-    }
-
-    virtual integer_type b_info(out_info_t &info) { return integer_type(0); }
-
-   private:
-};
-
-template <typename T>
-class bounding_box_constraint : public constraint<T> {
-   public:
-    typedef std::shared_ptr<bounding_box_constraint> shared_ptr;
-    typedef std::unique_ptr<bounding_box_constraint> unique_ptr;
-
-    typedef constraint<T> Base;
-    typedef typename evaluator_traits<Base>::value_type value_type;
-    typedef typename evaluator_traits<Base>::index_type index_type;
-    typedef typename evaluator_traits<Base>::integer_type integer_type;
-    typedef typename Base::out_info_t out_info_t;
-    typedef typename Base::out_data_t out_data_t;
-
-    bounding_box_constraint() = default;
-
-    bounding_box_constraint(const index_type &sz,
-                            const std::vector<value_type> &lb,
-                            const std::vector<value_type> &ub)
-        : constraint<T>(sz) {
-        assert(lb.size() == ub.size() && lb.size() == sz &&
-               "Bound vector size mismatch");
-        for (index_type i = 0; i < sz; ++i) {
-            this->bounds[i].set(lb[i], ub[i]);
-        }
-    }
-
-    bounding_box_constraint(const index_type &sz, const bound_type::type &type)
-        : constraint<T>(sz, type) {}
-
-    virtual integer_type update_bounds(const value_type **arg) {
-        return integer_type(0);
+    bounding_box_constraint_tpl(const index_type &sz_in, const vector_type &lb,
+                                const vector_type &ub)
+        : constraint_base_tpl<ValueType, IntegerType, IndexType, MatrixType>(
+              sz_in, 2 * sz_in),
+          converted_(false) {
+        DBGASSERT(lb.size() == ub.size() && lb.size() == sz &&
+                  "Bound vector size mismatch");
     }
 
     /**
-     * @brief Evaluates the bounds of the bounding box constraint, returning the
-     * constraint
+     * @brief Converts the constraint \f$ lb \le x \le ub \f$ to the stacked
+     * inequality constraint \f$ [x - ub, -x + lb] \le 0 \f$
      *
-     * @param arg
-     * @param ret
-     * @return index_type
      */
-    integer_type operator()(const value_type **arg, value_type *ret) override {
-        // todo - bounds
+    void convert_to_constraint() {
+        arg_lower_bound_ = lower_bound;
+        arg_upper_bound_ = upper_bound;
+        this->set_bounds_to_type(bound_type::Negative);
+        converted_ = true;
+    }
+
+    integer_type eval(const value_type *arg, value_type *ret) override {
+        DBGASSERT(converted_ &&
+                  "Bounding box constraint not converted to generic constraint "
+                  "format");
+
+        for (index_type i = 0; i < this->sz_out(); ++i) {
+            ret[i] = arg[i] - arg_upper_bound_[i];
+            ret[this->sz_out() + i] = -arg[i] + arg_lower_bound_[i];
+        }
+
         return integer_type(0);
     }
 
+    integer_type eval_jac(const vector_type &arg, MatrixType &res) {
+        // res.diagonal().array().setConstant(1.0);
+        // res.diagonal().array().setConstant(1.0);
+    }
+
    private:
+    bool converted_;
+    vector_type arg_lower_bound_;
+    vector_type arg_upper_bound_;
 };
 
 }  // namespace bopt
-
-#endif /* CONSTRAINTS_BASE_H */

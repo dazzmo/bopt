@@ -47,6 +47,7 @@ class variable {
   ~variable() = default;
 
   const id_type &id() const { return id_; }
+  
   const name_type &name() const { return name_; }
 
   bool operator<(const variable &v) const { return id() < v.id(); }

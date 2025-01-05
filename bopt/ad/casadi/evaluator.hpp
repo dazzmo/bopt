@@ -101,14 +101,14 @@ class evaluator : public bopt::evaluator<T> {
             handle_p, (function_name + (std::string) "_n_out").c_str());
         // if (dlerror()) return 1;
         casadi_int n_out = n_out_fcn();
-        assert(n_out == 1);
+        assert(n_out == this->n_out());
 
         // Checkout thread-local memory (not thread-safe)
         // Note MAX_NUM_THREADS
         mem = checkout();
 
         /* Get sizes of the required work vectors */
-        casadi_int sz_arg = this->n_in_, sz_res = n_out, sz_iw = 0, sz_w = 0;
+        casadi_int sz_arg = this->n_in(), sz_res = n_out, sz_iw = 0, sz_w = 0;
         work_t work = (work_t)dlsym(
             handle_p, (function_name + (std::string) "_work").c_str());
 
@@ -130,44 +130,42 @@ class evaluator : public bopt::evaluator<T> {
             handle_p, (function_name + (std::string) "_sparsity_out").c_str());
         assert(dlerror() == 0);
 
-        const casadi_int *sparsity_out_ci = sp_out(0);
-        this->out_m = sparsity_out_ci[0];
-        this->out_n = sparsity_out_ci[1];
-        this->out_nnz = sparsity_out_ci[this->out_n + 2];
-
-        this->sparsity_out.resize(2 + this->out_n + 1 + this->out_nnz, 0);
-        this->sparsity_out.assign(
-            sparsity_out_ci,
-            sparsity_out_ci + 2 + this->out_n + 1 + this->out_nnz);
-
         /* Function for numerical evaluation */
         f = (eval_t)dlsym(handle_p, function_name.c_str());
         if (dlerror()) {
             printf("Failed to retrieve \"f\" function.\n");
         }
-
-        this->buffer.resize(this->out_nnz, 0.0);
     }
 
-    integer_type operator()(const value_type **arg, value_type *ret) override {
-        w = work_vector_d.data();
-        iw = work_vector_i.data();
-        for (integer_type i = 0; i < this->n_in_; i++) {
-            arg_vec[i] = arg[i];
+    integer_type operator()(const value_type **arg, value_type **ret,
+                            sparsity::ccs_data *sparsity) override {
+        if (sparsity != NULL) {
+            // Populate sparsity patterns for each output
+            for (integer_type i = 0; i < this->n_out(); ++i) {
+                const casadi_int *sparsity_out_ci = sp_out(i);
+
+                const casadi_int &m = sparsity_out_ci[0];
+                const casadi_int &n = sparsity_out_ci[1];
+                const casadi_int &nnz = sparsity_out_ci[n + 2];
+
+                sparsity[i] =
+                    sparsity::ccs_data(sparsity::type::Sparse, m, n, nnz);
+                sparsity[i].data.assign(sparsity_out_ci,
+                                        sparsity_out_ci + 2 + n + 1 + nnz);
+            }
+
+        } else {
+            w = work_vector_d.data();
+            iw = work_vector_i.data();
+            for (integer_type i = 0; i < this->n_in(); ++i) {
+                arg_vec[i] = arg[i];
+            }
+            for (integer_type i = 0; i < this->n_out(); ++i) {
+                res_vec[i] = res[i];
+            }
+            if (f(arg_vec.data(), res_vec.data(), iw, w, mem))
+                return integer_type(1);
         }
-        // todo - currently only considering one output
-        res_vec[0] = ret;
-        if (f(arg_vec.data(), res_vec.data(), iw, w, mem))
-            return integer_type(1);
-        return integer_type(0);
-    }
-
-    integer_type info(evaluator_out_info &info) {
-        info.m = this->out_m;
-        info.n = this->out_n;
-        info.nnz = this->out_nnz;
-        info.sparsity_out = this->sparsity_out.data();
-        info.type = evaluator_matrix_type::Sparse;
         return integer_type(0);
     }
 

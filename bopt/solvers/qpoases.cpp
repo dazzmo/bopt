@@ -41,178 +41,57 @@ qpoases_solver_instance::qpoases_solver_instance(
 qpoases_solver_instance::~qpoases_solver_instance() = default;
 
 void qpoases_solver_instance::solve() {
-    // Matrix inserter functions
-    auto inserter_add_to = [](ublas::matrix<double>& m, std::size_t i,
-                              std::size_t j, const double& v) { m(i, j) += v; };
-
-    auto vector_add_to = [](std::vector<double>& m, std::size_t i,
-                            std::size_t j, const double& v) { m[i] += v; };
-
-    auto inserter_set_to = [](ublas::matrix<double>& m, std::size_t i,
-                              std::size_t j, const double& v) { m(i, j) = v; };
+    Eigen::MatrixXd tmp;
 
     /** Linear costs **/
-    LOG(INFO) << "linear costs";
-    for (const binding<linear_cost<double>>& binding :
-         program().linear_costs()) {
-        LOG(INFO) << "linear cost";
-        const auto& x_indices = binding.input_indices[0];
-        // Create input vector
-        std::vector<std::vector<double>> p_data;
-        std::vector<const double*> in = {};
-        for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
-            const auto& p_indices = binding.input_indices[i];
-            p_data.push_back(create_indexed_view(program().p(), p_indices));
-            in.push_back(p_data.back().data());
+    VLOG(10) << "qpoases:linear costs";
+    for (const auto& binding : program().linear_costs()) {
+        const auto& x_indices = binding.input_indices.indices;
+        if (binding.get()->eval_a(binding.get().buffer_a.dense) ==
+            evaluator::return_status::NotImplemented) {
+            // Throw a warning
         }
 
-        linear_cost<double>::out_info_t a_info;
-        linear_cost<double>::out_data_t a_data(a_info);
-        binding.get()->a_info(a_info);
-
-        // Evaluate coefficients for the cost a^T x + b
-        binding.get()->a(in.data(), {a_data.values.data()});
-
-        set_block(data.g, a_info, a_data, x_indices, {0}, vector_add_to);
+        // insert_matrix(data.g, binding.get().buffer_a.dense, x_indices,
+        // binding.input_indices.is_block)
     }
 
-    LOG(INFO) << "quadratic costs";
     /** Quadratic costs **/
-    for (const binding<quadratic_cost<double>>& binding :
-         program().quadratic_costs()) {
-        LOG(INFO) << "quadratic cost";
+    VLOG(10) << "qpoases:quadratic costs";
+    for (const auto& binding : program().quadratic_costs()) {
         const auto& x_indices = binding.input_indices[0];
-
-        // Create input vector
-        std::vector<std::vector<double>> p_data;
-        std::vector<const double*> in = {};
-        for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
-            const auto& p_indices = binding.input_indices[i];
-            p_data.push_back(create_indexed_view(program().p(), p_indices));
-            in.push_back(p_data.back().data());
+        if (binding.get()->eval_A(binding.get().buffer_A.dense) ==
+            evaluator::return_status::NotImplemented) {
+            // Throw a warning
         }
 
-        // Evaluate coefficients for the cost x^T A x + b^T x + c
-        quadratic_cost<double>::out_info_t A_info, b_info;
-        binding.get()->A_info(A_info);
-        binding.get()->b_info(b_info);
+        if (binding.is_block()) {
+            // data.H.middleRows(x_indices[0], x_indices.size()) +=
+            //     binding.get().buffer_A.dense;
+        } else {
+        }
 
-        VLOG(10) << "A_info n = " << A_info.n << " m = " << A_info.m
-                 << " nnz = " << A_info.nnz;
-        VLOG(10) << "b_info n = " << b_info.n << " m = " << b_info.m
-                 << " nnz = " << b_info.nnz;
-        // Evaluate the coefficients
-        quadratic_cost<double>::out_data_t A_data(A_info), b_data(b_info);
-        LOG(INFO) << "A";
-        binding.get()->A(in.data(), {A_data.values.data()});
-        LOG(INFO) << "b";
-        binding.get()->b(in.data(), {b_data.values.data()});
-
-        LOG(INFO) << "Blocks";
-        set_block(data.H, A_info, A_data, x_indices, x_indices,
-                  inserter_add_to);
-        set_block(data.g, b_info, b_data, x_indices, {0}, vector_add_to);
+        if (binding.get()->eval_b(binding.get().buffer_b.dense) ==
+            evaluator::return_status::NotImplemented) {
+            // Throw a warning
+        }
+        set_block(data.g, tmp, x_indices, {0}, BinaryOpAddTo{});
     }
 
     /** Linear constraints **/
-    LOG(INFO) << "linear constraints";
-    // todo - custom binding row orderings, much like in variables case
-    std::size_t cnt = 0;
-    for (const binding<linear_constraint<double>>& binding :
-         program().linear_constraints()) {
-        typedef evaluator_traits<linear_constraint<double>>::index_type
-            index_type;
-
+    VLOG(10) << "qpoases:linear constraints";
+    Eigen::VectorX<value_type> tmp;
+    for (const auto& binding : program().linear_constraints()) {
         const auto& x_indices = binding.input_indices[0];
-
-        // Create input vector
-        std::vector<std::vector<double>> p_data;
-        std::vector<const double*> in = {};
-        for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
-            const auto& p_indices = binding.input_indices[i];
-            p_data.push_back(create_indexed_view(program().p(), p_indices));
-            VLOG(10) << "pi = " << p_data.back();
-            in.push_back(p_data.back().data());
-        }
-
-
-        // Evaluate coefficients for the constraint  lbA < A x + b < ubA
-        linear_constraint<double>::out_info_t A_info, b_info;
-        binding.get()->A_info(A_info);
-        binding.get()->b_info(b_info);
-        // Evaluate the coefficients
-        linear_constraint<double>::out_data_t A_data(A_info), b_data(b_info);
-        VLOG(10) << "A_info n = " << A_info.n << " m = " << A_info.m
-                 << " nnz = " << A_info.nnz;
-        VLOG(10) << "b_info n = " << b_info.n << " m = " << b_info.m
-                 << " nnz = " << b_info.nnz;
-        VLOG(10) << "A";
-        binding.get()->A(in.data(), {A_data.values.data()});
-        VLOG(10) << "A data = " << A_data.values;
-        VLOG(10) << "b";
-        binding.get()->b(in.data(), {b_data.values.data()});
-        VLOG(10) << "b data = " << b_data.values;
-
-        // Create row indices
-        std::vector<index_type> row_indices;
-        for (index_type i = 0; i < A_info.m; ++i) {
-            row_indices.push_back(cnt + i);
-        };
-
-        VLOG(10) << "A row_indices = " << row_indices;
-        VLOG(10) << "A x_indices = " << x_indices;
-        set_block(data.A, A_info, A_data, row_indices, x_indices,
-                  inserter_set_to);
-
-        // Add to each bound
-        for (index_type i = 0; i < b_info.m; ++i) {
-            data.ubA[row_indices[i]] =
-                binding.get()->bounds[i].upper - b_data.values[i];
-            data.lbA[row_indices[i]] =
-                binding.get()->bounds[i].lower - b_data.values[i];
-        }
-
-        // Increase constraint index
-        cnt += A_info.m;
-    }
-
-    /** Bounding box constraints **/
-    LOG(INFO) << "bounding box constraints";
-    for (const binding<bounding_box_constraint<double>>& binding :
-         program().bounding_box_constraints()) {
-        const auto& x_indices = binding.input_indices[0];
-
-        // Create input vector
-        std::vector<std::vector<double>> p_data;
-        std::vector<const double*> in = {};
-        for (std::size_t i = 1; i < binding.input_indices.size(); ++i) {
-            const auto& p_indices = binding.input_indices[i];
-            p_data.push_back(create_indexed_view(program().p(), p_indices));
-            in.push_back(p_data.back().data());
-        }
-
-        binding.get()->update_bounds(in.data());
-
-        for (index_type i = 0; i < x_indices.size(); ++i) {
-            data.ubx[x_indices[i]] = std::min(data.ubx[x_indices[i]],
-                                              binding.get()->bounds[i].upper);
-            data.lbx[x_indices[i]] = std::max(data.lbx[x_indices[i]],
-                                              binding.get()->bounds[i].lower);
-        }
+        binding.get()->get_sparsity_A(tmp);
+        binding.get()->eval_A(tmp);
+        set_block(data.A, tmp, x_indices, {0}, BinaryOpAddTo{});
+        // todo - set_block(data.lbA, tmp, x_indices, {0}, BinaryOpAddTo{});
     }
 
     int nWSR = options_.nWSR;
 
     qp_->setHessianType(qpOASES::HessianType::HST_POSDEF);
-
-    VLOG(10) << data.H;
-    VLOG(10) << data.g;
-    VLOG(10) << data.A;
-    VLOG(10) << data.lbA;
-    VLOG(10) << data.ubA;
-
-    VLOG(10) << data.lbx;
-    VLOG(10) << data.ubx;
 
     // Solve
     if (info_.number_of_solves > 0 && options_.perform_hotstart) {

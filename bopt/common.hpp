@@ -33,4 +33,3 @@ const T& get(const T& p, const I& i) {
 }
 
 }  // namespace bopt
-#define bopt_int int

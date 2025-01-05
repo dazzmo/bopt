@@ -1,126 +1,104 @@
 #pragma once
 
+#include <Eigen/Core>
 #include <memory>
 
-#include "bopt/types.hpp"
+#include "bopt/bounds.hpp"
 #include "bopt/evaluator.hpp"
+#include "bopt/logging.hpp"
 
 namespace bopt {
 
-template <typename T>
-struct cost_traits {
-    typedef typename T::ptr_type ptr_type;
-    typedef typename T::value_type value_type;
-    typedef typename T::index_type index_type;
-    typedef typename T::integer_type integer_type;
-
-    typedef typename T::shared_ptr shared_ptr;
-};
-
-template <typename T>
-struct cost_attributes {
-    // bool has_gradient(const T &cost) const {return cost}
-};
-
-template <class ValueType, class IntegerType = int,
-          class IndexType = std::size_t>
-class cost : public evaluator<ValueType, IntegerType, IndexType> {
+template <typename ValueType, typename GradientVectorType,
+          typename HessianMatrixType>
+class cost_base_tpl : public virtual expression_scalar_tpl<ValueType> {
    public:
-    typedef evaluator<ValueType, IntegerType, IndexType> evaluator_t;
+    typedef std::shared_ptr<cost_base_tpl> shared_ptr;
+    typedef std::unique_ptr<cost_base_tpl> unique_ptr;
 
-    typedef typename evaluator_t::value_type value_type;
-    typedef typename evaluator_t::index_type index_type;
-    typedef typename evaluator_t::integer_type integer_type;
-    typedef typename evaluator_t::out_info_t out_info_t;
-    typedef typename evaluator_t::out_data_t out_data_t;
+    typedef std::string string_type;
 
-    typedef std::shared_ptr<cost> shared_ptr;
+    cost_base_tpl() = default;
+    ~cost_base_tpl() = default;
 
-    typedef IndexType id_type;
+    cost_base_tpl(const index_type &sz_in)
+        : evaluator_tpl<ValueType, IntegerType, IndexType>(sz_in, 1),
+          name_("") {}
+
+    const string_type &name() const { return name_; }
+    void name(const string_type &name) { name_ = name; }
 
    public:
-    id_type id;
-    std::string name;
+    string_type name_;
+};
 
-    virtual integer_type jac(const value_type **arg, value_type *res) {
-        return 0;
-    }
-
-    virtual integer_type hes(const value_type **arg, value_type *res) {
-        return 0;
-    }
-
-    virtual integer_type jac_info(out_info_t &info) { return 0; }
-
-    virtual integer_type hes_info(out_info_t &info) { return 0; }
+/**
+ * @brief Linear cost of the form \f$ a^T x + b \f$
+ *
+ * @tparam ValueType
+ * @tparam IntegerType
+ * @tparam IndexType
+ * @tparam MatrixType
+ */
+template <typename ValueType, typename VectorType>
+class linear_cost_tpl : public cost_base_tpl<ValueType>,
+                        public linear_scalar_expression_tpl<ValueType> {
+   public:
 
    private:
 };
 
 /**
- * @brief Linear cost of the form \f$ c(x, p) = a^T(p) x + b(p) \in \mathbb{R}
- * \f$.
+ * @brief Linear cost of the form \f$ x^T A x + b^T x + c \f$
  *
+ * @tparam ValueType
+ * @tparam IntegerType
+ * @tparam IndexType
+ * @tparam MatrixType
  */
-template <typename T>
-class linear_cost : public cost<T> {
+template <typename ValueType, typename VectorType, typename MatrixType>
+class quadratic_cost_tpl
+    : public cost_base_tpl<ValueType, VectorType, MatrixType> {
    public:
-    typedef typename cost<T>::value_type value_type;
-    typedef typename cost<T>::index_type index_type;
-    typedef typename cost<T>::integer_type integer_type;
+    BOPT_ADD_EVALUATOR_FUNCTIONS_NO_ARGUMENTS(A, dense_matrix_t,
+                                              sparse_matrix_t)
+    BOPT_ADD_EVALUATOR_FUNCTIONS_NO_ARGUMENTS(b, dense_vector_t,
+                                              sparse_vector_t)
 
-    typedef typename cost<T>::evaluator_t evaluator_t;
-
-    typedef typename evaluator_t::out_info_t out_info_t;
-    typedef typename evaluator_t::out_data_t out_data_t;
-
-    typedef std::shared_ptr<linear_cost> shared_ptr;
-
-    linear_cost() = default;
-
-    virtual integer_type a(const value_type **arg, value_type *res) {
-        return 0;
+    virtual evaluator::return_status eval_c(value_type &out) {
+        return evaluator::return_status::NotImplemented;
     }
-    virtual integer_type a_info(out_info_t &info) { return 0; }
 
-    virtual integer_type b(const value_type **arg, value_type *res) {
-        return 0;
-    }
-    virtual integer_type b_info(out_info_t &info) { return 0; }
-
-   protected:
+   private:
 };
 
-/**
- * @brief A cost of the form 0.5 x^T A x + b^T x + c
- *
- */
-template <typename T>
-class quadratic_cost : public cost<T> {
+template <typename ValueType>
+class least_squares_cost_tpl : public quadratic_cost_tpl<ValueType> {
    public:
-    using UniquePtr = std::unique_ptr<quadratic_cost>;
-    using SharedPtr = std::shared_ptr<quadratic_cost>;
-
-    typedef typename cost<T>::value_type value_type;
-    typedef typename cost<T>::integer_type integer_type;
-
-    typedef typename cost<T>::evaluator_t evaluator_t;
-
-    typedef typename evaluator_t::out_info_t out_info_t;
-    typedef typename evaluator_t::out_data_t out_data_t;
-
-    typedef std::shared_ptr<quadratic_cost> shared_ptr;
-
-    virtual integer_type A(const double **arg, double *res) { return 0; }
-    virtual integer_type A_info(out_info_t &info) { return 0; }
-
-    virtual integer_type b(const double **arg, double *res) { return 0; }
-    virtual integer_type b_info(out_info_t &info) { return 0; }
-
-    virtual integer_type c(const double **arg, double *res) { return 0; }
-    virtual integer_type c_info(out_info_t &info) { return 0; }
+    least_squares_cost_tpl(
+        std::shared_ptr<linear_expression_tpl<ValueType>> &expression) {}
 
    protected:
+    evaluator::return_status eval_A_impl(
+        Eigen::Ref<dense_matrix_t> out) override {
+        dense_matrix_t &A = expression_->buffer.A.dense;
+        expression_->eval_A(A);
+        out = A.transpose() * A;
+        return evaluator::return_status::Success;
+    }
+
+    evaluator::return_status eval_b_impl(
+        Eigen::Ref<dense_vector_t> out) override {
+        dense_matrix_t &A = expression_->buffer.A.dense;
+        dense_vector_t &b = expression_->buffer.b.dense;
+        expression_->eval_A(A);
+        expression_->eval_b(b);
+        out = 2.0 * A.transpose() * b;
+        return evaluator::return_status::Success;
+    }
+
+   private:
+    std::shared_ptr<linear_expression_tpl<ValueType>> expression_;
 };
 
 }  // namespace bopt

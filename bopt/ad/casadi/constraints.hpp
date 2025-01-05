@@ -5,9 +5,14 @@
 namespace bopt {
 namespace casadi {
 
-template <typename T>
-class constraint : public bopt::constraint<T> {
-    typedef bopt::constraint<T> Base;
+template <typename ValueType, typename IntegerType, typename IndexType,
+          typename SparsityDataType>
+class constraint
+    : public bopt::constraint_base_tpl<ValueType, IntegerType, IndexType,
+                                       SparsityDataType> {
+    typedef bopt::constraint_base_tpl<ValueType, IntegerType, IndexType,
+                                      SparsityDataType>
+        Base;
 
     typedef ::casadi::SX sym_t;
     typedef std::vector<sym_t> sym_vector_t;
@@ -20,8 +25,8 @@ class constraint : public bopt::constraint<T> {
    public:
     constraint() = default;
 
-    constraint(const sym_t &expression, const sym_t &x, const sym_vector_t &p,
-               const bound_type::type &bound_type = bound_type::Unbounded)
+    constraint(const sym_t &expression, const sym_t &x,
+               const bound_type &bound_type = bound_type::Unbounded)
         : bopt::constraint<T>(expression.size1(), bound_type) {
         expression_evaluator_ =
             std::make_unique<expression_evaluator<T>>(expression, x, p);
@@ -29,7 +34,7 @@ class constraint : public bopt::constraint<T> {
 
     static inline std::shared_ptr<constraint> create(
         const sym_t &expression, const sym_t &x, const sym_vector_t &p,
-        const bound_type::type &bound_type = bound_type::Unbounded) {
+        const bound_type &bound_type = bound_type::Unbounded) {
         return std::make_shared<constraint>(expression, x, p, bound_type);
     }
 
@@ -74,9 +79,9 @@ class linear_constraint : public bopt::linear_constraint<T> {
     typedef typename Base::integer_type integer_type;
     typedef typename Base::out_info_t out_info_t;
 
-    linear_constraint(
-        const sym_t &expression, const sym_t &x, const sym_vector_t &p,
-        const bound_type::type &bound_type = bound_type::Unbounded)
+    linear_constraint(const sym_t &expression, const sym_t &x,
+                      const sym_vector_t &p,
+                      const bound_type &bound_type = bound_type::Unbounded)
         : bopt::linear_constraint<T>(expression.size1(), bound_type) {
         expression_evaluator_ =
             std::make_unique<linear_expression_evaluator<T>>(expression, x, p);
@@ -84,7 +89,7 @@ class linear_constraint : public bopt::linear_constraint<T> {
 
     static inline std::shared_ptr<linear_constraint> create(
         const sym_t &expression, const sym_t &x, const sym_vector_t &p,
-        const bound_type::type &bound_type = bound_type::Unbounded) {
+        const bound_type &bound_type = bound_type::Unbounded) {
         return std::make_shared<linear_constraint>(expression, x, p,
                                                    bound_type);
     }
@@ -148,7 +153,8 @@ class bounding_box_constraint : public bopt::bounding_box_constraint<T> {
 
     bounding_box_constraint(const sym_t &lb, const sym_t &ub,
                             const sym_vector_t &p)
-        : bopt::bounding_box_constraint<T>(lb.size1(), bound_type::Unbounded), sz(lb.size1()) {
+        : bopt::bounding_box_constraint<T>(lb.size1(), bound_type::Unbounded),
+          sz(lb.size1()) {
         assert(lb.size1() == ub.size1() && "Bounds are not the same dimension");
         lb_expression_evaluator_ =
             std::make_unique<expression_evaluator<T>>(lb, p);

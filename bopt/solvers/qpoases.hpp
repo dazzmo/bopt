@@ -98,10 +98,8 @@ struct qpoases_data {
 
 class qpoases_solver_instance : public solver<double, std::size_t> {
    public:
-    typedef ublas::matrix<double> matrix_data_type;
-    typedef std::vector<double> vector_data_type;
 
-    qpoases_data<matrix_data_type, vector_data_type> data;
+    qpoases_data<Eigen::MatrixX<double>, Eigen::VectorX<double>> data;
 
     qpoases_solver_instance() = default;
     qpoases_solver_instance(mathematical_program<double>& prog);

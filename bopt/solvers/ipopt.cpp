@@ -3,7 +3,8 @@
 namespace bopt {
 namespace solvers {
 
-ipopt_solver_instance::ipopt_solver_instance(mathematical_program<double>& program)
+ipopt_solver_instance::ipopt_solver_instance(
+    mathematical_program<double>& program)
     : Ipopt::TNLP(), solver(program) {}
 
 bool ipopt_solver_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
@@ -33,9 +34,9 @@ bool ipopt_solver_instance::eval_f(Index n, const Number* x, bool new_x,
     // Update caches
     cache_.objective = 0.0;
     for (auto& binding : program().f().all()) {
-      value_type fi;
+        value_type fi;
 
-      // data.objective += 
+        // data.objective +=
         cache_.objective += binding.get()->evaluate(cache_.primal);
     }
 
@@ -106,6 +107,27 @@ bool ipopt_solver_instance::eval_jac_g(Index n, const Number* x, bool new_x,
 
     } else {
         if (new_x) mapVector(cache_.primal, x, n);
+
+        // Get all constraints
+        for (auto& b : program().g().all()) {
+            if (b.get()->eval_jacobian(b.get()->buffer_jacobian.sparse) ==
+                evaluator::return_status::NotImplemented) {
+                //! WARNING - Sparse Method Not Implemented
+                if (b.get()->eval_jacobian(b.get()->buffer_jacobian.dense) ==
+                    evaluator::return_status::NotImplemented) {
+                    throw std::runtime_error(
+                        "No method implemented for jacobian evaluation");
+                }
+
+                // Approximate the matrix with a sparse view
+                b.get()->buffer_jacobian.sparse =
+                    b.get()->buffer_jacobian.dense.sparseView();
+            }
+            
+            std::vector<Eigen::Index> rows = {0, 1};
+            auto cols = program().x().getIndices(b.x());
+            updateSparseMatrix(cache_.jac, J, rows, cols, Operation::SET);
+        }
 
         // For each constraint, update the sparse jacobian
         for (auto& b : program().g().all()) {

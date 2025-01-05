@@ -159,6 +159,8 @@ class solver {
 
     void solve() {}
 
+    // void evaluate_constraint()
+
     mathematical_program<value_type>& program() { return m_program; }
 
    private:
