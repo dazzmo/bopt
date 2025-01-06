@@ -9,6 +9,7 @@ enable_testing()
 # Create list of files
 SET(TEST_FILES
 unit_test_expression.cpp
+unit_test_costs.cpp
 )
 
 include(GoogleTest)

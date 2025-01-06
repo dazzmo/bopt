@@ -1,11 +1,12 @@
 #pragma once
 
 #include <cassert>
-#if DEBUG
+
+// #if DEBUG
 #define DBGASSERT(assertion) assert(assertion);
-#else
-#define DBGASSERT(assertion)
-#endif
+// #else
+// #define DBGASSERT(assertion)
+// #endif
 
 namespace bopt {
 

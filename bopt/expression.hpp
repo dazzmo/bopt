@@ -31,6 +31,9 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
     expression_scalar_tpl() = default;
     ~expression_scalar_tpl() = default;
 
+    expression_scalar_tpl(const bopt_index &sz_in)
+        : evaluator_tpl<ValueType>(sz_in, 1) {}
+
     /**
      * @brief Evaluates an expression of the form `out` = f(x)
      *
@@ -38,52 +41,50 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
      * @param ret
      * @return return_status
      */
-    evaluator::return_status eval(const dense_vector_t &x, value_t &out) {
-        DBGASSERT(check_input(x) && "eval input is invalid");
+    evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
+                                  value_t &out) {
+        DBGASSERT(this->check_input(x) && "eval input is invalid");
         return eval_impl(x, out);
     }
 
     /**
-     * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
+     * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$
+     (i.e.
      * \f$ \frac{\partial c}{\partial x}\f$)
      *
      * @param x
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_gradient(const dense_vector_t &x,
-                                           Eigen::Ref<dense_vector_t> out) {
-        DBGASSERT(check_input(x) && "gradient input is invalid");
+    evaluator::return_status eval_gradient(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) {
+        DBGASSERT(this->check_input(x) && "gradient input is invalid");
         return eval_gradient_impl(x, out);
     }
 
     /**
-     * @brief Evaluates the sparse gradient for the expression \f$c(x)\f$ (i.e.
+     * @brief Evaluates the sparse gradient for the expression \f$c(x)\f$
+     (i.e.
      * \f$ \frac{\partial c}{\partial x}\f$)
      *
      * @param x
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_gradient(const dense_vector_t &x,
-                                           Eigen::Ref<sparse_vector_t> out) {
-        DBGASSERT(check_input(x) && "gradient input is invalid");
+    evaluator::return_status eval_gradient(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<sparse_vector_t> out) {
+        DBGASSERT(this->check_input(x) && "gradient input is invalid");
         return eval_gradient_impl(x, out);
     }
 
     /**
-     * @brief The number of rows within the expression gradient
+     * @brief The number of columns within the gradient vector
      *
      * @return bopt_index
      */
-    virtual bopt_index gradient_rows() const = 0;
-
-    /**
-     * @brief The number of columns within the expression gradient
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index gradient_cols() const = 0;
+    virtual bopt_index cols_gradient() const { return this->sz_in(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -91,7 +92,7 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
      *
      * @param gradient
      */
-    virtual void gradient_sparsity(sparse_matrix_t &gradient) const {}
+    virtual void sparsity_gradient(sparse_matrix_t &gradient) const {}
 
     /**
      * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
@@ -101,9 +102,10 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_hessian(const dense_vector_t &x,
-                                          Eigen::Ref<dense_matrix_t> out) {
-        DBGASSERT(check_input(x) && "hessian input is invalid");
+    evaluator::return_status eval_hessian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) {
+        DBGASSERT(this->check_input(x) && "hessian input is invalid");
         return eval_hessian_impl(x, out);
     }
 
@@ -115,9 +117,9 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_hessian(const dense_vector_t &x,
-                                          Eigen::Ref<sparse_matrix_t> out) {
-        DBGASSERT(check_input(x) && "hessian input is invalid");
+    evaluator::return_status eval_hessian(
+        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+        DBGASSERT(this->check_input(x) && "hessian input is invalid");
         return eval_hessian_impl(x, out);
     }
 
@@ -126,14 +128,14 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index hessian_rows() const = 0;
+    virtual bopt_index rows_hessian() const { return this->sz_in(); }
 
     /**
      * @brief The number of columns within the expression hessian
      *
      * @return bopt_index
      */
-    virtual bopt_index hessian_cols() const = 0;
+    virtual bopt_index cols_hessian() const { return this->sz_in(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -141,29 +143,32 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
      *
      * @param hessian
      */
-    virtual void hessian_sparsity(sparse_matrix_t &hessian) const {}
+    virtual void sparsity_hessian(sparse_matrix_t &hessian) const {}
 
    protected:
-    virtual evaluator::return_status eval_impl(const dense_vector_t &x,
-                                               value_t &out) = 0;
+    virtual evaluator::return_status eval_impl(
+        const Eigen::Ref<const dense_vector_t> &x, value_t &out) = 0;
 
     virtual evaluator::return_status eval_gradient_impl(
-        const dense_vector_t &x, Eigen::Ref<dense_vector_t> out) {
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_gradient_impl(
-        const dense_vector_t &x, Eigen::Ref<sparse_vector_t> out) {
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<sparse_vector_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_hessian_impl(
-        const dense_vector_t &x, Eigen::Ref<dense_matrix_t> out) {
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_hessian_impl(
-        const dense_vector_t &x, Eigen::Ref<sparse_matrix_t> out) {
+        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
@@ -179,15 +184,15 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
     using typename evaluator_tpl<ValueType>::dense_matrix_t;
     using typename evaluator_tpl<ValueType>::sparse_matrix_t;
 
-    typedef bopt_index id_type;
-    typedef std::string string_type;
-
     expression_tpl() = default;
     ~expression_tpl() = default;
 
-    evaluator::return_status eval(const dense_vector_t &x,
+    expression_tpl(const bopt_index &sz_in, const bopt_index &sz_out)
+        : evaluator_tpl<ValueType>(sz_in, sz_out) {}
+
+    evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
                                   Eigen::Ref<dense_vector_t> out) {
-        DBGASSERT(check_input(x) && "eval input is invalid");
+        DBGASSERT(this->check_input(x) && "eval input is invalid");
         return eval_impl(x, out);
     }
 
@@ -199,9 +204,10 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_jacobian(const dense_vector_t &x,
-                                           Eigen::Ref<dense_matrix_t> out) {
-        DBGASSERT(check_input(x) && "Jacobian input is invalid");
+    evaluator::return_status eval_jacobian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) {
+        DBGASSERT(this->check_input(x) && "Jacobian input is invalid");
         return eval_jacobian_impl(x, out);
     }
 
@@ -213,9 +219,9 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_jacobian(const dense_vector_t &x,
-                                           Eigen::Ref<sparse_matrix_t> out) {
-        DBGASSERT(check_input(x) && "Jacobian input is invalid");
+    evaluator::return_status eval_jacobian(
+        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+        DBGASSERT(this->check_input(x) && "Jacobian input is invalid");
         return eval_jacobian_impl(x, out);
     }
 
@@ -224,14 +230,14 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index jacobian_rows() const = 0;
+    virtual bopt_index rows_jacobian() const { return this->sz_out(); }
 
     /**
      * @brief The number of columns within the expression jacobian
      *
      * @return bopt_index
      */
-    virtual bopt_index jacobian_cols() const = 0;
+    virtual bopt_index cols_jacobian() const { return this->sz_in(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -239,7 +245,7 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      *
      * @param jacobian
      */
-    virtual void jacobian_sparsity(sparse_matrix_t &jacobian) const {}
+    virtual void sparsity_jacobian(sparse_matrix_t &jacobian) const {}
 
     /**
      * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
@@ -249,10 +255,11 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_hessian(const dense_vector_t &x,
-                                          const dense_vector_t &lambda,
-                                          Eigen::Ref<dense_matrix_t> out) {
-        DBGASSERT(check_input(x) && "hessian input is invalid");
+    evaluator::return_status eval_hessian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) {
+        DBGASSERT(this->check_input(x) && "hessian input is invalid");
         return eval_hessian_impl(x, lambda, out);
     }
 
@@ -264,10 +271,10 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_hessian(const dense_vector_t &x,
-                                          const dense_vector_t &lambda,
-                                          Eigen::Ref<sparse_matrix_t> out) {
-        DBGASSERT(check_input(x) && "hessian input is invalid");
+    evaluator::return_status eval_hessian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
+        DBGASSERT(this->check_input(x) && "hessian input is invalid");
         return eval_hessian_impl(x, lambda, out);
     }
 
@@ -276,14 +283,14 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index hessian_rows() const = 0;
+    virtual bopt_index rows_hessian() const { return this->sz_in(); }
 
     /**
      * @brief The number of columns within the expression hessian
      *
      * @return bopt_index
      */
-    virtual bopt_index hessian_cols() const = 0;
+    virtual bopt_index cols_hessian() const { return this->sz_in(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -291,31 +298,34 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      *
      * @param hessian
      */
-    virtual void hessian_sparsity(sparse_matrix_t &hessian) const {}
+    virtual void sparsity_hessian(sparse_matrix_t &hessian) const {}
 
    protected:
-    evaluator::return_status eval_impl(const dense_vector_t &x,
-                                       Eigen::Ref<dense_vector_t> out) = 0;
+    virtual evaluator::return_status eval_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) = 0;
 
-    evaluator::return_status eval_jacobian_impl(
-        const dense_vector_t &x, Eigen::Ref<dense_matrix_t> out) {
+    virtual evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_jacobian_impl(
-        const dense_vector_t &x, Eigen::Ref<sparse_matrix_t> out) {
+    virtual evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_hessian_impl(const dense_vector_t &x,
-                                               const dense_vector_t &lamba,
-                                               Eigen::Ref<dense_matrix_t> out) {
+    virtual evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_hessian_impl(
-        const dense_vector_t &x, const dense_vector_t &lamba,
-        Eigen::Ref<sparse_matrix_t> out) {
+    virtual evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
@@ -352,42 +362,22 @@ class linear_expression_tpl : public expression_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_A(Eigen::Ref<sparse_matrix_t> out) {
+    evaluator::return_status eval_A(sparse_matrix_t &out) {
         return eval_A_impl(out);
     }
-
-    evaluator::return_status eval_jacobian_impl(
-        const dense_vector_t &x, Eigen::Ref<dense_matrix_t> out) override {
-        return eval_A(out);
-    }
-
-    evaluator::return_status eval_jacobian_impl(
-        const dense_vector_t &x, Eigen::Ref<sparse_matrix_t> out) override {
-        return eval_A(out);
-    }
-
-    // evaluator::return_status eval_hessian_impl(
-    //     const dense_vector_t &x, Eigen::Ref<dense_matrix> out) override {
-    //     return eval_A(out);
-    // }
-
-    // evaluator::return_status eval_hessian_impl(
-    //     const dense_vector_t &x, Eigen::Ref<sparse_matrix_t> out) override {
-    //     return eval_A(out);
-    // }
 
     /**
      * @brief The number of rows within the coefficient matrix A
      *
      * @return bopt_index
      */
-    virtual bopt_index A_rows() const = 0;
+    virtual bopt_index rows_A() const { return this->sz_out(); }
 
     /**
      * @brief The number of columns within the coefficient matrix A
      * @return bopt_index
      */
-    virtual bopt_index A_cols() const = 0;
+    virtual bopt_index cols_A() const { return this->sz_in(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -395,7 +385,7 @@ class linear_expression_tpl : public expression_tpl<ValueType> {
      *
      * @param A
      */
-    virtual void A_sparsity(sparse_matrix_t &A) const {}
+    virtual void sparsity_A(sparse_matrix_t &A) const {}
 
     /**
      * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
@@ -427,7 +417,7 @@ class linear_expression_tpl : public expression_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index b_rows() const = 0;
+    virtual bopt_index rows_b() const { return this->size_out(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -435,30 +425,67 @@ class linear_expression_tpl : public expression_tpl<ValueType> {
      *
      * @param A
      */
-    virtual void b_sparsity(sparse_vector_t &b) const {}
+    virtual void sparsity_b(sparse_vector_t &b) const {}
 
    protected:
-    evaluator::return_status eval_A_impl(Eigen::Ref<dense_matrix_t> out) {
+    virtual evaluator::return_status eval_A_impl(
+        Eigen::Ref<dense_matrix_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_A_impl(Eigen::Ref<sparse_matrix_t> out) {
+    virtual evaluator::return_status eval_A_impl(sparse_matrix_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_b_impl(Eigen::Ref<dense_vector_t> out) {
+    virtual evaluator::return_status eval_b_impl(
+        Eigen::Ref<dense_vector_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_b_impl(Eigen::Ref<sparse_vector_t> out) {
+    virtual evaluator::return_status eval_b_impl(
+        Eigen::Ref<sparse_vector_t> out) {
         return evaluator::return_status::NotImplemented;
+    }
+
+    // Overrides given the structure
+
+    evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) override {
+        return eval_A(out);
+    }
+
+    evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        sparse_matrix_t &out) override {
+        return eval_A(out);
+    }
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) override {
+        out.setZero();
+        return evaluator::return_status::Success;
+    }
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        sparse_matrix_t &out) override {
+        for (int k = 0; k < out.outerSize(); ++k)
+            for (Eigen::SparseMatrix<double>::InnerIterator it(out, k); it;
+                 ++it)
+                it.valueRef() = 0.0;
+        return evaluator::return_status::Success;
     }
 
    private:
 };
 
 template <typename ValueType>
-class linear_scalar_expression_tpl : public expression_scalar_tpl<ValueType> {
+class linear_scalar_expression_tpl
+    : public virtual expression_scalar_tpl<ValueType> {
    public:
     using typename expression_scalar_tpl<ValueType>::value_t;
     using typename expression_scalar_tpl<ValueType>::dense_vector_t;
@@ -474,7 +501,7 @@ class linear_scalar_expression_tpl : public expression_scalar_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_a(Eigen::Ref<dense_matrix_t> out) {
+    evaluator::return_status eval_a(Eigen::Ref<dense_vector_t> out) {
         return eval_a_impl(out);
     }
 
@@ -487,36 +514,17 @@ class linear_scalar_expression_tpl : public expression_scalar_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_a(Eigen::Ref<sparse_matrix_t> out) {
+    evaluator::return_status eval_a(Eigen::Ref<sparse_vector_t> out) {
         return eval_a_impl(out);
     }
 
-    evaluator::return_status eval_gradient_impl(
-        const dense_vector_t &x, Eigen::Ref<dense_vector_t> out) override {
-        return eval_a(out);
-    }
-
-    evaluator::return_status eval_gradient_impl(
-        const dense_vector_t &x, Eigen::Ref<sparse_vector_t> out) override {
-        return eval_a(out);
-    }
-
-    // evaluator::return_status eval_hessian_impl(
-    //     const dense_vector_t &x, Eigen::Ref<dense_matrix> out) override {
-    //     return eval_a(out);
-    // }
-
-    // evaluator::return_status eval_hessian_impl(
-    //     const dense_vector_t &x, Eigen::Ref<sparse_matrix_t> out) override {
-    //     return eval_a(out);
-    // }
-
     /**
-     * @brief The number of rows within the coefficient matrix A
+     * @brief The number of rows within the coefficient vector a for the
+     * expression a^T x + b
      *
      * @return bopt_index
      */
-    virtual bopt_index a_rows() const = 0;
+    virtual bopt_index a_rows() const { return this->sz_in(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -524,7 +532,7 @@ class linear_scalar_expression_tpl : public expression_scalar_tpl<ValueType> {
      *
      * @param A
      */
-    virtual void a_sparsity(sparse_vector_t &a) const {}
+    virtual void sparsity_a(sparse_vector_t &a) const {}
 
     /**
      * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
@@ -537,16 +545,48 @@ class linear_scalar_expression_tpl : public expression_scalar_tpl<ValueType> {
     evaluator::return_status eval_b(ValueType &out) { return eval_b_impl(out); }
 
    protected:
-    evaluator::return_status eval_a_impl(Eigen::Ref<dense_vector_t> out) {
+    virtual evaluator::return_status eval_a_impl(
+        Eigen::Ref<dense_vector_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_a_impl(Eigen::Ref<sparse_vector_t> out) {
+    virtual evaluator::return_status eval_a_impl(
+        Eigen::Ref<sparse_vector_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_b_impl(ValueType &out) {
+    virtual evaluator::return_status eval_b_impl(ValueType &out) {
         return evaluator::return_status::NotImplemented;
+    }
+
+    // Overrides
+
+    evaluator::return_status eval_gradient_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) override {
+        return eval_a(out);
+    }
+
+    evaluator::return_status eval_gradient_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<sparse_vector_t> out) override {
+        return eval_a(out);
+    }
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) override {
+        out.setZero();
+        return evaluator::return_status::Success;
+    }
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        sparse_matrix_t &out) override {
+        for (int k = 0; k < out.outerSize(); ++k)
+            for (typename sparse_matrix_t::InnerIterator it(out, k); it; ++it)
+                it.valueRef() = 0.0;
+        return evaluator::return_status::Success;
     }
 
    private:
@@ -554,7 +594,7 @@ class linear_scalar_expression_tpl : public expression_scalar_tpl<ValueType> {
 
 template <typename ValueType>
 class quadratic_scalar_expression_tpl
-    : public expression_scalar_tpl<ValueType> {
+    : public virtual expression_scalar_tpl<ValueType> {
    public:
     using typename expression_scalar_tpl<ValueType>::value_t;
     using typename expression_scalar_tpl<ValueType>::dense_vector_t;
@@ -583,41 +623,23 @@ class quadratic_scalar_expression_tpl
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_A(Eigen::Ref<sparse_matrix_t> out) {
+    evaluator::return_status eval_A(sparse_matrix_t &out) {
         return eval_A_impl(out);
     }
-
-    evaluator::return_status eval_gradient(
-        const dense_vector_t &x, Eigen::Ref<dense_vector_t> out) override {
-        dense_matrix_t A;
-        dense_vector_t b;
-        eval_A(A);
-        eval_b(b);
-        out = 2.0 * A * x + b;
-        return evaluator::return_status::Success;
-    }
-
-    evaluator::return_status eval_gradient_impl(
-        const dense_vector_t &x, Eigen::Ref<sparse_vector_t> out) override {
-        return eval_A(out);
-    }
-
-    // evaluator::return_status eval_hessian_impl(
-    //     const dense_vector_t &x, Eigen::Ref<dense_matrix> out) override {
-    //     return eval_a(out);
-    // }
-
-    // evaluator::return_status eval_hessian_impl(
-    //     const dense_vector_t &x, Eigen::Ref<sparse_matrix_t> out) override {
-    //     return eval_a(out);
-    // }
 
     /**
      * @brief The number of rows within the coefficient matrix A
      *
      * @return bopt_index
      */
-    virtual bopt_index a_rows() const = 0;
+    virtual bopt_index rows_A() const { return this->sz_in(); }
+
+    /**
+     * @brief The number of columns within the coefficient matrix A
+     *
+     * @return bopt_index
+     */
+    virtual bopt_index cols_A() const { return this->sz_in(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -625,7 +647,7 @@ class quadratic_scalar_expression_tpl
      *
      * @param A
      */
-    virtual void a_sparsity(sparse_vector_t &a) const {}
+    virtual void sparsity_A(sparse_matrix_t &A) const {}
 
     /**
      * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
@@ -635,19 +657,79 @@ class quadratic_scalar_expression_tpl
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_b(ValueType &out) { return eval_b_impl(out); }
+    evaluator::return_status eval_b(Eigen::Ref<dense_vector_t> &out) {
+        return eval_b_impl(out);
+    }
+
+    /**
+     * @brief The number of rows within the coefficient vector b
+     *
+     * @return bopt_index
+     */
+    virtual bopt_index rows_b() const { return this->sz_in(); }
+
+    /**
+     * @brief Populates a sparse matrix with the sparsity pattern of the
+     * coefficient vector b
+     *
+     * @param A
+     */
+    virtual void sparsity_b(sparse_vector_t &b) const {}
+
+    evaluator::return_status eval_c(value_t &out) { return eval_c_impl(out); }
 
    protected:
-    evaluator::return_status eval_a_impl(Eigen::Ref<dense_vector_t> out) {
+    virtual evaluator::return_status eval_A_impl(
+        Eigen::Ref<dense_matrix_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_a_impl(Eigen::Ref<sparse_vector_t> out) {
+    virtual evaluator::return_status eval_A_impl(sparse_matrix_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    evaluator::return_status eval_b_impl(ValueType &out) {
+    virtual evaluator::return_status eval_b_impl(
+        Eigen::Ref<dense_vector_t> out) {
         return evaluator::return_status::NotImplemented;
+    }
+
+    virtual evaluator::return_status eval_b_impl(
+        Eigen::Ref<sparse_vector_t> out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual evaluator::return_status eval_c_impl(value_t &out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    // Overrides
+
+    evaluator::return_status eval_gradient_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) override {
+        throw std::runtime_error("eval_gradient not implemented yet!");
+        return evaluator::return_status::Success;
+    }
+
+    evaluator::return_status eval_gradient_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<sparse_vector_t> out) override {
+        throw std::runtime_error("eval_gradient not implemented yet!");
+        return evaluator::return_status::Success;
+    }
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) override {
+        throw std::runtime_error("eval_hessian not implemented yet!");
+        return evaluator::return_status::Success;
+    }
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        sparse_matrix_t &out) override {
+        throw std::runtime_error("eval_hessian not implemented yet!");
+        return evaluator::return_status::Success;
     }
 
    private:

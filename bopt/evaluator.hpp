@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Eigen/Core>
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <vector>
 
 #include "bopt/common.hpp"
@@ -56,8 +58,8 @@ class evaluator_tpl {
     const bopt_index &sz_in() const { return sz_in_; }
     const bopt_index &sz_out() const { return sz_out_; }
 
-    inline bool check_input(const dense_vector_t &x) {
-        return !x.isNaN() || x.allFinite();
+    inline bool check_input(const dense_vector_t &x) const {
+        return !x.hasNaN() || x.allFinite();
     }
 
    protected:
