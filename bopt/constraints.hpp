@@ -13,92 +13,166 @@
 namespace bopt {
 
 template <typename ValueType>
-class constraint_base_tpl : public expression_tpl<ValueType> {
+class constraint_tpl : public expression_tpl<ValueType> {
    public:
-    constraint_base_tpl() = default;
-    ~constraint_base_tpl() = default;
+    using typename expression_tpl<ValueType>::value_t;
+    using typename expression_tpl<ValueType>::dense_vector_t;
+    using typename expression_tpl<ValueType>::sparse_vector_t;
+    using typename expression_tpl<ValueType>::dense_matrix_t;
+    using typename expression_tpl<ValueType>::sparse_matrix_t;
 
-    constraint_base_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
-                        const bound_type &type = bound_type::Unbounded)
+    typedef std::string string_t;
+
+    constraint_tpl() = default;
+    ~constraint_tpl() = default;
+
+    constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
+                   const bounds::type &type = bounds::type::Unbounded)
         : evaluator_tpl<ValueType>(sz_in, sz_out),
           name_(""),
-          lower_bound(sz_out),
-          upper_bound(sz_out) {
-        set_bounds_to_type(type);
+          lower_bound_(sz_out),
+          upper_bound_(sz_out) {
+        set_bounds(type);
     }
 
-    const string_type &name() const { return name_; }
-    void name(const string_type &name) { name_ = name; }
+    const string_t &name() const { return name_; }
+    void set_name(const string_t &name) { name_ = name; }
 
-    void set_bounds_to_type(const bounds_type &type) {
-        set_bound_limits(type, lower_bound, upper_bound);
+    void set_bounds(const bounds::type &type) {
+        bounds::set_bound_limits<ValueType>(type, lower_bound_, upper_bound_);
     }
 
-    dense_vector_t lower_bound;
-    dense_vector_t upper_bound;
+    const dense_vector_t &lower_bound() const { return lower_bound_; }
+    void set_lower_bound(const Eigen::Ref<const dense_vector_t> &lower_bound) {
+        lower_bound_ = lower_bound;
+    }
+
+    const dense_vector_t &upper_bound() const { return upper_bound_; }
+    void set_upper_bound(const Eigen::Ref<const dense_vector_t> &upper_bound) {
+        upper_bound_ = upper_bound;
+    }
 
    private:
-    string_type name_;
+    string_t name_;
+    dense_vector_t lower_bound_;
+    dense_vector_t upper_bound_;
 };
 
-// todo - print out everything about everything
+template <typename ValueType>
+std::ostream &operator<<(std::ostream &out,
+                         constraint_tpl<ValueType> const &constraint) {
+    out << "constraint name: " << constraint.name() << '\n';
+    out << "lower bound: " << constraint.lower_bound().transpose() << '\n';
+    out << "upper bound: " << constraint.upper_bound().transpose() << '\n';
+    return out;
+}
 
 template <typename ValueType>
-class linear_constraint_tpl : public constraint_base_tpl<ValueType>,
+class linear_constraint_tpl : public constraint_tpl<ValueType>,
                               public linear_expression_tpl<ValueType> {
    public:
    protected:
+    // Overrides given the structure
+    evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) override {
+        return eval_A(out);
+    }
+
+    evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        sparse_matrix_t &out) override {
+        return eval_A(out);
+    }
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) override {
+        out.setZero();
+        return evaluator::return_status::Success;
+    }
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        sparse_matrix_t &out) override {
+        for (int k = 0; k < out.outerSize(); ++k)
+            for (Eigen::SparseMatrix<double>::InnerIterator it(out, k); it;
+                 ++it)
+                it.valueRef() = 0.0;
+        return evaluator::return_status::Success;
+    }
+
    private:
 };
 
+/**
+ * @brief Converts the constraint \f$ lb \le x \le ub \f$ to the stacked
+ * inequality constraint \f$ [x - ub, -x + lb] \le 0 \f$
+ *
+ */
 template <typename ValueType, typename MatrixType>
-class bounding_box_constraint_tpl : public constraint_base_tpl<ValueType> {
+class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
    public:
+    using typename constraint_tpl<ValueType>::value_t;
+    using typename constraint_tpl<ValueType>::dense_vector_t;
+    using typename constraint_tpl<ValueType>::sparse_vector_t;
+    using typename constraint_tpl<ValueType>::dense_matrix_t;
+    using typename constraint_tpl<ValueType>::sparse_matrix_t;
+
     bounding_box_constraint_tpl() = default;
 
-    bounding_box_constraint_tpl(const index_type &sz_in, const vector_type &lb,
-                                const vector_type &ub)
-        : constraint_base_tpl<ValueType, IntegerType, IndexType, MatrixType>(
-              sz_in, 2 * sz_in),
+    bounding_box_constraint_tpl(const bopt_index &sz_in,
+                                const bounds::type &type)
+        : constraint_tpl<ValueType>(sz_in, 2 * sz_in),
+          x_lower_bound_(dense_vector_t::Constant(0.0, sz_in)),
+          x_upper_bound_(dense_vector_t::Constant(0.0, sz_in)),
+          converted_(false) {}
+
+    bounding_box_constraint_tpl(
+        const bopt_index &sz_in,
+        const Eigen::Ref<const dense_vector_t> &lower_bound,
+        const Eigen::Ref<const dense_vector_t> &upper_bound)
+        : constraint_tpl<ValueType>(sz_in, 2 * sz_in),
+          x_lower_bound_(lower_bound),
+          x_upper_bound_(upper_bound),
           converted_(false) {
-        DBGASSERT(lb.size() == ub.size() && lb.size() == sz &&
+        DBGASSERT(lower_bound.size() == sz_in && upper_bound.size() == sz_in &&
                   "Bound vector size mismatch");
     }
 
-    /**
-     * @brief Converts the constraint \f$ lb \le x \le ub \f$ to the stacked
-     * inequality constraint \f$ [x - ub, -x + lb] \le 0 \f$
-     *
-     */
-    void convert_to_constraint() {
-        arg_lower_bound_ = lower_bound;
-        arg_upper_bound_ = upper_bound;
-        this->set_bounds_to_type(bound_type::Negative);
-        converted_ = true;
-    }
-
-    integer_type eval(const value_type *arg, value_type *ret) override {
-        DBGASSERT(converted_ &&
-                  "Bounding box constraint not converted to generic constraint "
-                  "format");
-
-        for (index_type i = 0; i < this->sz_out(); ++i) {
-            ret[i] = arg[i] - arg_upper_bound_[i];
-            ret[this->sz_out() + i] = -arg[i] + arg_lower_bound_[i];
+   protected:
+    evaluator::return_status eval_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) override {
+        if (!converted_) {
+            x_lower_bound_ = this->lower_bound();
+            x_upper_bound_ = this->upper_bound();
+            this->set_bounds(bounds::type::Negative);
+            converted_ = true;
         }
 
-        return integer_type(0);
+        for (bopt_index i = 0; i < this->sz_out(); ++i) {
+            out[i] = x[i] - x_upper_bound_[i];
+            out[this->sz_out() + i] = -x[i] + x_lower_bound_[i];
+        }
+
+        return evaluator::return_status::Success;
     }
 
-    integer_type eval_jac(const vector_type &arg, MatrixType &res) {
-        // res.diagonal().array().setConstant(1.0);
-        // res.diagonal().array().setConstant(1.0);
+    evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) {
+        out.topRows(this->sz_in()).diagonal().array().setConstant(1.0);
+        out.bottomRows(this->sz_in()).diagonal().array().setConstant(-1.0);
+        return evaluator::return_status::Success;
     }
 
    private:
     bool converted_;
-    vector_type arg_lower_bound_;
-    vector_type arg_upper_bound_;
+    dense_vector_t x_lower_bound_;
+    dense_vector_t x_upper_bound_;
 };
 
 }  // namespace bopt

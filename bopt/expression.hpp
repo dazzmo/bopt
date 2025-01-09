@@ -11,13 +11,19 @@
 
 namespace bopt {
 
+template <typename DenseType, typename SparseType>
+struct dense_sparse_buffer_tpl {
+    DenseType dense;
+    SparseType sparse;
+};
+
 /**
  * @brief A twice-differentiable expression of the form \f$y = f(x)\f$
  *
  * @tparam ValueType
  */
 template <typename ValueType>
-class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
+class expression_scalar_tpl : public evaluator_tpl<ValueType> {
    public:
     using typename evaluator_tpl<ValueType>::value_t;
     using typename evaluator_tpl<ValueType>::dense_vector_t;
@@ -25,14 +31,21 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
     using typename evaluator_tpl<ValueType>::dense_matrix_t;
     using typename evaluator_tpl<ValueType>::sparse_matrix_t;
 
-    using id_type = bopt_index;
-    using string_type = std::string;
+    using vector_buffer_t =
+        dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
+    using matrix_buffer_t =
+        dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
 
-    expression_scalar_tpl() = default;
-    ~expression_scalar_tpl() = default;
+    expression_scalar_tpl() : evaluator_tpl<ValueType>(0, 1) {}
 
     expression_scalar_tpl(const bopt_index &sz_in)
-        : evaluator_tpl<ValueType>(sz_in, 1) {}
+        : evaluator_tpl<ValueType>(sz_in, 1) {
+        buffer_gradient_.dense = dense_vector_t::Zero(cols_gradient());
+        buffer_hessian_.dense =
+            dense_matrix_t::Zero(rows_hessian(), cols_hessian());
+    }
+
+    ~expression_scalar_tpl() = default;
 
     /**
      * @brief Evaluates an expression of the form `out` = f(x)
@@ -73,8 +86,7 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
      * @return evaluator::return_status
      */
     evaluator::return_status eval_gradient(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<sparse_vector_t> out) {
+        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
         DBGASSERT(this->check_input(x) && "gradient input is invalid");
         return eval_gradient_impl(x, out);
     }
@@ -145,6 +157,10 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
      */
     virtual void sparsity_hessian(sparse_matrix_t &hessian) const {}
 
+    // Buffers for evaluation
+    vector_buffer_t &buffer_gradient() { return buffer_gradient_; }
+    matrix_buffer_t &buffer_hessian() { return buffer_hessian_; }
+
    protected:
     virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x, value_t &out) = 0;
@@ -156,8 +172,7 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
     }
 
     virtual evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<sparse_vector_t> out) {
+        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
@@ -173,10 +188,12 @@ class expression_scalar_tpl : public virtual evaluator_tpl<ValueType> {
     }
 
    private:
+    vector_buffer_t buffer_gradient_;
+    matrix_buffer_t buffer_hessian_;
 };
 
 template <typename ValueType>
-class expression_tpl : public virtual evaluator_tpl<ValueType> {
+class expression_tpl : public evaluator_tpl<ValueType> {
    public:
     using typename evaluator_tpl<ValueType>::value_t;
     using typename evaluator_tpl<ValueType>::dense_vector_t;
@@ -184,11 +201,21 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
     using typename evaluator_tpl<ValueType>::dense_matrix_t;
     using typename evaluator_tpl<ValueType>::sparse_matrix_t;
 
+    using vector_buffer_t =
+        dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
+    using matrix_buffer_t =
+        dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
+
     expression_tpl() = default;
     ~expression_tpl() = default;
 
     expression_tpl(const bopt_index &sz_in, const bopt_index &sz_out)
-        : evaluator_tpl<ValueType>(sz_in, sz_out) {}
+        : evaluator_tpl<ValueType>(sz_in, sz_out) {
+        buffer_jacobian_.dense =
+            dense_matrix_t::Zero(rows_jacobian(), cols_jacobian());
+        buffer_hessian_.dense =
+            dense_matrix_t::Zero(rows_hessian(), cols_hessian());
+    }
 
     evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
                                   Eigen::Ref<dense_vector_t> out) {
@@ -300,6 +327,10 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
      */
     virtual void sparsity_hessian(sparse_matrix_t &hessian) const {}
 
+    // Buffers for evaluation
+    matrix_buffer_t &buffer_jacobian() { return buffer_jacobian_; }
+    matrix_buffer_t &buffer_hessian() { return buffer_hessian_; }
+
    protected:
     virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
@@ -330,16 +361,32 @@ class expression_tpl : public virtual evaluator_tpl<ValueType> {
     }
 
    private:
+    matrix_buffer_t buffer_jacobian_;
+    matrix_buffer_t buffer_hessian_;
 };
 
 template <typename ValueType>
-class linear_expression_tpl : public expression_tpl<ValueType> {
+class linear_expression_tpl : public evaluator_tpl<ValueType> {
    public:
-    using typename expression_tpl<ValueType>::value_t;
-    using typename expression_tpl<ValueType>::dense_vector_t;
-    using typename expression_tpl<ValueType>::sparse_vector_t;
-    using typename expression_tpl<ValueType>::dense_matrix_t;
-    using typename expression_tpl<ValueType>::sparse_matrix_t;
+    using typename evaluator_tpl<ValueType>::value_t;
+    using typename evaluator_tpl<ValueType>::dense_vector_t;
+    using typename evaluator_tpl<ValueType>::sparse_vector_t;
+    using typename evaluator_tpl<ValueType>::dense_matrix_t;
+    using typename evaluator_tpl<ValueType>::sparse_matrix_t;
+
+    using vector_buffer_t =
+        dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
+    using matrix_buffer_t =
+        dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
+
+    linear_expression_tpl() = default;
+    ~linear_expression_tpl() = default;
+
+    linear_expression_tpl(const bopt_index &sz_in, const bopt_index &sz_out)
+        : evaluator_tpl<ValueType>(sz_in, sz_out) {
+        buffer_A_.dense = dense_matrix_t::Zero(rows_A(), cols_A());
+        buffer_b_.dense = dense_vector_t::Zero(rows_b());
+    }
 
     /**
      * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
@@ -408,7 +455,7 @@ class linear_expression_tpl : public expression_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_b(Eigen::Ref<sparse_vector_t> out) {
+    evaluator::return_status eval_b(sparse_vector_t &out) {
         return eval_b_impl(out);
     }
 
@@ -427,6 +474,9 @@ class linear_expression_tpl : public expression_tpl<ValueType> {
      */
     virtual void sparsity_b(sparse_vector_t &b) const {}
 
+    matrix_buffer_t &buffer_A() { return buffer_A_; }
+    vector_buffer_t &buffer_b() { return buffer_b_; }
+
    protected:
     virtual evaluator::return_status eval_A_impl(
         Eigen::Ref<dense_matrix_t> out) {
@@ -442,56 +492,36 @@ class linear_expression_tpl : public expression_tpl<ValueType> {
         return evaluator::return_status::NotImplemented;
     }
 
-    virtual evaluator::return_status eval_b_impl(
-        Eigen::Ref<sparse_vector_t> out) {
+    virtual evaluator::return_status eval_b_impl(sparse_vector_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    // Overrides given the structure
-
-    evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        return eval_A(out);
-    }
-
-    evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        sparse_matrix_t &out) override {
-        return eval_A(out);
-    }
-
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        Eigen::Ref<dense_matrix_t> out) override {
-        out.setZero();
-        return evaluator::return_status::Success;
-    }
-
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        sparse_matrix_t &out) override {
-        for (int k = 0; k < out.outerSize(); ++k)
-            for (Eigen::SparseMatrix<double>::InnerIterator it(out, k); it;
-                 ++it)
-                it.valueRef() = 0.0;
-        return evaluator::return_status::Success;
-    }
-
    private:
+    matrix_buffer_t buffer_A_;
+    vector_buffer_t buffer_b_;
 };
 
 template <typename ValueType>
-class linear_scalar_expression_tpl
-    : public virtual expression_scalar_tpl<ValueType> {
+class linear_scalar_expression_tpl : public evaluator_tpl<ValueType> {
    public:
-    using typename expression_scalar_tpl<ValueType>::value_t;
-    using typename expression_scalar_tpl<ValueType>::dense_vector_t;
-    using typename expression_scalar_tpl<ValueType>::sparse_vector_t;
-    using typename expression_scalar_tpl<ValueType>::dense_matrix_t;
-    using typename expression_scalar_tpl<ValueType>::sparse_matrix_t;
+    using typename evaluator_tpl<ValueType>::value_t;
+    using typename evaluator_tpl<ValueType>::dense_vector_t;
+    using typename evaluator_tpl<ValueType>::sparse_vector_t;
+    using typename evaluator_tpl<ValueType>::dense_matrix_t;
+    using typename evaluator_tpl<ValueType>::sparse_matrix_t;
+
+    using vector_buffer_t =
+        dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
+    using matrix_buffer_t =
+        dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
+
+    linear_scalar_expression_tpl() : evaluator_tpl<ValueType>(0, 1) {}
+
+    linear_scalar_expression_tpl(const bopt_index &sz_in)
+        : evaluator_tpl<ValueType>(sz_in, 1) {
+        // Create buffers for dense evaluation
+        buffer_a_.dense = dense_vector_t::Zero(rows_a());
+    }
 
     /**
      * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
@@ -514,7 +544,7 @@ class linear_scalar_expression_tpl
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_a(Eigen::Ref<sparse_vector_t> out) {
+    evaluator::return_status eval_a(sparse_vector_t &out) {
         return eval_a_impl(out);
     }
 
@@ -524,7 +554,7 @@ class linear_scalar_expression_tpl
      *
      * @return bopt_index
      */
-    virtual bopt_index a_rows() const { return this->sz_in(); }
+    virtual bopt_index rows_a() const { return this->sz_in(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -544,14 +574,15 @@ class linear_scalar_expression_tpl
      */
     evaluator::return_status eval_b(ValueType &out) { return eval_b_impl(out); }
 
+    vector_buffer_t &buffer_a() { return buffer_a_; }
+
    protected:
     virtual evaluator::return_status eval_a_impl(
         Eigen::Ref<dense_vector_t> out) {
         return evaluator::return_status::NotImplemented;
     }
 
-    virtual evaluator::return_status eval_a_impl(
-        Eigen::Ref<sparse_vector_t> out) {
+    virtual evaluator::return_status eval_a_impl(sparse_vector_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
@@ -559,48 +590,32 @@ class linear_scalar_expression_tpl
         return evaluator::return_status::NotImplemented;
     }
 
-    // Overrides
-
-    evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        return eval_a(out);
-    }
-
-    evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<sparse_vector_t> out) override {
-        return eval_a(out);
-    }
-
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        out.setZero();
-        return evaluator::return_status::Success;
-    }
-
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        sparse_matrix_t &out) override {
-        for (int k = 0; k < out.outerSize(); ++k)
-            for (typename sparse_matrix_t::InnerIterator it(out, k); it; ++it)
-                it.valueRef() = 0.0;
-        return evaluator::return_status::Success;
-    }
-
    private:
+    vector_buffer_t buffer_a_;
 };
 
 template <typename ValueType>
-class quadratic_scalar_expression_tpl
-    : public virtual expression_scalar_tpl<ValueType> {
+class quadratic_scalar_expression_tpl : public evaluator_tpl<ValueType> {
    public:
-    using typename expression_scalar_tpl<ValueType>::value_t;
-    using typename expression_scalar_tpl<ValueType>::dense_vector_t;
-    using typename expression_scalar_tpl<ValueType>::sparse_vector_t;
-    using typename expression_scalar_tpl<ValueType>::dense_matrix_t;
-    using typename expression_scalar_tpl<ValueType>::sparse_matrix_t;
+    using typename evaluator_tpl<ValueType>::value_t;
+    using typename evaluator_tpl<ValueType>::dense_vector_t;
+    using typename evaluator_tpl<ValueType>::sparse_vector_t;
+    using typename evaluator_tpl<ValueType>::dense_matrix_t;
+    using typename evaluator_tpl<ValueType>::sparse_matrix_t;
+
+    using vector_buffer_t =
+        dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
+    using matrix_buffer_t =
+        dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
+
+    quadratic_scalar_expression_tpl() : evaluator_tpl<ValueType>(0, 1) {}
+
+    quadratic_scalar_expression_tpl(const bopt_index &sz_in)
+        : evaluator_tpl<ValueType>(sz_in, 1) {
+        // Create buffers for dense evaluation
+        buffer_A_.dense = dense_matrix_t::Zero(rows_A(), cols_A());
+        buffer_b_.dense = dense_vector_t::Zero(rows_b());
+    }
 
     /**
      * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
@@ -678,6 +693,9 @@ class quadratic_scalar_expression_tpl
 
     evaluator::return_status eval_c(value_t &out) { return eval_c_impl(out); }
 
+    matrix_buffer_t &buffer_A() { return buffer_A_; }
+    vector_buffer_t &buffer_b() { return buffer_b_; }
+
    protected:
     virtual evaluator::return_status eval_A_impl(
         Eigen::Ref<dense_matrix_t> out) {
@@ -693,8 +711,7 @@ class quadratic_scalar_expression_tpl
         return evaluator::return_status::NotImplemented;
     }
 
-    virtual evaluator::return_status eval_b_impl(
-        Eigen::Ref<sparse_vector_t> out) {
+    virtual evaluator::return_status eval_b_impl(sparse_vector_t &out) {
         return evaluator::return_status::NotImplemented;
     }
 
@@ -702,37 +719,9 @@ class quadratic_scalar_expression_tpl
         return evaluator::return_status::NotImplemented;
     }
 
-    // Overrides
-
-    evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        throw std::runtime_error("eval_gradient not implemented yet!");
-        return evaluator::return_status::Success;
-    }
-
-    evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<sparse_vector_t> out) override {
-        throw std::runtime_error("eval_gradient not implemented yet!");
-        return evaluator::return_status::Success;
-    }
-
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        throw std::runtime_error("eval_hessian not implemented yet!");
-        return evaluator::return_status::Success;
-    }
-
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        sparse_matrix_t &out) override {
-        throw std::runtime_error("eval_hessian not implemented yet!");
-        return evaluator::return_status::Success;
-    }
-
    private:
+    matrix_buffer_t buffer_A_;
+    vector_buffer_t buffer_b_;
 };
 
 }  // namespace bopt

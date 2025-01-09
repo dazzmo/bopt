@@ -47,20 +47,24 @@ void qpoases_solver_instance::solve() {
     VLOG(10) << "qpoases:linear costs";
     for (const auto& binding : program().linear_costs()) {
         const auto& x_indices = binding.input_indices.indices;
-        if (binding.get()->eval_a(binding.get().buffer_a.dense) ==
+        if (binding.get()->eval_a(binding.get().buffer.a.dense) ==
             evaluator::return_status::NotImplemented) {
-            // Throw a warning
+            if (binding.get()->eval_a(binding.get().buffer.a.sparse) ==
+                evaluator::return_status::NotImplemented) {
+                throw std::runtime_error("no method implemented for eval_a");
+            } else {
+                // Compute through sparse view
+                binding.get().buffer.a.dense = binding.get().buffer.a.sparse;
+            }
         }
-
-        // insert_matrix(data.g, binding.get().buffer_a.dense, x_indices,
-        // binding.input_indices.is_block)
+        data.g(x_indices) += binding.get().buffer.a.dense;
     }
 
     /** Quadratic costs **/
     VLOG(10) << "qpoases:quadratic costs";
     for (const auto& binding : program().quadratic_costs()) {
         const auto& x_indices = binding.input_indices[0];
-        if (binding.get()->eval_A(binding.get().buffer_A.dense) ==
+        if (binding.get()->eval_A(binding.get().buffer.A.dense) ==
             evaluator::return_status::NotImplemented) {
             // Throw a warning
         }
@@ -71,7 +75,7 @@ void qpoases_solver_instance::solve() {
         } else {
         }
 
-        if (binding.get()->eval_b(binding.get().buffer_b.dense) ==
+        if (binding.get()->eval_b(binding.get().buffer.b.dense) ==
             evaluator::return_status::NotImplemented) {
             // Throw a warning
         }

@@ -10,6 +10,7 @@ enable_testing()
 SET(TEST_FILES
 unit_test_expression.cpp
 unit_test_costs.cpp
+unit_test_constraints.cpp
 )
 
 include(GoogleTest)

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "bopt/common.hpp"
+#include "bopt/logging.hpp"
 #include "bopt/types.hpp"
 
 namespace bopt {
@@ -49,7 +50,9 @@ class evaluator_tpl {
         typename evaluator_traits<ValueType>::sparse_matrix_t;
 
    public:
-    evaluator_tpl() : sz_in_(0), sz_out_(0) {}
+    evaluator_tpl() : sz_in_(0), sz_out_(0) {
+        LOG(INFO) << "evaluator_tpl default constructor";
+    }
     evaluator_tpl(const bopt_index &sz_in, const bopt_index &sz_out)
         : sz_in_(sz_in), sz_out_(sz_out) {}
 

@@ -14,51 +14,6 @@
 namespace bopt {
 namespace solvers {
 
-namespace ublas = boost::numeric::ublas;
-
-class qpOASESOptions : public OptionsBase {
-   public:
-    qpOASESOptions() {
-        // Construct all options
-        createIntegerOption("printLevel", qpOASES::PL_NONE);
-        createIntegerOption("initialStatusBounds", qpOASES::ST_INACTIVE);
-        createIntegerOption("numRegularisationSteps", qpOASES::ST_INACTIVE);
-        createIntegerOption("numRefinementSteps", qpOASES::ST_INACTIVE);
-
-        createBooleanOption("enableRamping", qpOASES::BT_FALSE);
-        createBooleanOption("enableFarBounds", qpOASES::BT_FALSE);
-        createBooleanOption("enableFlippingBounds", qpOASES::BT_FALSE);
-        createBooleanOption("enableRegularisation", qpOASES::BT_FALSE);
-        createBooleanOption("enableFullLITests", qpOASES::BT_FALSE);
-        createBooleanOption("enableNZCTests", qpOASES::BT_FALSE);
-        createBooleanOption("enableDriftCorrection", qpOASES::BT_FALSE);
-        createBooleanOption("enableCholeskyRefactorization", qpOASES::BT_FALSE);
-        createBooleanOption("enableEqualities", qpOASES::BT_FALSE);
-        createBooleanOption("enableInertiaCorrection", qpOASES::BT_FALSE);
-
-        createNumericalOption("terminationTolerance", 0.0);
-        createNumericalOption("boundTolerance", 0.0);
-        createNumericalOption("boundRelaxation", 0.0);
-        createNumericalOption("epsNum", 0.0);
-        createNumericalOption("epsDen", 0.0);
-        createNumericalOption("maxPrimalJump", 0.0);
-        createNumericalOption("maxDualJump", 0.0);
-        createNumericalOption("initialRamping", 0.0);
-        createNumericalOption("finalRamping", 0.0);
-        createNumericalOption("initialFarBounds", 0.0);
-        createNumericalOption("growFarBounds", 0.0);
-        createNumericalOption("epsFlipping", 0.0);
-        createNumericalOption("growFarBounds", 0.0);
-        createNumericalOption("epsRegularisation", 0.0);
-        createNumericalOption("epsIterRef", 0.0);
-        createNumericalOption("epsLITests", 0.0);
-        createNumericalOption("epsNZCTests", 0.0);
-        createNumericalOption("rCondMin", 0.0);
-    }
-
-   private:
-};
-
 /**
  * @brief Details for the qpOASES solver
  *
