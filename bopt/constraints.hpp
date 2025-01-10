@@ -28,11 +28,12 @@ class constraint_tpl : public expression_tpl<ValueType> {
 
     constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
                    const bounds::type &type = bounds::type::Unbounded)
-        : evaluator_tpl<ValueType>(sz_in, sz_out),
+        : expression_tpl<ValueType>(sz_in, sz_out),
           name_(""),
           lower_bound_(sz_out),
           upper_bound_(sz_out) {
         set_bounds(type);
+        buffer_ = dense_vector_t::Zero(this->sz_out());
     }
 
     const string_t &name() const { return name_; }
@@ -44,24 +45,41 @@ class constraint_tpl : public expression_tpl<ValueType> {
 
     const dense_vector_t &lower_bound() const { return lower_bound_; }
     void set_lower_bound(const Eigen::Ref<const dense_vector_t> &lower_bound) {
+        DBGASSERT(lower_bound.size() == this->sz_out() &&
+                  "Incorrect bound size");
         lower_bound_ = lower_bound;
     }
 
     const dense_vector_t &upper_bound() const { return upper_bound_; }
     void set_upper_bound(const Eigen::Ref<const dense_vector_t> &upper_bound) {
+        DBGASSERT(upper_bound.size() == this->sz_out() &&
+                  "Incorrect bound size");
         upper_bound_ = upper_bound;
+    }
+
+    const dense_vector_t &buffer() const { return buffer_; }
+    dense_vector_t &buffer() { return buffer_; }
+
+    inline bool is_satisfied(
+        const ValueType &epsilon =
+            std::numeric_limits<ValueType>::epsilon()) const {
+        return (buffer_ - lower_bound_).minCoeff() >= epsilon &&
+               (upper_bound_ - buffer_).minCoeff() >= epsilon;
     }
 
    private:
     string_t name_;
     dense_vector_t lower_bound_;
     dense_vector_t upper_bound_;
+
+    dense_vector_t buffer_;
 };
 
 template <typename ValueType>
 std::ostream &operator<<(std::ostream &out,
                          constraint_tpl<ValueType> const &constraint) {
     out << "constraint name: " << constraint.name() << '\n';
+    out << "buffer: " << constraint.buffer().transpose() << '\n';
     out << "lower bound: " << constraint.lower_bound().transpose() << '\n';
     out << "upper bound: " << constraint.upper_bound().transpose() << '\n';
     return out;
@@ -71,6 +89,12 @@ template <typename ValueType>
 class linear_constraint_tpl : public constraint_tpl<ValueType>,
                               public linear_expression_tpl<ValueType> {
    public:
+    using typename constraint_tpl<ValueType>::value_t;
+    using typename constraint_tpl<ValueType>::dense_vector_t;
+    using typename constraint_tpl<ValueType>::sparse_vector_t;
+    using typename constraint_tpl<ValueType>::dense_matrix_t;
+    using typename constraint_tpl<ValueType>::sparse_matrix_t;
+
    protected:
     // Overrides given the structure
     evaluator::return_status eval_jacobian_impl(

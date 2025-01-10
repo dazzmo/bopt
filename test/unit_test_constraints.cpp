@@ -9,7 +9,9 @@
 
 class GenericConstraint : public bopt::constraint_tpl<double> {
    public:
-    GenericConstraint() : bopt::constraint_tpl<double>(2, 2) {}
+    GenericConstraint() : bopt::constraint_tpl<double>(2, 2) {
+        this->set_name("constraint!!");
+    }
 
    protected:
     bopt::evaluator::return_status eval_impl(
@@ -33,9 +35,16 @@ class GenericConstraint : public bopt::constraint_tpl<double> {
 TEST(Constraint, ScalarConstraint) {
     std::shared_ptr<bopt::constraint_tpl<double>> c =
         std::make_shared<GenericConstraint>();
-        c->set_name("constraint!");
 
     LOG(INFO) << *c;
+    c->set_lower_bound(Eigen::Vector2d(-1.0, -1.0));
+    c->set_upper_bound(Eigen::Vector2d(1.0, 1.0));
+
+    EXPECT_TRUE(c->is_satisfied());
+    c->buffer() << 2.0, 1.0;
+    LOG(INFO) << *c;
+
+    EXPECT_FALSE(c->is_satisfied());
 }
 
 int main(int argc, char **argv) {

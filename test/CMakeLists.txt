@@ -11,6 +11,7 @@ SET(TEST_FILES
 unit_test_expression.cpp
 unit_test_costs.cpp
 unit_test_constraints.cpp
+unit_test_variable.cpp
 )
 
 include(GoogleTest)

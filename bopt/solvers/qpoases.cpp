@@ -46,51 +46,97 @@ void qpoases_solver_instance::solve() {
     /** Linear costs **/
     VLOG(10) << "qpoases:linear costs";
     for (const auto& binding : program().linear_costs()) {
-        const auto& x_indices = binding.input_indices.indices;
-        if (binding.get()->eval_a(binding.get().buffer.a.dense) ==
+        const auto& x_indices = binding.variable_indices;
+        if (binding.get()->eval_a(binding.get().buffer_a.dense) ==
             evaluator::return_status::NotImplemented) {
-            if (binding.get()->eval_a(binding.get().buffer.a.sparse) ==
+            if (binding.get()->eval_a(binding.get().buffer_a.sparse) ==
                 evaluator::return_status::NotImplemented) {
                 throw std::runtime_error("no method implemented for eval_a");
             } else {
                 // Compute through sparse view
-                binding.get().buffer.a.dense = binding.get().buffer.a.sparse;
+                binding.get().buffer_a.dense = binding.get().buffer_a.sparse;
             }
         }
-        data.g(x_indices) += binding.get().buffer.a.dense;
+        data.g(x_indices) += binding.get().buffer_a.dense;
     }
 
     /** Quadratic costs **/
     VLOG(10) << "qpoases:quadratic costs";
     for (const auto& binding : program().quadratic_costs()) {
-        const auto& x_indices = binding.input_indices[0];
-        if (binding.get()->eval_A(binding.get().buffer.A.dense) ==
-            evaluator::return_status::NotImplemented) {
-            // Throw a warning
-        }
+        const auto& x_indices = binding.variable_indices;
+        // References to matrix data
+        Eigen::MatrixXd& A = binding.get().buffer_A.dense;
+        Eigen::VectorXd& b = binding.get().buffer_b.dense;
 
+        if (binding.get()->eval_A(A) ==
+            evaluator::return_status::NotImplemented) {
+            if (binding.get()->eval_a(binding.get().buffer_A.sparse) ==
+                evaluator::return_status::NotImplemented) {
+                throw std::runtime_error("no method implemented for eval_A");
+            } else {
+                // Compute through sparse view
+                A = binding.get().buffer_A.sparse;
+            }
+        }
+        // Perform block insert
         if (binding.is_block()) {
-            // data.H.middleRows(x_indices[0], x_indices.size()) +=
-            //     binding.get().buffer_A.dense;
+            data.H.block(x_indices[0], x_indices[0], x_indices.size(),
+                         x_indices.size()) += A;
         } else {
+            data.H(x_indices, x_indices) += A;
         }
 
-        if (binding.get()->eval_b(binding.get().buffer.b.dense) ==
+        if (binding.get()->eval_b(b) ==
             evaluator::return_status::NotImplemented) {
-            // Throw a warning
+            if (binding.get()->eval_b(binding.get().buffer_b.sparse) ==
+                evaluator::return_status::NotImplemented) {
+                throw std::runtime_error("no method implemented for eval_b");
+            } else {
+                // Compute through sparse view
+                b = binding.get().buffer_b.sparse;
+            }
         }
-        set_block(data.g, tmp, x_indices, {0}, BinaryOpAddTo{});
+        data.g(x_indices) += A * b;
     }
 
     /** Linear constraints **/
     VLOG(10) << "qpoases:linear constraints";
-    Eigen::VectorX<value_type> tmp;
     for (const auto& binding : program().linear_constraints()) {
-        const auto& x_indices = binding.input_indices[0];
-        binding.get()->get_sparsity_A(tmp);
-        binding.get()->eval_A(tmp);
-        set_block(data.A, tmp, x_indices, {0}, BinaryOpAddTo{});
-        // todo - set_block(data.lbA, tmp, x_indices, {0}, BinaryOpAddTo{});
+        const auto& x_indices = binding.variable_indices;
+        // References to matrix data
+        Eigen::MatrixXd& A = binding.get().buffer_A.dense;
+        Eigen::VectorXd& b = binding.get().buffer_b.dense;
+
+        if (binding.get()->eval_A(A) ==
+            evaluator::return_status::NotImplemented) {
+            if (binding.get()->eval_a(binding.get().buffer_A.sparse) ==
+                evaluator::return_status::NotImplemented) {
+                throw std::runtime_error("no method implemented for eval_A");
+            } else {
+                // Compute through sparse view
+                A = binding.get().buffer_A.sparse;
+            }
+        }
+        // Perform block insert
+        if (binding.is_block()) {
+            data.A.block(x_indices[0], x_indices[0], x_indices.size(),
+                         x_indices.size()) += A;
+        } else {
+            data.A(x_indices, x_indices) += A;
+        }
+
+        if (binding.get()->eval_b(b) ==
+            evaluator::return_status::NotImplemented) {
+            if (binding.get()->eval_b(binding.get().buffer_b.sparse) ==
+                evaluator::return_status::NotImplemented) {
+                throw std::runtime_error("no method implemented for eval_b");
+            } else {
+                // Compute through sparse view
+                b = binding.get().buffer_b.sparse;
+            }
+        }
+        data.lbA(x_indices) = binding.get()->lower_bound() - b;
+        data.ubA(x_indices) = binding.get()->upper_bound() - b;
     }
 
     int nWSR = options_.nWSR;

@@ -10,23 +10,6 @@
 
 namespace bopt {
 
-template <typename IndexType>
-struct variable_indices {
-    variable_indices(const std::vector<IndexType> &indices) {
-        IndexType pre = indices[0];
-        for (const auto &i : indices) {
-            if (pre - i != IndexType(1)) {
-                is_block = false;
-            }
-            pre = i;
-        }
-        is_block = true;
-    }
-
-    bool is_block;
-    std::vector<IndexType> indices;
-};
-
 /**
  * @brief Class to bind an evaluator-based object to a sequence of input
  * variables
@@ -74,12 +57,6 @@ class binding {
         id = b.id;
     }
 
-    /**
-     * @brief ID of the binding
-     *
-     */
-    id_type id;
-
     evaluator_shared_ptr get() const { return evaluator_; }
 
     variable_indices<Eigen::Index> input_indices;
@@ -87,32 +64,6 @@ class binding {
    private:
     evaluator_shared_ptr evaluator_;
 };
-
-/**
- * @brief Creates a vector with the values specified from the indices provided.
- *
- * @tparam ValueType The types of values.
- * @tparam IndexType The type of indices.
- * @param values Value vector to take the values from.
- * @param indices Vector of indices from values to insert into the new vector.
- * @return std::vector<ValueType> Vector of values from values specified by
- * indices.
- */
-template <class ValueType, class IndexType>
-std::vector<ValueType> create_indexed_view(
-    const std::vector<ValueType> &values,
-    const std::vector<IndexType> &indices) {
-    typedef typename std::vector<IndexType>::const_iterator index_iterator;
-
-    std::vector<ValueType> res;
-    res.reserve(indices.size());
-
-    for (index_iterator it = indices.begin(); it != indices.end(); ++it) {
-        res.push_back(values[*it]);
-    }
-
-    return res;
-}
 
 }  // namespace bopt
 
