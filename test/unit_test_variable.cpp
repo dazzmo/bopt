@@ -48,11 +48,16 @@ TEST(Variable, VariableIndices) {
 
     bopt::variable_indices vi(indices);
 
+    VLOG(10) << vi;
+
     EXPECT_EQ(vi.indices().size(), indices.size());
     EXPECT_TRUE(vi.is_block());
 
     indices = {10, 6, 1, 0, 4, 7, 8, 9};
     vi.set_indices(indices);
+
+    VLOG(10) << vi;
+
     EXPECT_EQ(vi.indices().size(), indices.size());
     EXPECT_FALSE(vi.is_block());
 }

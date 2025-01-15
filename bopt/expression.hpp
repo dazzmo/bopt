@@ -464,7 +464,7 @@ class linear_expression_tpl : public evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index rows_b() const { return this->size_out(); }
+    virtual bopt_index rows_b() const { return this->sz_out(); }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -672,7 +672,19 @@ class quadratic_scalar_expression_tpl : public evaluator_tpl<ValueType> {
      * @param out
      * @return evaluator::return_status
      */
-    evaluator::return_status eval_b(Eigen::Ref<dense_vector_t> &out) {
+    evaluator::return_status eval_b(Eigen::Ref<dense_vector_t> out) {
+        return eval_b_impl(out);
+    }
+
+    /**
+     * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
+     * \f$ \frac{\partial c}{\partial x}\f$)
+     *
+     * @param x
+     * @param out
+     * @return evaluator::return_status
+     */
+    evaluator::return_status eval_b(sparse_vector_t &out) {
         return eval_b_impl(out);
     }
 

@@ -196,5 +196,7 @@ class quadratic_cost : public bopt::quadratic_cost<T> {
     std::unique_ptr<quadratic_expression_evaluator<T>> expression_evaluator_;
 };
 
+typedef quadratic_cost_tpl<double> quadratic_cost;
+
 }  // namespace casadi
 }  // namespace bopt

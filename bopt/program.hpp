@@ -19,83 +19,130 @@ class SolverBase;
 }
 
 template <class ValueType>
-void getJacobianStructure(
-    Eigen::SparseMatrix<ValueType> &J,
-    std::vector<binding<constraint_base_tpl<ValueType>>> &bindings) {
+void get_constraint_jacobian(
+    Eigen::SparseMatrix<ValueType> &jacobian, const bopt_index &cols,
+    const std::vector<binding<constraint_tpl<ValueType>>> &bindings) {
     bopt_index cnt = bopt_index(0);
+    std::vector<Eigen::Triplet<ValueType>> triplets;
     for (auto &b : bindings) {
+        // todo - check if there is a sparse implementation, if not, assume it
+        // todo - is dense
+
         // For each non-zero element of the jacobian, get their variable
         // coordinates and convert to their vector locations based on x
+        typename constraint_tpl<ValueType>::sparse_matrix_t &jac =
+            b.get()->buffer_jacobian().sparse;
+        b.get()->sparsity_jacobian(jac);
 
-        bopt_index idx_x, idx_y;
-        Eigen::SparseMatrix<ValueType> tmp;
-        b.get()->get_sparsity_jacobian(tmp);
-
-        // TODO - update jacobian pattern
-
-        cnt += info.m;
-    }
-}
-
-template <class MatrixContainer, class EvaluatorType,
-          class MatrixElementInserter>
-void getHessianStructure(MatrixContainer &H,
-                         std::vector<binding<EvaluatorType>> &bindings,
-                         const MatrixElementInserter &inserter) {
-    // Typdefs
-    typedef typename evaluator_traits<EvaluatorType>::index_type index_type;
-    typedef typename evaluator_traits<EvaluatorType>::value_type value_type;
-    typedef evaluator_out_info<EvaluatorType> evaluator_out_info_t;
-
-    for (auto &b : bindings) {
-        // For each non-zero element of the hessian, get their variable
-        // coordinates and convert to their vector locations based on x
-        index_type idx_x, idx_y;
-        evaluator_out_info_t info;
-        b.get()->jac_info(info);
-
-        // Determine locations for each non-zero entry
-        for (index_type col = 0; col < info.out_m; ++col) {
-            index_type start =
-                ccs_traits<evaluator_out_info_t>::indptr(info)[col];
-            index_type end =
-                ccs_traits<evaluator_out_info_t>::indptr(info)[col + 1];
-
-            for (index_type row = start; row < end; ++row) {
-                // Get index of entry
-                index_type idx =
-                    ccs_traits<evaluator_out_info_t>::indices(info)[row];
-                // Add entry to full Jacobian
-                inserter(H, b.get()->input_indices[0][idx],
-                         b.get()->input_indices[0][col], value_type(0));
+        // Iterate over non-zeros
+        for (int k = 0; k < jac.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(jac, k); it;
+                 ++it) {
+                triplets.push_back(Eigen::Triplet<double>(
+                    cnt + it.row(), b.indices().indices()[it.col()], 1.0));
             }
         }
+
+        cnt += b.get()->sz_out();
+    }
+    // Create constraint jacobian
+    jacobian.resize(cnt, cols);
+    jacobian.setFromTriplets(triplets.begin(), triplets.end());
+}
+
+template <class ValueType>
+void eval_constraint_jacobian(
+    const Eigen::Ref<const Eigen::VectorXd> &x,
+    Eigen::SparseMatrix<ValueType> &jacobian,
+    const std::vector<binding<constraint_tpl<ValueType>>> &bindings) {
+    bopt_index cnt = bopt_index(0);
+    for (auto &b : bindings) {
+        typename constraint_tpl<ValueType>::sparse_matrix_t &jac =
+            b.get()->buffer_jacobian().sparse;
+
+        Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
+
+        if (b.get()->eval_jacobian(xi, jac) ==
+            evaluator::return_status::NotImplemented) {
+        }
+
+        // Iterate over non-zeros
+        for (int k = 0; k < jac.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(jac, k); it;
+                 ++it) {
+                // todo - speed this up
+                jacobian.coeffRef(cnt + it.row(),
+                                  b.indices().indices()[it.col()]) = it.value();
+            }
+        }
+
+        cnt += b.get()->sz_out();
     }
 }
 
+// template <class MatrixContainer, class EvaluatorType,
+//           class MatrixElementInserter>
+// void getHessianStructure(MatrixContainer &H,
+//                          std::vector<binding<EvaluatorType>> &bindings,
+//                          const MatrixElementInserter &inserter) {
+//     // Typdefs
+//     typedef typename evaluator_traits<EvaluatorType>::bopt_index bopt_index;
+//     typedef typename evaluator_traits<EvaluatorType>::value_type value_type;
+//     typedef evaluator_out_info<EvaluatorType> evaluator_out_info_t;
+
+//     for (auto &b : bindings) {
+//         // For each non-zero element of the hessian, get their variable
+//         // coordinates and convert to their vector locations based on x
+//         bopt_index idx_x, idx_y;
+//         evaluator_out_info_t info;
+//         b.get()->jac_info(info);
+
+//         // Determine locations for each non-zero entry
+//         for (bopt_index col = 0; col < info.out_m; ++col) {
+//             bopt_index start =
+//                 ccs_traits<evaluator_out_info_t>::indptr(info)[col];
+//             bopt_index end =
+//                 ccs_traits<evaluator_out_info_t>::indptr(info)[col + 1];
+
+//             for (bopt_index row = start; row < end; ++row) {
+//                 // Get index of entry
+//                 bopt_index idx =
+//                     ccs_traits<evaluator_out_info_t>::indices(info)[row];
+//                 // Add entry to full Jacobian
+//                 inserter(H, b.get()->input_indices[0][idx],
+//                          b.get()->input_indices[0][col], value_type(0));
+//             }
+//         }
+//     }
+// }
+
 /**
- * @brief Represents a generic mathematical program with constraints and costs.
+ * @brief Represents a generic mathematical program with constraints and
+ costs.
  *
  * This class represents an optimisation problem of the form:
  * \f$ \min f(x) \text{ s.t. } g_l \le g(x) \le q_u, x_l \le x \le x_u \f$
  *
  * @tparam ValueType Type of values in the program (e.g., double).
  */
-template <typename ValueType, typename VectorType, typename MatrixType>
+template <typename ValueType>
 class mathematical_program {
    public:
     friend class solvers::SolverBase;
 
     typedef ValueType value_type;
-    typedef IntegerType integer_type;
-    typedef IndexType index_type;
+    typedef std::string string_t;
 
-    typedef std::string string_type;
+    typedef constraint_tpl<ValueType> constraint_t;
+    typedef linear_constraint_tpl<ValueType> linear_constraint_t;
+    typedef bounding_box_constraint_tpl<ValueType> bounding_box_constraint_t;
 
-    typedef constraint_tpl<ValueType, IntegerType, IndexType, SparsityDataType>
-        constraint_type;
-    typedef cost_tpl<ValueType, IntegerType, IndexType, SparsityDataType>
-        cost_type;
+    typedef cost_tpl<ValueType> cost_t;
+    typedef linear_cost_tpl<ValueType> linear_cost_t;
+    typedef quadratic_cost_tpl<ValueType> quadratic_cost_t;
+
+    using dense_vector_t = Eigen::VectorX<ValueType>;
+    // using dense_vector_t = Eigen::VectorX<ValueType>;
 
     /**
      * @brief Default constructor for the mathematical program.
@@ -107,39 +154,38 @@ class mathematical_program {
      *
      * @param name Name of the mathematical program.
      */
-    mathematical_program(const string_type &name) : name_(name) {}
+    mathematical_program(const string_t &name) : name_(name) {}
 
     /**
      * @brief Gets the name of the mathematical program.
      *
-     * @return const string_type& Reference to the program's name.
+     * @return const string_t& Reference to the program's name.
      */
-    const string_type &name() const { return name_; }
+    const string_t &name() const { return name_; }
 
     /**
      * @brief Gets the number of decision variables in the program.
      *
-     * @return index_type Number of decision variables.
+     * @return bopt_index Number of decision variables.
      */
-    index_type n_variables() const { return variables_.size(); }
+    bopt_index n_variables() const { return variables_.size(); }
 
     /**
      * @brief Gets the number of cost functions in the program.
      *
-     * @return index_type Number of cost functions.
+     * @return bopt_index Number of cost functions.
      */
-    index_type n_costs() const { return get_all_costs().size(); }
+    bopt_index n_costs() const { return get_all_costs().size(); }
+
     /**
      * @brief Gets the number of constraints in the program.
      *
-     * @return index_type Number of constraints.
+     * @return bopt_index Number of constraints.
      */
-    index_type n_constraints() const {
-        index_type n = 0;
+    bopt_index n_constraints() const {
+        bopt_index n = 0;
         for (const auto &c : get_all_constraints()) {
-            typename constraint<value_type>::out_info_t info;
-            c.get()->info(info);
-            n += info.m;
+            n += c.get()->sz_out();
         }
         return n;
     }
@@ -147,12 +193,11 @@ class mathematical_program {
     /**
      * @brief Gets the initial values of the decision variables.
      *
-     * @return const std::vector<value_type>& Reference to the vector of initial
+     * @return const dense_vector_t& Reference to the vector of
+     initial
      * values.
      */
-    const std::vector<value_type> &variable_initial_values() const {
-        return x0_;
-    }
+    const dense_vector_t &variables_initial_value() const { return x_iv_; }
 
     /**
      * @brief Gets the bounds for the decision variables.
@@ -160,7 +205,9 @@ class mathematical_program {
      * @return const vector_bounds<value_type>& Reference to the variable
      * bounds.
      */
-    const vector_bounds<value_type> &variable_bounds() const { return xb_; }
+    const dense_vector_t &variables_lower_bound() const { return x_lb_; }
+
+    const dense_vector_t &variables_upper_bound() const { return x_ub_; }
 
     /**
      * @brief Adds a decision variable to the program.
@@ -174,103 +221,88 @@ class mathematical_program {
         const variable &v, const value_type &v0 = value_type(0),
         const value_type &bl = -std::numeric_limits<value_type>::infinity(),
         const value_type &bu = std::numeric_limits<value_type>::infinity()) {
+        // Ensure variable isn't already added
+        if (variable_index_map_.find(v.id()) != variable_index_map_.end())
+            return;
+
+        variable_index_map_.insert({v.id(), variables_.size()});
         variables_.push_back(v);
-        variable_index_.push_back(variables_.size());
 
         // Update decision variable vector sizes
-        x0_.emplace_back(v0);
-        xb_.m_values.emplace_back(bound_element<value_type>(bl, bu));
+        x_iv_.conservativeResize(x_iv_.size() + 1);
+        x_lb_.conservativeResize(x_lb_.size() + 1);
+        x_ub_.conservativeResize(x_ub_.size() + 1);
+        x_iv_.tail(1) << v0;
+        x_lb_.tail(1) << bl;
+        x_ub_.tail(1) << bu;
     }
 
-    void add_variables(const Eigen::VectorX<variable> &variables,
-                       const Eigen::VectorX<value_type> &v0 = {},
-                       const Eigen::VectorX<value_type> &bl = {},
-                       const Eigen::VectorX<value_type> &bu = {}) {
+    void add_variables(
+        const Eigen::Ref<const variable_vector> &variables,
+        const Eigen::Ref<const dense_vector_t> &v0 = dense_vector_t(),
+        const Eigen::Ref<const dense_vector_t> &bl = dense_vector_t(),
+        const Eigen::Ref<const dense_vector_t> &bu = dense_vector_t()) {
         constexpr value_type inf = std::numeric_limits<value_type>::infinity();
         for (auto it = variables.begin(); it != variables.end(); ++it) {
-            index_type i = std::distance(variables.begin(), it);
+            bopt_index i = std::distance(variables.begin(), it);
             value_type v0_i = value_type(0), bl_i = -inf, bu_i = inf;
-            if (!v0.empty()) v0_i = v0[i];
-            if (!bl.empty()) bl_i = bl[i];
-            if (!bu.empty()) bu_i = bu[i];
+            if (v0.size() != 0) v0_i = v0[i];
+            if (bl.size() != 0) bl_i = bl[i];
+            if (bu.size() != 0) bu_i = bu[i];
 
             add_variable(*it, v0_i, bl_i, bu_i);
         }
     }
 
-    index_type variable_index(const variable &v) const {
-        const auto &it = std::find(variables_.begin(), variables_.end(), v);
-        if (it != variables_.end()) {
-            return std::distance(variables_.begin(), it);
+    Eigen::Index variable_index(const variable &v) const {
+        const auto &it = variable_index_map_.find(v.id());
+        if (it != variable_index_map_.end()) {
+            return it->second;
         }
-        throw std::runtime_error("Variable does not exist");
+        std::ostringstream ss;
+        ss << "Variable \'" << v << "\' does not exist in program: \'"
+           << this->name() << '\'';
+        throw std::runtime_error(ss.str());
     }
 
-    std::vector<index_type> variable_indices(
-        const Eigen::VectorX<variable> &v) const {
-        std::vector<index_type> indices = {};
+    std::vector<Eigen::Index> variable_indices(
+        const Eigen::Ref<const variable_vector> &v) const {
+        std::vector<Eigen::Index> indices = {};
         for (const auto &vi : v) {
             indices.emplace_back(variable_index(vi));
         }
         return indices;
     }
 
-    vector_bounds<value_type> &variable_bounds() { return xb_; }
-
-    void setDecisionvariableInitialValue(const variable &v,
-                                         const value_type &val) {
-        set(x0_, variable_index(v), val);
-    }
-
-    void setDecisionvariableBounds(const variable &v, const value_type &lb,
-                                   const value_type &ub) {
-        set(xb_.upper, variable_index(v), ub);
-        set(xb_.lower, variable_index(v), lb);
-    }
-
-    input_index_vector create_input_index_vector(
-        const Eigen::Ref<const Eigen::VectorX<variable>> &x) {
-        input_index_vector indices = {};
-        for (Eigen::Index i = 0; i < x.size(); ++i) {
-            indices.push_back(variable_indices(x[i]));
-        }
-
-        return indices;
-    }
-
     // costs
-    void add_cost(const typename cost_type::shared_ptr &cost,
-                  const input_variable_vector &x) {
+    void add_cost(const typename std::shared_ptr<cost_t> &cost,
+                  const Eigen::Ref<const variable_vector> &x) {
         // Create binding
-        input_index_vector indices = create_input_index_vector(x);
-        // Create binding
-        costs_generic_.push_back(binding<cost_t>(cost, indices));
+        costs_generic_.push_back(binding<cost_t>(cost, variable_indices(x)));
     }
 
-    void add_linear_cost(const typename linear_cost_type::shared_ptr &cost,
-                         const input_variable_vector &x) {
+    void add_linear_cost(const typename std::shared_ptr<linear_cost_t> &cost,
+                         const Eigen::Ref<const variable_vector> &x) {
         // Create binding
-        input_index_vector indices = create_input_index_vector(x);
-        // Create binding
-        costs_linear_.push_back(binding<linear_cost_type>(cost, indices));
+        costs_linear_.push_back(
+            binding<linear_cost_t>(cost, variable_indices(x)));
     }
 
     void add_quadratic_cost(
-        const typename quadratic_cost_type::shared_ptr &cost,
-        const input_variable_vector &x) {
+        const typename std::shared_ptr<quadratic_cost_t> &cost,
+        const Eigen::Ref<const variable_vector> &x) {
         // Create binding
-        input_index_vector indices = create_input_index_vector(x);
-        // Create binding
-        costs_quadratic_.push_back(binding<quadratic_cost_type>(cost, indices));
+        costs_quadratic_.push_back(
+            binding<quadratic_cost_t>(cost, variable_indices(x)));
     }
 
-    std::vector<binding<cost_type>> &generic_costs() { return costs_generic_; }
+    std::vector<binding<cost_t>> &generic_costs() { return costs_generic_; }
 
-    std::vector<binding<linear_cost_type>> &linear_costs() {
+    std::vector<binding<linear_cost_t>> &linear_costs() {
         return costs_linear_;
     }
 
-    std::vector<binding<quadratic_cost_type>> &quadratic_costs() {
+    std::vector<binding<quadratic_cost_t>> &quadratic_costs() {
         return costs_quadratic_;
     }
 
@@ -284,44 +316,33 @@ class mathematical_program {
     }
 
     // constraints
-
-    typedef constraint<value_type> constraint_t;
-    typedef linear_constraint<value_type> linear_constraint_t;
-    typedef bounding_box_constraint<value_type> bounding_box_constraint_t;
-
-    void add_constraint(
-        const typename constraint<value_type>::shared_ptr &constraint,
-        const input_variable_vector &x) {
+    void add_constraint(const std::shared_ptr<constraint_t> &constraint,
+                        const Eigen::Ref<const variable_vector> &x) {
         // Create binding
-        input_index_vector indices = create_input_index_vector(x);
-        // Create binding
-        add_constraint_binding(binding<constraint_t>(constraint, indices));
+        constraints_generic_.push_back(
+            binding<constraint_t>(constraint, variable_indices(x)));
     }
 
     void add_linear_constraint(
-        const typename linear_constraint<value_type>::shared_ptr &constraint,
-        const input_variable_vector &x) {
-        // Create binding
-        input_index_vector indices = create_input_index_vector(x);
+        const std::shared_ptr<linear_constraint_t> &constraint,
+        const Eigen::Ref<const variable_vector> &x) {
         // Create binding
         constraints_linear_.push_back(
-            binding<linear_constraint_t>(constraint, indices));
+            binding<linear_constraint_t>(constraint, variable_indices(x)));
     }
 
     void add_bounding_box_constraint(
-        const typename bounding_box_constraint<value_type>::shared_ptr
-            &constraint,
-        const input_variable_vector &x) {
+        const std::shared_ptr<bounding_box_constraint_t> &constraint,
+        const Eigen::Ref<const variable_vector> &x) {
         // Create binding
-        input_index_vector indices = create_input_index_vector(x);
-        // Create binding
-        constraints_bounding_box_.push_back(
-            binding<bounding_box_constraint_t>(constraint, indices));
+        constraints_bounding_box_.push_back(binding<bounding_box_constraint_t>(
+            constraint, variable_indices(x)));
     }
 
     std::vector<binding<constraint_t>> &generic_constraints() {
         return constraints_generic_;
     }
+
     std::vector<binding<linear_constraint_t>> &linear_constraints() {
         return constraints_linear_;
     }
@@ -343,20 +364,18 @@ class mathematical_program {
 
    protected:
    private:
-    // Probably need a specialised solver or at least a virtual method here
-    // where it can be overwritten or something?
-
     // Name
-    string_type name_;
+    string_t name_;
 
+    dense_vector_t x_;
     // Decision variables initial value
-    std::vector<value_type> x0_;
+    dense_vector_t x_iv_;
     // Decision variable bounds
-    vector_bounds<value_type> xb_;
+    dense_vector_t x_lb_;
+    dense_vector_t x_ub_;
 
     std::vector<variable> variables_;
-    std::vector<index_type> variable_index_;
-    std::vector<value_type> variable_value_;
+    std::unordered_map<variable::id_type, Eigen::Index> variable_index_map_;
 
     // constraint bindings
     std::vector<binding<constraint_t>> constraints_generic_ = {};

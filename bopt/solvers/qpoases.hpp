@@ -37,24 +37,23 @@ struct qpoases_options : public solver_options<double, std::size_t> {
     bool perform_hotstart;
 };
 
-template <typename MatrixType, typename VectorType>
 struct qpoases_data {
-    MatrixType H;
-    VectorType g;
+    Eigen::MatrixXd H;
+    Eigen::VectorXd g;
 
-    MatrixType A;
+    Eigen::MatrixXd A;
 
-    VectorType ubA;
-    VectorType lbA;
+    Eigen::VectorXd ubA;
+    Eigen::VectorXd lbA;
 
-    VectorType lbx;
-    VectorType ubx;
+    Eigen::VectorXd lbx;
+    Eigen::VectorXd ubx;
 };
 
 class qpoases_solver_instance : public solver<double, std::size_t> {
    public:
 
-    qpoases_data<Eigen::MatrixX<double>, Eigen::VectorX<double>> data;
+    qpoases_data data;
 
     qpoases_solver_instance() = default;
     qpoases_solver_instance(mathematical_program<double>& prog);

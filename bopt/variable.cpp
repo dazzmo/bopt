@@ -18,4 +18,14 @@ std::ostream &operator<<(std::ostream &os, const bopt::variable &var) {
     return os << var.name();
 }
 
+std::ostream &operator<<(std::ostream &os, const bopt::variable_indices &vi) {
+    os << "indices: {";
+    for (const auto &idx : vi.indices()) {
+        os << idx << ' ';
+    }
+    os << "}\n";
+    os << "is_block: " << (vi.is_block() ? "true" : "false");
+    return os;
+}
+
 }  // namespace bopt

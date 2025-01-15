@@ -75,6 +75,8 @@ class constraint_tpl : public expression_tpl<ValueType> {
     dense_vector_t buffer_;
 };
 
+typedef constraint_tpl<double> constraint;
+
 template <typename ValueType>
 std::ostream &operator<<(std::ostream &out,
                          constraint_tpl<ValueType> const &constraint) {
@@ -95,18 +97,31 @@ class linear_constraint_tpl : public constraint_tpl<ValueType>,
     using typename constraint_tpl<ValueType>::dense_matrix_t;
     using typename constraint_tpl<ValueType>::sparse_matrix_t;
 
+    linear_constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
+                          const bounds::type &type = bounds::type::Unbounded)
+        : constraint_tpl<ValueType>(sz_in, sz_out, type),
+          linear_expression_tpl<ValueType>(sz_in, sz_out) {}
+
+    const bopt_index &sz_in() const {
+        return constraint_tpl<ValueType>::sz_in();
+    }
+
+    const bopt_index &sz_out() const {
+        return constraint_tpl<ValueType>::sz_out();
+    }
+
    protected:
     // Overrides given the structure
     evaluator::return_status eval_jacobian_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_matrix_t> out) override {
-        return eval_A(out);
+        return this->eval_A(out);
     }
 
     evaluator::return_status eval_jacobian_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         sparse_matrix_t &out) override {
-        return eval_A(out);
+        return this->eval_A(out);
     }
 
     evaluator::return_status eval_hessian_impl(
@@ -131,12 +146,14 @@ class linear_constraint_tpl : public constraint_tpl<ValueType>,
    private:
 };
 
+typedef linear_constraint_tpl<double> linear_constraint;
+
 /**
  * @brief Converts the constraint \f$ lb \le x \le ub \f$ to the stacked
  * inequality constraint \f$ [x - ub, -x + lb] \le 0 \f$
  *
  */
-template <typename ValueType, typename MatrixType>
+template <typename ValueType>
 class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
    public:
     using typename constraint_tpl<ValueType>::value_t;
@@ -150,9 +167,10 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
     bounding_box_constraint_tpl(const bopt_index &sz_in,
                                 const bounds::type &type)
         : constraint_tpl<ValueType>(sz_in, 2 * sz_in),
-          x_lower_bound_(dense_vector_t::Constant(0.0, sz_in)),
-          x_upper_bound_(dense_vector_t::Constant(0.0, sz_in)),
-          converted_(false) {}
+          x_lower_bound_(dense_vector_t::Zero(sz_in)),
+          x_upper_bound_(dense_vector_t::Zero(sz_in)),
+          converted_(false) {
+          }
 
     bounding_box_constraint_tpl(
         const bopt_index &sz_in,
@@ -170,6 +188,7 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
     evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) override {
+        
         if (!converted_) {
             x_lower_bound_ = this->lower_bound();
             x_upper_bound_ = this->upper_bound();

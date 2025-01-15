@@ -21,23 +21,22 @@ class binding {
    public:
     typedef typename std::shared_ptr<EvaluatorType> evaluator_shared_ptr;
 
+    binding() : evaluator_(nullptr), indices_(nullptr) {}
+
+    ~binding() = default;
+
     /**
      * @brief Bind an evaluator object to a set of input variables, with
      * indexing dictated by a VariableIndexMap
      *
      * @param ptr
-     * @param in
-     * @param index_map
+     * @param indices Indices of the variables bound to the evaluator
      */
     binding(const std::shared_ptr<EvaluatorType> &ptr,
-            const std::vector<index_vector> &input_indices)
-        : input_indices({}), evaluator_(ptr) {
-        // Computes the indices within the map that the mapping relates to
-        // assert(evaluator_attributes<evaluator_t>::n_in(*obj) ==
-        // input_indices.size() &&
-        //    "Incorrect number of input index vectors for evaluator
-        //    binding");
-        this->input_indices = input_indices;
+            const std::vector<Eigen::Index> &indices)
+        : evaluator_(ptr), indices_(nullptr) {
+        DBGASSERT(ptr->sz_in() == indices.size());
+        this->indices_ = std::make_shared<variable_indices>(indices);
     }
 
     /**
@@ -48,21 +47,28 @@ class binding {
      * @param b
      */
     template <typename Other>
-    binding(const binding<Other> &b,
-            typename std::enable_if_t<std::is_convertible_v<
-                typename binding<Other>::evaluator_shared_ptr,
-                typename binding<Evaluator>::evaluator_shared_ptr>> * = nullptr)
-        : binding(static_cast<evaluator_shared_ptr>(b.get()), b.input_indices) {
-        // Maintain the same binding id
-        id = b.id;
+    binding(
+        const binding<Other> &b,
+        typename std::enable_if_t<std::is_convertible_v<
+            typename binding<Other>::evaluator_shared_ptr,
+            typename binding<EvaluatorType>::evaluator_shared_ptr>> * = nullptr)
+        : binding(static_cast<evaluator_shared_ptr>(b.get()),
+                  b.indices().indices()) {}
+
+    evaluator_shared_ptr get() const {
+        DBGASSERT(evaluator_ && "Empty binding has no object bound to it");
+        return evaluator_;
     }
 
-    evaluator_shared_ptr get() const { return evaluator_; }
-
-    variable_indices<Eigen::Index> input_indices;
+    const variable_indices &indices() const {
+        DBGASSERT(indices_ && "Empty binding has no indices");
+        return *indices_;
+    }
 
    private:
     evaluator_shared_ptr evaluator_;
+    // todo - see about memory management here
+    std::shared_ptr<variable_indices> indices_;
 };
 
 }  // namespace bopt

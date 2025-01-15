@@ -30,7 +30,7 @@ class cost_tpl : public expression_scalar_tpl<ValueType> {
     }
 
     const string_t &name() const { return name_; }
-    void name(const string_t &name) { name_ = name; }
+    void set_name(const string_t &name) { name_ = name; }
 
    protected:
    private:
@@ -58,6 +58,10 @@ class linear_cost_tpl : public cost_tpl<ValueType>,
     linear_cost_tpl(const bopt_index &sz_in)
         : cost_tpl<ValueType>(sz_in),
           linear_scalar_expression_tpl<ValueType>(sz_in) {}
+
+    const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
+
+    const bopt_index &sz_out() const { return cost_tpl<ValueType>::sz_out(); }
 
    protected:
     // Overrides
@@ -110,38 +114,57 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
     using typename cost_tpl<ValueType>::dense_matrix_t;
     using typename cost_tpl<ValueType>::sparse_matrix_t;
 
+    quadratic_cost_tpl(const bopt_index &sz_in)
+        : cost_tpl<ValueType>(sz_in),
+          quadratic_scalar_expression_tpl<ValueType>(sz_in) {}
+
+    const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
+    const bopt_index &sz_out() const { return cost_tpl<ValueType>::sz_out(); }
+
    protected:
     // Overrides
     evaluator::return_status eval_gradient_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) override {
-        return eval_a(out);
+        dense_matrix_t &A = this->buffer_A().dense;
+        dense_vector_t &b = this->buffer_b().dense;
+
+        this->eval_A(A);
+        this->eval_b(b);
+
+        out = ValueType(2.0) * A * x + b;
+        return evaluator::return_status::Success;
     }
 
     evaluator::return_status eval_gradient_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         sparse_vector_t &out) override {
-        return eval_a(out);
+        sparse_matrix_t &A = this->buffer_A().sparse;
+        sparse_vector_t &b = this->buffer_b().sparse;
+
+        this->eval_A(A);
+        this->eval_b(b);
+
+        out = ValueType(2.0) * A * x + b;
+        return evaluator::return_status::Success;
     }
 
     evaluator::return_status eval_hessian_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_matrix_t> out) override {
-        out.setZero();
-        return evaluator::return_status::Success;
+        return this->eval_A(out);
     }
 
     evaluator::return_status eval_hessian_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         sparse_matrix_t &out) override {
-        for (int k = 0; k < out.outerSize(); ++k)
-            for (typename sparse_matrix_t::InnerIterator it(out, k); it; ++it)
-                it.valueRef() = 0.0;
-        return evaluator::return_status::Success;
+        return this->eval_A(out);
     }
 
    private:
 };
+
+typedef quadratic_cost_tpl<double> quadratic_cost;
 
 template <typename ValueType>
 class least_squares_cost_tpl : public quadratic_cost_tpl<ValueType> {

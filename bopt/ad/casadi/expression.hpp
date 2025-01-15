@@ -5,8 +5,8 @@
 #include <cassert>
 #include <filesystem>
 
-#include "bopt/ad/casadi/evaluator.hpp"
 #include "bopt/ad/casadi/codegen.hpp"
+#include "bopt/ad/casadi/evaluator.hpp"
 #include "bopt/constraints.hpp"
 #include "bopt/dlib_handler.hpp"
 #include "bopt/logging.hpp"
@@ -20,14 +20,14 @@ namespace casadi {
  *
  * @tparam T
  */
-template <typename T>
-class expression_evaluator : public bopt::evaluator<T> {
+template <typename ValueType>
+class expression_tpl : public bopt::expression_tpl<ValueType> {
    public:
     typedef ::casadi::SX sym_t;
     typedef std::vector<sym_t> sym_vector_t;
     typedef ::casadi::Function function_t;
 
-    typedef bopt::evaluator<T> Base;
+    typedef bopt::evaluator<ValueType> Base;
     typedef typename Base::value_type value_type;
     typedef typename Base::index_type index_type;
     typedef typename Base::integer_type integer_type;
@@ -36,9 +36,7 @@ class expression_evaluator : public bopt::evaluator<T> {
     typedef bopt::evaluator<value_type> evaluator_t;
     typedef bopt::casadi::evaluator<value_type> casadi_evaluator_t;
 
-    expression_evaluator(const sym_t &expression, const sym_t &x,
-                         const sym_vector_t &p)
-        : Base() {
+    expression_evaluator(const sym_t &expression, const sym_t &x) : Base() {
         sym_vector_t in = {};
         in.push_back(x);
         in.insert(in.end(), p.begin(), p.end());
