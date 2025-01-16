@@ -18,7 +18,7 @@ namespace solvers {
  * @brief Details for the qpOASES solver
  *
  */
-struct qpoases_info : public solver_information<double, std::size_t> {
+struct qpoases_info : public solver_information<double> {
     qpOASES::QProblemStatus status;
     // Return status for the qpOASES solver
     int returnStatus;
@@ -27,14 +27,14 @@ struct qpoases_info : public solver_information<double, std::size_t> {
     // Number of working sets performed
     int nWSR;
 
-    index_type number_of_solves = 0;
+    bopt_index number_of_solves = 0;
 };
 
-struct qpoases_options : public solver_options<double, std::size_t> {
+struct qpoases_options : public solver_options<double>,
+                         public qpOASES::Options {
     // Number of working sets performed
     int nWSR = 100;
-
-    bool perform_hotstart;
+    bool perform_hotstart = false;
 };
 
 struct qpoases_data {
@@ -50,18 +50,17 @@ struct qpoases_data {
     Eigen::VectorXd ubx;
 };
 
-class qpoases_solver_instance : public solver<double, std::size_t> {
+class qpoases_solver_instance : public solver<double> {
    public:
-
     qpoases_data data;
 
     qpoases_solver_instance() = default;
-    qpoases_solver_instance(mathematical_program<double>& prog);
+    qpoases_solver_instance(mathematical_program<double>& program);
 
     ~qpoases_solver_instance();
 
     void reset();
-    void solve();
+    void solve(mathematical_program<double>& program);
 
    private:
     bool first_solve_ = true;

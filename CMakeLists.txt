@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
-project(bopt VERSION 0.0.1)
+project(bopt VERSION 0.0.1 LANGUAGES CXX)
+
+option(CXX "enable C++ compilation" ON)
+
+if(CXX)
+  enable_language(CXX)
+endif()
+
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)

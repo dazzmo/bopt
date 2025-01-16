@@ -14,32 +14,47 @@ namespace solvers {
 
 using namespace Ipopt;
 
-template <class ValueType, class VectorType, class MatrixType>
 struct ipopt_data {
-    VectorType primal_vector;
+    ipopt_data(const bopt_index& n, const bopt_index& m) {
+        primal_vector = Eigen::VectorXd::Zero(n);
+        variables_lower_bound = Eigen::VectorXd::Zero(n);
+        variables_upper_bound = Eigen::VectorXd::Zero(n);
 
-    ValueType objective;
-    VectorType objective_gradient;
+        objective_gradient = Eigen::VectorXd::Zero(n);
 
-    MatrixType lagrangian_hessian;
+        constraint_vector = Eigen::VectorXd::Zero(m);
+        constraint_lower_bound = Eigen::VectorXd::Zero(m);
+        constraint_upper_bound = Eigen::VectorXd::Zero(m);
 
-    MatrixType constraint_vector;
-    MatrixType constraint_jacobian;
+        constraint_jacobian.resize(m, n);
+        lagrangian_hessian.resize(n, n);
+    }
 
-    VectorType constraint_lower_bound;
-    VectorType constraint_upper_bound;
+    Eigen::VectorXd primal_vector;
+    Eigen::VectorXd dual_vector;
 
-    VectorType variables_lower_bound;
-    VectorType variables_upper_bound;
+    double objective;
+    Eigen::VectorXd objective_gradient;
+
+    Eigen::SparseMatrix<double> lagrangian_hessian;
+
+    Eigen::VectorXd constraint_vector;
+    Eigen::SparseMatrix<double> constraint_jacobian;
+
+    Eigen::VectorXd constraint_lower_bound;
+    Eigen::VectorXd constraint_upper_bound;
+
+    Eigen::VectorXd variables_lower_bound;
+    Eigen::VectorXd variables_upper_bound;
 };
 
 class ipopt_solver_instance : public Ipopt::TNLP, public solver<double> {
    public:
-    ipopt_solver_instance(mathematical_program<double>& prog);
+    ipopt_solver_instance(const mathematical_program<double>& program);
 
     ~ipopt_solver_instance() {}
 
-    // void solve()
+    // void solve(mathematical_program<double>& program);
 
    private:
     bool get_nlp_info(Index& n, Index& m, Index& nnz_jac_g, Index& nnz_h_lag,
@@ -72,6 +87,14 @@ class ipopt_solver_instance : public Ipopt::TNLP, public solver<double> {
                            IpoptCalculatedQuantities* ip_cq);
 
    private:
+    ipopt_data cache_;
+
+    std::vector<binding<cost_tpl<Number>>> costs_;
+    std::vector<binding<constraint_tpl<Number>>> constraints_;
+
+    mathematical_program<Number>& program_;
+
+    mathematical_program<Number>& program() { return program_; }
 };
 
 }  // namespace solvers

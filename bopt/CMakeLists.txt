@@ -4,6 +4,7 @@ find_package(Eigen3 3.3 REQUIRED)
 find_package(glog REQUIRED)
 
 option(WITH_QPOASES "Build with qpOASES functionality" OFF)
+option(WITH_GUROBI "Build with qpOASES functionality" OFF)
 option(WITH_IPOPT "Build with IPOPT functionality" OFF)
 
 # Collect source files
@@ -14,11 +15,18 @@ variable.cpp
 # ad/casadi/codegen.cpp
 )
 
+SET(${PROJECT_NAME}_INCLUDE_DIRS
+)
+
 SET(${PROJECT_NAME}_LIBRARIES
 Eigen3::Eigen
 casadi
 glog
 )
+
+add_library(${PROJECT_NAME} SHARED ${${PROJECT_NAME}_SOURCES})
+target_include_directories(${PROJECT_NAME} PUBLIC ${${PROJECT_NAME}_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} PUBLIC ${${PROJECT_NAME}_LIBRARIES})
 
 include(GNUInstallDirs)
 
@@ -34,10 +42,21 @@ endif()
 if(WITH_QPOASES)
   message(STATUS "Including qpOASES as numeric optimization solver")
   find_package(qpOASES REQUIRED)
-  list(APPEND ${PROJECT_NAME}_LIBRARIES qpOASES)
-  list(APPEND ${PROJECT_NAME}_SOURCES solvers/qpoases.cpp)
+  target_sources(${PROJECT_NAME} PRIVATE solvers/qpoases.cpp)
+  target_link_libraries(${PROJECT_NAME} PUBLIC qpOASES)
   add_compile_definitions(WITH_QPOASES)
 endif(WITH_QPOASES)
+
+# GUROBI
+if(WITH_GUROBI)
+  message(STATUS "Including GUROBI as a numeric optimization solver")
+  find_package(GUROBI REQUIRED)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${GUROBI_INCLUDE_DIRS})
+  target_link_libraries(${PROJECT_NAME} PUBLIC ${GUROBI_CXX_LIBRARY})
+  target_link_libraries(${PROJECT_NAME} PUBLIC ${GUROBI_LIBRARY})
+  target_sources(${PROJECT_NAME} PRIVATE solvers/gurobi.cpp)
+  add_compile_definitions(BOPT_WITH_GUROBI)
+endif(WITH_GUROBI)
 
 # IPOPT
 if(WITH_IPOPT)
@@ -46,11 +65,6 @@ if(WITH_IPOPT)
   list(APPEND ${PROJECT_NAME}_SOURCES solvers/ipopt.cpp)
   add_compile_definitions(WITH_IPOPT)
 endif(WITH_IPOPT)
-
-add_library(${PROJECT_NAME} SHARED ${${PROJECT_NAME}_SOURCES})
-target_link_libraries(${PROJECT_NAME} PUBLIC ${${PROJECT_NAME}_LIBRARIES})
-
-set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC

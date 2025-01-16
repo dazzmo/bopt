@@ -4,8 +4,10 @@ namespace bopt {
 namespace solvers {
 
 ipopt_solver_instance::ipopt_solver_instance(
-    mathematical_program<double>& program)
-    : Ipopt::TNLP(), solver(program) {}
+    const mathematical_program<double>& program)
+    : Ipopt::TNLP(),
+      solver(program),
+      cache_(program.n_variables(), program.n_constraints()) {}
 
 bool ipopt_solver_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
                                          Index& nnz_h_lag,
@@ -30,19 +32,20 @@ bool ipopt_solver_instance::eval_f(Index n, const Number* x, bool new_x,
     bopt::profiler profiler("ipopt_solver_instance::eval_f");
     VLOG(10) << "eval_f()";
 
-    if (new_x) mapVector(cache_.primal, x, n);
+    if (new_x) {
+        std::memcpy(cache_.primal_vector.data(), x, n);
+    }
+
     // Update caches
     cache_.objective = 0.0;
-    for (auto& binding : program().f().all()) {
-        value_type fi;
 
-        // data.objective +=
-        cache_.objective += binding.get()->evaluate(cache_.primal);
+    for (auto& binding : costs_) {
+        binding.get()->eval(cache_.primal_vector, binding.get()->buffer());
+        cache_.objective += binding.get()->buffer();
     }
 
     // Set objective to most recently cached value
     obj_value = cache_.objective;
-    VLOG(10) << "f : " << obj_value;
     return true;
 }
 
@@ -51,19 +54,25 @@ bool ipopt_solver_instance::eval_grad_f(Index n, const Number* x, bool new_x,
     bopt::profiler profiler("ipopt_solver_instance::eval_grad_f");
     VLOG(10) << "eval_grad_f()";
 
-    if (new_x) mapVector(cache_.primal, x, n);
+    if (new_x) {
+        std::memcpy(cache_.primal_vector.data(), x, n);
+    }
 
     // Update caches
-    for (auto& binding : program().f().all()) {
-        Eigen::RowVectorXd grd = Eigen::RowVectorXd::Zero(binding.x().size());
-        binding.get()->evaluate(cache_.primal, grd);
-        VLOG(10) << "grd : " << grd;
-        cache_.objective_gradient(program().x().getIndices(binding.x())) += grd;
+    for (auto& binding : costs_) {
+        cost_tpl<Number>::dense_vector_t& grd =
+            binding.get()->buffer_gradient().dense;
+
+        binding.get()->eval_gradient(
+            cache_.primal_vector(binding.indices().indices()), grd);
+
+        VLOG(10) << "grd : " << grd.transpose();
+        cache_.objective_gradient(binding.indices().indices()) += grd;
     }
 
     // TODO - See about mapping these
-    copy(cache_.objective_gradient, grad_f, n);
-    VLOG(10) << "grad f : " << cache_.objective_gradient.transpose();
+    std::memcpy(grad_f, cache_.objective_gradient.data(), n);
+    VLOG(10) << "grad_f : " << cache_.objective_gradient.transpose();
     return true;
 }
 
@@ -71,17 +80,30 @@ bool ipopt_solver_instance::eval_g(Index n, const Number* x, bool new_x,
                                    Index m, Number* g) {
     bopt::profiler profiler("ipopt_solver_instance::eval_g");
     VLOG(10) << "eval_g()";
-    if (new_x) mapVector(cache_.primal, x, n);
+    if (new_x) {
+        std::memcpy(cache_.primal_vector.data(), x, n);
+    }
 
     // Update caches
     std::size_t idx = 0;
-    for (auto& binding : program().g().all()) {
-        Eigen::VectorXd g = binding.get()->evaluate(cache_.primal);
-        cache_.constraint_vector.middleRows(idx, g.size()) = g;
-        idx += g.size();
+    // Update caches
+    for (auto& binding : constraints_) {
+        constraint_tpl<Number>::dense_vector_t& g = binding.get()->buffer();
+
+        binding.get()->eval(cache_.primal_vector(binding.indices().indices()),
+                            g);
+
+        VLOG(10) << "g : " << g.transpose();
+        if (binding.indices().is_block()) {
+            cache_.constraint_vector.block(binding.indices().indices()[0], 0,
+                                           binding.get()->sz_out(), 1)
+                << g;
+        } else {
+            cache_.constraint_vector(binding.indices().indices()) = g;
+        }
     }
     VLOG(10) << "c : " << cache_.constraint_vector.transpose();
-    copy(cache_.constraint_vector, g, m);
+    std::memcpy(g, cache_.constraint_vector.data(), m);
     return true;
 };
 
@@ -93,8 +115,9 @@ bool ipopt_solver_instance::eval_jac_g(Index n, const Number* x, bool new_x,
     if (values == NULL) {
         // Return the sparsity of the constraint Jacobian
         int cnt = 0;
-        for (int k = 0; k < cache_.jac.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<double>::InnerIterator it(cache_.jac, k);
+        for (int k = 0; k < cache_.constraint_jacobian.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(
+                     cache_.constraint_jacobian, k);
                  it; ++it) {
                 if (cnt > nele_jac) {
                     return false;
@@ -106,43 +129,16 @@ bool ipopt_solver_instance::eval_jac_g(Index n, const Number* x, bool new_x,
         }
 
     } else {
-        if (new_x) mapVector(cache_.primal, x, n);
-
-        // Get all constraints
-        for (auto& b : program().g().all()) {
-            if (b.get()->eval_jacobian(b.get()->buffer_jacobian.sparse) ==
-                evaluator::return_status::NotImplemented) {
-                //! WARNING - Sparse Method Not Implemented
-                if (b.get()->eval_jacobian(b.get()->buffer_jacobian.dense) ==
-                    evaluator::return_status::NotImplemented) {
-                    throw std::runtime_error(
-                        "No method implemented for jacobian evaluation");
-                }
-
-                // Approximate the matrix with a sparse view
-                b.get()->buffer_jacobian.sparse =
-                    b.get()->buffer_jacobian.dense.sparseView();
-            }
-            
-            std::vector<Eigen::Index> rows = {0, 1};
-            auto cols = program().x().getIndices(b.x());
-            updateSparseMatrix(cache_.jac, J, rows, cols, Operation::SET);
+        if (new_x) {
+            std::memcpy(cache_.primal_vector.data(), x, n);
         }
 
-        // For each constraint, update the sparse jacobian
-        for (auto& b : program().g().all()) {
-            Eigen::MatrixXd J =
-                Eigen::MatrixXd::Zero(b.get()->size(), b.x().size());
-            b.get()->evaluate(cache_.primal, J);
-            std::vector<Eigen::Index> rows = {0, 1};
-            auto cols = program().x().getIndices(b.x());
-            updateSparseMatrix(cache_.jac, J, rows, cols, Operation::SET);
-        }
+        eval_constraint_jacobian(cache_.primal_vector,
+                                 cache_.constraint_jacobian, constraints_);
 
         // Update caches
-        VLOG(10) << "x : " << cache_.primal.transpose();
-        VLOG(10) << "jac : " << cache_.jac;
-        std::copy_n(cache_.jac.valuePtr(), nele_jac, values);
+        VLOG(10) << "jac : " << cache_.constraint_jacobian;
+        std::memcpy(values, cache_.constraint_jacobian.valuePtr(), nele_jac);
     }
     return true;
 }
@@ -209,24 +205,36 @@ bool ipopt_solver_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
                                             Index m, Number* g_l, Number* g_u) {
     VLOG(10) << "get_bounds_info()";
 
-    program().g().boundingBoxBounds(cache_.lbx, cache_.ubx, program().x());
+    auto bb = program().bounding_box_constraints();
 
     VLOG(10) << cache_.ubx.transpose();
     VLOG(10) << cache_.lbx.transpose();
 
     // Decision variable bounds
-    copy(cache_.ubx, x_u, n);
-    copy(cache_.lbx, x_l, n);
+    // todo - copy n
 
     // Constraint bounds
-    program().g().constraintBounds(cache_.lbg, cache_.ubg);
+    for (auto& binding : constraints_) {
+        if (binding.indices().is_block()) {
+            cache_.constraint_lower_bound.block(binding.indices().indices()[0],
+                                                0, binding.get()->sz_out(), 1)
+                << binding.get()->lower_bound();
 
-    VLOG(10) << cache_.ubg.transpose();
-    VLOG(10) << cache_.lbg.transpose();
+            cache_.constraint_upper_bound.block(binding.indices().indices()[0],
+                                                0, binding.get()->sz_out(), 1)
+                << binding.get()->upper_bound();
+        } else {
+            cache_.constraint_lower_bound(binding.indices().indices()) =
+                binding.get()->lower_bound();
+            cache_.constraint_upper_bound(binding.indices().indices()) =
+                binding.get()->upper_bound();
+        }
+    }
 
-    copy(cache_.lbg, g_l, m);
-    copy(cache_.ubg, g_u, m);
+    VLOG(10) << cache_.constraint_lower_bound.transpose();
+    VLOG(10) << cache_.constraint_upper_bound.transpose();
 
+    // todo - copy n
     return true;
 }
 

@@ -158,6 +158,7 @@ class expression_scalar_tpl : public evaluator_tpl<ValueType> {
     virtual void sparsity_hessian(sparse_matrix_t &hessian) const {}
 
     // Buffers for evaluation
+    ValueType &buffer() { return buffer_; }
     vector_buffer_t &buffer_gradient() { return buffer_gradient_; }
     matrix_buffer_t &buffer_hessian() { return buffer_hessian_; }
 
@@ -188,6 +189,7 @@ class expression_scalar_tpl : public evaluator_tpl<ValueType> {
     }
 
    private:
+    ValueType buffer_;
     vector_buffer_t buffer_gradient_;
     matrix_buffer_t buffer_hessian_;
 };

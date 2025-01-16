@@ -24,37 +24,42 @@ template <typename ValueType>
 class expression_tpl : public bopt::expression_tpl<ValueType> {
    public:
     typedef ::casadi::SX sym_t;
-    typedef std::vector<sym_t> sym_vector_t;
+    typedef ::casadi::SX sym_vector_t;
     typedef ::casadi::Function function_t;
 
-    typedef bopt::evaluator<ValueType> Base;
-    typedef typename Base::value_type value_type;
-    typedef typename Base::index_type index_type;
-    typedef typename Base::integer_type integer_type;
-    typedef typename Base::out_info_t out_info_t;
-
-    typedef bopt::evaluator<value_type> evaluator_t;
-    typedef bopt::casadi::evaluator<value_type> casadi_evaluator_t;
-
-    expression_evaluator(const sym_t &expression, const sym_t &x) : Base() {
-        sym_vector_t in = {};
+    expression_tpl(const sym_t &expression, const sym_vector_t &x,
+                   const sym_vector_t &p, bool codegen = false)
+        : bopt::expression_tpl<ValueType>(x.size1(), expression.size1()) {
+        std::vector<sym_vector_t> in = {};
         in.push_back(x);
-        in.insert(in.end(), p.begin(), p.end());
+        in.push_back(p);
 
-        function_t f("f", in, {expression});
-        // Perform code generation to evaluate these expressions
-        auto f_handle = codegen(f);
-        f_eval_ = std::make_unique<casadi_evaluator_t>(f_handle, "f");
-
-        function_t j("j", in, {sym_t::jacobian(expression, x)});
-        auto j_handle = codegen(j);
-        j_eval_ = std::make_unique<casadi_evaluator_t>(j_handle, "j");
-
+        // Create lagrange multipliers
         sym_t l = sym_t::sym("l", expression.size1());
+
+        // Create functions
+        function_t f("f", in, {expression});
+        // Jacobian
+        function_t fjac("fjac", in, {sym_t::jacobian(expression, x)});
+        // Hessian
         in.push_back(l);
+        function_t fhes("fhes", in,
+                        {sym_t::hessian(sym_t::dot(expression, l), x)});
+
+        // Perform code generation to evaluate these expressions
         function_t h("h", in, {sym_t::hessian(sym_t::dot(expression, l), x)});
-        auto h_handle = codegen(h);
-        h_eval_ = std::make_unique<casadi_evaluator_t>(h_handle, "h");
+
+        // Check if already generated
+        f.generate("./f_" +
+                   std::to_string(std::hash<std::string>()(f.serialize())));
+
+        // Compile the C-code to a shared library
+        std::string compile_command = "gcc -fPIC -shared -O3 f.c -o f.so";
+        int flag = system(compile_command.c_str());
+        DBGASSERT(flag == 0 && "Compilation failed");
+
+        // Load the code generated functions
+        fun_ = std::make_unique<function_t>(::casadi::external("./f"));
     }
 
     /**
@@ -73,176 +78,17 @@ class expression_tpl : public bopt::expression_tpl<ValueType> {
     }
 
    public:
-    integer_type operator()(const value_type **arg, value_type *res) override {
-        return (*f_eval_)(arg, res);
-    }
-
-    integer_type info(out_info_t &info) override { return f_eval_->info(info); }
-
-    integer_type jac(const value_type **arg, value_type *res) {
-        return (*j_eval_)(arg, res);
-    }
-
-    integer_type hes(const value_type **arg, value_type *res) {
-        return (*h_eval_)(arg, res);
-    }
-
-    integer_type jac_info(out_info_t &info) { return j_eval_->info(info); }
-
-    integer_type hes_info(out_info_t &info) { return h_eval_->info(info); }
-
-   private:
-    std::unique_ptr<casadi_evaluator_t> f_eval_;
-    std::unique_ptr<casadi_evaluator_t> j_eval_;
-    std::unique_ptr<casadi_evaluator_t> h_eval_;
-};
-
-template <typename T>
-class linear_expression_evaluator : public expression_evaluator<T> {
-   public:
-    typedef expression_evaluator<T> Base;
-
-    typedef typename Base::sym_t sym_t;
-    typedef typename Base::sym_vector_t sym_vector_t;
-    typedef typename Base::function_t function_t;
-
-    typedef typename Base::value_type value_type;
-    typedef typename Base::index_type index_type;
-    typedef typename Base::integer_type integer_type;
-    typedef typename Base::out_info_t out_info_t;
-
-    typedef typename Base::evaluator_t evaluator_t;
-    typedef typename Base::casadi_evaluator_t casadi_evaluator_t;
-
-    linear_expression_evaluator(const sym_t &expression, const sym_t &x,
-                                const sym_vector_t &p)
-        : Base(expression, x, p) {
-        // Compute linear expression coefficients
-        sym_t A, b;
-        try {
-            sym_t::linear_coeff(expression, x, A, b, true);
-        } catch (std::exception &e) {
-            throw std::runtime_error(
-                "Expression provided is not linear in specified variable "
-                "x!");
-        }
-
-        sym_vector_t in = {};
-        in.insert(in.end(), p.begin(), p.end());
-
-        function_t f_A("f_A", in, {A});
-        function_t f_b("f_b", in, {b});
-        // Perform code generation to evaluate these expressions
-        auto A_handle = codegen(f_A);
-        A_eval_ = std::make_unique<casadi_evaluator_t>(A_handle, "f_A");
-
-        auto b_handle = codegen(f_b);
-        b_eval_ = std::make_unique<casadi_evaluator_t>(b_handle, "f_b");
-    }
-
-   public:
-    integer_type A(const value_type **arg, value_type *res) {
-        return (*A_eval_)(arg, res);
-    }
-
-    integer_type A_info(out_info_t &info) { return A_eval_->info(info); }
-
-    integer_type b(const value_type **arg, value_type *res) {
-        return (*b_eval_)(arg, res);
-    }
-
-    integer_type b_info(out_info_t &info) { return b_eval_->info(info); }
-
-   private:
-    std::unique_ptr<casadi_evaluator_t> A_eval_;
-    std::unique_ptr<casadi_evaluator_t> b_eval_;
-};
-
-template <typename T>
-class quadratic_expression_evaluator : public expression_evaluator<T> {
-   public:
-    typedef expression_evaluator<T> Base;
-
-    typedef typename Base::sym_t sym_t;
-    typedef typename std::vector<sym_t> sym_vector_t;
-    typedef typename Base::function_t function_t;
-
-    typedef typename Base::value_type value_type;
-    typedef typename Base::index_type index_type;
-    typedef typename Base::integer_type integer_type;
-    typedef typename Base::out_info_t out_info_t;
-
-    typedef typename Base::evaluator_t evaluator_t;
-    typedef typename Base::casadi_evaluator_t casadi_evaluator_t;
-
-    quadratic_expression_evaluator(const sym_t &expression, const sym_t &x,
-                                   const sym_vector_t &p)
-        : Base(expression, x, p) {
-        // Compute linear expression coefficients
-        sym_t A, b, c;
-        try {
-            sym_t::quadratic_coeff(expression, x, A, b, c, true);
-        } catch (std::exception &e) {
-            throw std::runtime_error(
-                "Expression provided is not quadratic in specified variable "
-                "x!");
-        }
-        sym_t::quadratic_coeff(expression, x, A, b, c, true);
-
-        sym_vector_t in = {};
-        in.insert(in.end(), p.begin(), p.end());
-
-        function_t f_A("f_A", in, {A});
-        function_t f_b("f_b", in, {b});
-        function_t f_c("f_c", in, {c});
-        // Perform code generation to evaluate these expressions
-        auto A_handle = codegen(f_A);
-        A_eval_ = std::make_unique<casadi_evaluator_t>(A_handle, "f_A");
-
-        auto b_handle = codegen(f_b);
-        b_eval_ = std::make_unique<casadi_evaluator_t>(b_handle, "f_b");
-
-        auto c_handle = codegen(f_c);
-        c_eval_ = std::make_unique<casadi_evaluator_t>(c_handle, "f_c");
-    }
-
-   public:
-    integer_type A(const value_type **arg, value_type *res) {
-        LOG(INFO) << "expression A start";
-        (*A_eval_)(arg, res);
-        LOG(INFO) << "expression A done";
-        return integer_type(0);
-    }
-
-    integer_type A_info(out_info_t &info) {
-        A_eval_->info(info);
-        return integer_type(0);
-    }
-
-    integer_type b(const value_type **arg, value_type *res) {
-        (*b_eval_)(arg, res);
-        return integer_type(0);
-    }
-
-    integer_type b_info(out_info_t &info) {
-        b_eval_->info(info);
-        return integer_type(0);
-    }
-
-    integer_type c(const value_type **arg, value_type *res) {
-        (*c_eval_)(arg, res);
-        return integer_type(0);
-    }
-
-    integer_type c_info(out_info_t &info) {
-        c_eval_->info(info);
-        return integer_type(0);
+    evaluator::return_status eval_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) override {
+        (*fun_)({x.data(), p.data()}, {out.data()});
+        return evaluator::return_status::Success;
     }
 
    private:
-    std::unique_ptr<casadi_evaluator_t> A_eval_;
-    std::unique_ptr<casadi_evaluator_t> b_eval_;
-    std::unique_ptr<casadi_evaluator_t> c_eval_;
+    std::unique_ptr<function_t> fun_;
+    std::unique_ptr<function_t> jac_;
+    std::unique_ptr<function_t> hes_;
 };
 
 }  // namespace casadi

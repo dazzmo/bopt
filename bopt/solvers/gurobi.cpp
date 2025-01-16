@@ -1,0 +1,1 @@
+#include "bopt/solvers/gurobi.hpp"

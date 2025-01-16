@@ -36,6 +36,22 @@ class constraint_tpl : public expression_tpl<ValueType> {
         buffer_ = dense_vector_t::Zero(this->sz_out());
     }
 
+    /**
+     * @brief Construct a new constraint tpl object via an expression
+     *
+     * @param expression
+     * @param type
+     */
+    constraint_tpl(const std::shared_ptr<expression_tpl<ValueType>> &expression,
+                   const bounds::type &type = bounds::type::Unbounded)
+        : expression_tpl<ValueType>(*expression),
+          name_(""),
+          lower_bound_(expression->sz_out()),
+          upper_bound_(expression->sz_out()) {
+        set_bounds(type);
+        buffer_ = dense_vector_t::Zero(this->sz_out());
+    }
+
     const string_t &name() const { return name_; }
     void set_name(const string_t &name) { name_ = name; }
 
@@ -169,8 +185,7 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
         : constraint_tpl<ValueType>(sz_in, 2 * sz_in),
           x_lower_bound_(dense_vector_t::Zero(sz_in)),
           x_upper_bound_(dense_vector_t::Zero(sz_in)),
-          converted_(false) {
-          }
+          converted_(false) {}
 
     bounding_box_constraint_tpl(
         const bopt_index &sz_in,
@@ -188,7 +203,6 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
     evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) override {
-        
         if (!converted_) {
             x_lower_bound_ = this->lower_bound();
             x_upper_bound_ = this->upper_bound();

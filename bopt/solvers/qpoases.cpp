@@ -41,12 +41,12 @@ qpoases_solver_instance::qpoases_solver_instance(
 
 qpoases_solver_instance::~qpoases_solver_instance() = default;
 
-void qpoases_solver_instance::solve() {
+void qpoases_solver_instance::solve(mathematical_program<double>& program) {
     Eigen::MatrixXd tmp;
 
     /** Linear costs **/
     VLOG(10) << "qpoases:linear costs";
-    for (auto& binding : program().linear_costs()) {
+    for (auto& binding : program.linear_costs()) {
         const auto& x_indices = binding.indices().indices();
         if (binding.get()->eval_a(binding.get()->buffer_a().dense) ==
             evaluator::return_status::NotImplemented) {
@@ -64,7 +64,7 @@ void qpoases_solver_instance::solve() {
 
     /** Quadratic costs **/
     VLOG(10) << "qpoases:quadratic costs";
-    for (auto& binding : program().quadratic_costs()) {
+    for (auto& binding : program.quadratic_costs()) {
         const auto& x_indices = binding.indices().indices();
         // References to matrix data
         Eigen::MatrixXd& A = binding.get()->buffer_A().dense;
@@ -104,7 +104,7 @@ void qpoases_solver_instance::solve() {
 
     /** Linear constraints **/
     VLOG(10) << "qpoases:linear constraints";
-    for (auto& binding : program().linear_constraints()) {
+    for (auto& binding : program.linear_constraints()) {
         const auto& x_indices = binding.indices().indices();
         // References to matrix data
         Eigen::MatrixXd& A = binding.get()->buffer_A().dense;
@@ -171,7 +171,8 @@ void qpoases_solver_instance::solve() {
     // Get results
     if (info_.status == qpOASES::QProblemStatus::QPS_SOLVED) {
         info_.success = true;
-        // qp_->getPrimalSolution(results_.x.data());
+        qp_->getPrimalSolution(this->primal_solution().data());
+        VLOG(10) << "primal_solution: " << this->primal_solution().transpose();
     }
 };
 
