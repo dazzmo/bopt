@@ -147,7 +147,7 @@ class mathematical_program {
     /**
      * @brief Default constructor for the mathematical program.
      */
-    mathematical_program() = default;
+    mathematical_program() : name_("mathematical_program") {}
 
     /**
      * @brief Constructs a mathematical program with a specified name.

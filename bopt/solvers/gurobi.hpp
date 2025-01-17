@@ -24,7 +24,7 @@ class gurobi_solver_instance : public solver<double> {
         : solver<double>(program) {
         // Create gurobi environment
         GRBEnv env = GRBEnv(true);
-        env.set("LogFile", "mip1.log");
+        env.set("LogFile", program.name() + ".log");
         env.start();
 
         // Create an empty model
