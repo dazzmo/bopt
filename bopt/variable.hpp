@@ -16,7 +16,7 @@ struct variable_traits {
 };
 
 struct variable_type {
-    enum type { Continuous, Discrete };
+    enum type { Continuous, Discrete, Binary };
 };
 
 template <typename T>

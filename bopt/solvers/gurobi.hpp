@@ -20,13 +20,47 @@ struct gurobi_options : public solver_options<double> {
 class gurobi_solver_instance : public solver<double> {
    public:
     gurobi_solver_instance() = default;
-    gurobi_solver_instance(mathematical_program<double>& program)
+    gurobi_solver_instance(mathematical_program<double> &program)
         : solver<double>(program) {
         // Create gurobi environment
         GRBEnv env = GRBEnv(true);
         env.set("LogFile", "mip1.log");
         env.start();
+
+        // Create an empty model
+        model_ = std::make_unique<GRBModel>(env);
+
+        // Create variables
+        // for (const auto &x : program.variables()) {
+        //     // model.addVar()
+        // }
+
+        GRBLinExpr lin_costs;
+        GRBQuadExpr qdr_costs;
+
+        // Linear costs
+        for (auto &binding : program.linear_costs()) {
+            auto &a = binding.get()->buffer_a().dense;
+            binding.get()->eval_a(a);
+            for (int i = 0; i < a.rows(); ++i) {
+                if (a[i] != 0) lin_costs += a[i];
+            }
+        }
+
+        VLOG(10) << lin_costs;
+
+        qdr_costs += lin_costs;
+
+        // Quadratic costs
+        model_->setObjective(qdr_costs);
+        // Other costs
+
+        // Matrix constraint
+
+        //   GRBVar* vars = model.addVars(lb, ub, NULL, vtype, NULL, cols);
     }
+
+    void solve(mathematical_program<double> &program) { model_->optimize(); }
 
     ~gurobi_solver_instance() = default;
 
@@ -39,6 +73,8 @@ class gurobi_solver_instance : public solver<double> {
 
     gurobi_options options_;
     gurobi_info info_;
+
+    std::unique_ptr<GRBModel> model_;
 };
 
 }  // namespace solvers
