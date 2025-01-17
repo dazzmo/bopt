@@ -17,13 +17,37 @@ struct dense_sparse_buffer_tpl {
     SparseType sparse;
 };
 
+template <typename ValueType>
+class expression_base_tpl {
+   public:
+    using dense_vector_t = Eigen::VectorX<ValueType>;
+
+    /**
+     * @brief Construct a new expression base tpl object
+     *
+     * @param np Number of parameters in the expression \f$ f_p(x) = y \f$
+     */
+    expression_base_tpl(const bopt_index &np) : np_(np) {
+        p_ = dense_vector_t::Zero(np);
+    }
+
+    const dense_vector_t &parameters() const { return p_; }
+    void set_parameters(const Eigen::Ref<dense_vector_t> &p) { p_ = p; }
+
+   protected:
+   private:
+    bopt_index np_;
+    dense_vector_t p_;
+};
+
 /**
  * @brief A twice-differentiable expression of the form \f$y = f(x)\f$
  *
  * @tparam ValueType
  */
 template <typename ValueType>
-class expression_scalar_tpl : public evaluator_tpl<ValueType> {
+class expression_scalar_tpl : public expression_base_tpl<ValueType>,
+                              public evaluator_tpl<ValueType> {
    public:
     using typename evaluator_tpl<ValueType>::value_t;
     using typename evaluator_tpl<ValueType>::dense_vector_t;
@@ -36,10 +60,12 @@ class expression_scalar_tpl : public evaluator_tpl<ValueType> {
     using matrix_buffer_t =
         dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
 
-    expression_scalar_tpl() : evaluator_tpl<ValueType>(0, 1) {}
+    expression_scalar_tpl()
+        : expression_base_tpl<ValueType>(0), evaluator_tpl<ValueType>(0, 1) {}
 
-    expression_scalar_tpl(const bopt_index &sz_in)
-        : evaluator_tpl<ValueType>(sz_in, 1) {
+    expression_scalar_tpl(const bopt_index &sz_in, const bopt_index &np = 0)
+        : expression_base_tpl<ValueType>(np),
+          evaluator_tpl<ValueType>(sz_in, 1) {
         buffer_gradient_.dense = dense_vector_t::Zero(cols_gradient());
         buffer_hessian_.dense =
             dense_matrix_t::Zero(rows_hessian(), cols_hessian());
@@ -195,7 +221,8 @@ class expression_scalar_tpl : public evaluator_tpl<ValueType> {
 };
 
 template <typename ValueType>
-class expression_tpl : public evaluator_tpl<ValueType> {
+class expression_tpl : public expression_base_tpl<ValueType>,
+                       public evaluator_tpl<ValueType> {
    public:
     using typename evaluator_tpl<ValueType>::value_t;
     using typename evaluator_tpl<ValueType>::dense_vector_t;
@@ -211,8 +238,10 @@ class expression_tpl : public evaluator_tpl<ValueType> {
     expression_tpl() = default;
     ~expression_tpl() = default;
 
-    expression_tpl(const bopt_index &sz_in, const bopt_index &sz_out)
-        : evaluator_tpl<ValueType>(sz_in, sz_out) {
+    expression_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
+                   const bopt_index &np = 0)
+        : expression_base_tpl<ValueType>(np),
+          evaluator_tpl<ValueType>(sz_in, sz_out) {
         buffer_jacobian_.dense =
             dense_matrix_t::Zero(rows_jacobian(), cols_jacobian());
         buffer_hessian_.dense =

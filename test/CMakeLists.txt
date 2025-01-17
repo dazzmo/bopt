@@ -18,6 +18,12 @@ unit_test_qpoases.cpp
 unit_test_gurobi.cpp
 )
 
+if(WITH_CASADI)
+list(APPEND TEST_FILES unit_test_casadi.cpp)
+endif(WITH_CASADI)
+
+message(STATUS ${TEST_FILES})
+
 include(GoogleTest)
 
 foreach(current_file IN LISTS TEST_FILES)

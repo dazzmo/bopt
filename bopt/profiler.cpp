@@ -39,7 +39,6 @@ profiler::~profiler() {
     std::pair<std::string, acc_t> pr(name_, acc);
     p = map_.insert(pr).first;
   }
-  VLOG(10) << "Adding to accumulator";
   // TODO Check what the real time is (make it in seconds)
   (p->second)(dur.count() * 1e-9);
 #endif

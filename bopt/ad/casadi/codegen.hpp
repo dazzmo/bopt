@@ -1,11 +1,16 @@
+#ifdef BOPT_WITH_CASADI
+
 #pragma once
-#include <dlfcn.h>
 
 #include <casadi/casadi.hpp>
 #include <cassert>
 #include <filesystem>
 
-#include "bopt/dlib_handler.hpp"
+#include "bopt/logging.hpp"
+
+#ifndef BOPT_CASADI_CODEGEN_DIRECTORY
+#define BOPT_CASADI_CODEGEN_DIRECTORY "./cg"
+#endif
 
 namespace bopt {
 namespace casadi {
@@ -15,11 +20,12 @@ namespace casadi {
  * the binary into code. Returns a function which uses the library.
  *
  * @param f Function to perform code generation for
- * @param dir Directory to store the binary
+ * @return ::casadi::Function
  *
  */
-std::shared_ptr<bopt::dynamic_library_handler> codegen(
-    const ::casadi::Function &f);
+::casadi::Function codegen(const ::casadi::Function &f);
 
 }  // namespace casadi
 }  // namespace bopt
+
+#endif

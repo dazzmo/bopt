@@ -50,7 +50,7 @@ struct ipopt_data {
 
 class ipopt_solver_instance : public Ipopt::TNLP, public solver<double> {
    public:
-    ipopt_solver_instance(const mathematical_program<double>& program);
+    ipopt_solver_instance(mathematical_program<double>& program);
 
     ~ipopt_solver_instance() {}
 

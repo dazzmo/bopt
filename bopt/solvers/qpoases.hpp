@@ -61,7 +61,7 @@ class qpoases_solver_instance : public solver<double> {
 
     void reset();
     void solve(mathematical_program<double>& program);
-
+    
    private:
     bool first_solve_ = true;
     int n_solves_ = 0;

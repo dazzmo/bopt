@@ -1,5 +1,4 @@
 find_package(Boost REQUIRED)
-find_package(casadi REQUIRED)
 find_package(Eigen3 3.3 REQUIRED)
 find_package(glog REQUIRED)
 
@@ -11,8 +10,6 @@ option(WITH_IPOPT "Build with IPOPT functionality" OFF)
 SET(${PROJECT_NAME}_SOURCES
 profiler.cpp
 variable.cpp
-# solvers/base.cpp
-# ad/casadi/codegen.cpp
 )
 
 SET(${PROJECT_NAME}_INCLUDE_DIRS
@@ -20,7 +17,6 @@ SET(${PROJECT_NAME}_INCLUDE_DIRS
 
 SET(${PROJECT_NAME}_LIBRARIES
 Eigen3::Eigen
-casadi
 glog
 )
 
@@ -33,8 +29,10 @@ include(GNUInstallDirs)
 option(BOPT_USE_PROFILING "Use profiling" OFF)
 
 if(BOPT_USE_PROFILING)
-  add_definitions(-DBOPT_USE_PROFILING)
-endif()
+  target_compile_definitions(${PROJECT_NAME} PUBLIC BOPT_USE_PROFILING)
+endif(BOPT_USE_PROFILING)
+
+add_subdirectory(ad)
 
 # Optional solvers to include 
 
@@ -47,24 +45,24 @@ if(WITH_QPOASES)
   add_compile_definitions(WITH_QPOASES)
 endif(WITH_QPOASES)
 
-# GUROBI
-if(WITH_GUROBI)
-  message(STATUS "Including GUROBI as a numeric optimization solver")
-  find_package(GUROBI REQUIRED)
-  target_include_directories(${PROJECT_NAME} PUBLIC ${GUROBI_INCLUDE_DIRS})
-  target_link_libraries(${PROJECT_NAME} PUBLIC ${GUROBI_CXX_LIBRARY})
-  target_link_libraries(${PROJECT_NAME} PUBLIC ${GUROBI_LIBRARY})
-  target_sources(${PROJECT_NAME} PRIVATE solvers/gurobi.cpp)
-  add_compile_definitions(BOPT_WITH_GUROBI)
-endif(WITH_GUROBI)
+# # GUROBI
+# if(WITH_GUROBI)
+#   message(STATUS "Including GUROBI as a numeric optimization solver")
+#   find_package(GUROBI REQUIRED)
+#   target_include_directories(${PROJECT_NAME} PUBLIC ${GUROBI_INCLUDE_DIRS})
+#   target_link_libraries(${PROJECT_NAME} PUBLIC ${GUROBI_CXX_LIBRARY})
+#   target_link_libraries(${PROJECT_NAME} PUBLIC ${GUROBI_LIBRARY})
+#   target_sources(${PROJECT_NAME} PRIVATE solvers/gurobi.cpp)
+#   add_compile_definitions(BOPT_WITH_GUROBI)
+# endif(WITH_GUROBI)
 
-# IPOPT
-if(WITH_IPOPT)
-  message(STATUS "Including IPOPT as numeric optimization solver")
-  list(APPEND ${PROJECT_NAME}_LIBRARIES ipopt)
-  list(APPEND ${PROJECT_NAME}_SOURCES solvers/ipopt.cpp)
-  add_compile_definitions(WITH_IPOPT)
-endif(WITH_IPOPT)
+# # IPOPT
+# if(WITH_IPOPT)
+#   message(STATUS "Including IPOPT as numeric optimization solver")
+#   list(APPEND ${PROJECT_NAME}_LIBRARIES ipopt)
+#   list(APPEND ${PROJECT_NAME}_SOURCES solvers/ipopt.cpp)
+#   add_compile_definitions(WITH_IPOPT)
+# endif(WITH_IPOPT)
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC

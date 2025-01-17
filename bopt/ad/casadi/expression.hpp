@@ -1,14 +1,11 @@
 #pragma once
-#include <dlfcn.h>
 
 #include <casadi/casadi.hpp>
 #include <cassert>
 #include <filesystem>
 
 #include "bopt/ad/casadi/codegen.hpp"
-#include "bopt/ad/casadi/evaluator.hpp"
 #include "bopt/constraints.hpp"
-#include "bopt/dlib_handler.hpp"
 #include "bopt/logging.hpp"
 
 namespace bopt {
@@ -26,6 +23,12 @@ class expression_tpl : public bopt::expression_tpl<ValueType> {
     typedef ::casadi::SX sym_t;
     typedef ::casadi::SX sym_vector_t;
     typedef ::casadi::Function function_t;
+
+    using typename evaluator_tpl<ValueType>::value_t;
+    using typename evaluator_tpl<ValueType>::dense_vector_t;
+    using typename evaluator_tpl<ValueType>::sparse_vector_t;
+    using typename evaluator_tpl<ValueType>::dense_matrix_t;
+    using typename evaluator_tpl<ValueType>::sparse_matrix_t;
 
     expression_tpl(const sym_t &expression, const sym_vector_t &x,
                    const sym_vector_t &p, bool codegen = false)
@@ -49,39 +52,23 @@ class expression_tpl : public bopt::expression_tpl<ValueType> {
         // Perform code generation to evaluate these expressions
         function_t h("h", in, {sym_t::hessian(sym_t::dot(expression, l), x)});
 
-        // Check if already generated
-        f.generate("./f_" +
-                   std::to_string(std::hash<std::string>()(f.serialize())));
-
-        // Compile the C-code to a shared library
-        std::string compile_command = "gcc -fPIC -shared -O3 f.c -o f.so";
-        int flag = system(compile_command.c_str());
-        DBGASSERT(flag == 0 && "Compilation failed");
-
         // Load the code generated functions
-        fun_ = std::make_unique<function_t>(::casadi::external("./f"));
+        if (codegen) {
+            fun_ = std::make_unique<function_t>(bopt::casadi::codegen(f));
+            jac_ = std::make_unique<function_t>(bopt::casadi::codegen(fjac));
+            hes_ = std::make_unique<function_t>(bopt::casadi::codegen(fhes));
+        } else {
+            fun_ = std::make_unique<function_t>(f);
+            jac_ = std::make_unique<function_t>(fjac);
+            hes_ = std::make_unique<function_t>(fhes);
+        }
     }
 
-    /**
-     * @brief Construct a new expression evaluator with known inputs (no
-     * jacobian or hessian computed)
-     *
-     * @param expression
-     * @param in
-     */
-    expression_evaluator(const sym_t &expression, const sym_vector_t &in)
-        : Base() {
-        function_t f("f", in, {expression});
-        // Perform code generation to evaluate these expressions
-        auto f_handle = codegen(f);
-        f_eval_ = std::make_unique<casadi_evaluator_t>(f_handle, "f");
-    }
-
-   public:
+   protected:
     evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) override {
-        (*fun_)({x.data(), p.data()}, {out.data()});
+        (*fun_)({x.data(), this->parameters().data()}, {out.data()});
         return evaluator::return_status::Success;
     }
 
@@ -89,6 +76,14 @@ class expression_tpl : public bopt::expression_tpl<ValueType> {
     std::unique_ptr<function_t> fun_;
     std::unique_ptr<function_t> jac_;
     std::unique_ptr<function_t> hes_;
+};
+
+class constraint_example {
+    // Create example
+    // constraint create(use this evaluator)
+
+   private:
+    std::shared_ptr<expression_tpl<double>> expression_;
 };
 
 }  // namespace casadi

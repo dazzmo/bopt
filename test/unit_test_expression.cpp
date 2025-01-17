@@ -9,7 +9,6 @@
 
 class ScalarExpression1 : public bopt::expression_scalar_tpl<double> {
    public:
-    bopt::bopt_index rows_gradient() const override { return 1; }
     bopt::bopt_index cols_gradient() const override { return 2; }
     bopt::bopt_index rows_hessian() const override { return 2; }
     bopt::bopt_index cols_hessian() const override { return 2; }
@@ -32,6 +31,8 @@ class ScalarExpression1 : public bopt::expression_scalar_tpl<double> {
 TEST(Expression, ScalarExpression) {
     std::shared_ptr<bopt::expression_scalar_tpl<double>> c =
         std::make_shared<ScalarExpression1>();
+
+    LOG(INFO) << "p: " << c->parameters().transpose();
 
     Eigen::VectorXd x(2);
     x.setRandom();

@@ -4,10 +4,15 @@ namespace bopt {
 namespace solvers {
 
 ipopt_solver_instance::ipopt_solver_instance(
-    const mathematical_program<double>& program)
+    mathematical_program<double>& program)
     : Ipopt::TNLP(),
       solver(program),
-      cache_(program.n_variables(), program.n_constraints()) {}
+      program_(program),
+      cache_(program.n_variables(), program.n_constraints()) {
+    // Construct constraint jacobian
+    get_constraint_jacobian(cache_.constraint_jacobian, program.n_variables(),
+                            program.get_all_constraints());
+}
 
 bool ipopt_solver_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
                                          Index& nnz_h_lag,
@@ -16,10 +21,7 @@ bool ipopt_solver_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
     n = program().n_variables();
     m = program().n_constraints();
 
-    // Create IPOPT data
-    // ipopt_data data;
-
-    // nnz_jac_g = data.constraint_jacobian.nnz;
+    nnz_jac_g = cache_.constraint_jacobian.nonZeros();
     // nnz_h_lag = data.lagrangian_hessian.nnz;
 
     index_style = TNLP::C_STYLE;
@@ -207,8 +209,8 @@ bool ipopt_solver_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
 
     auto bb = program().bounding_box_constraints();
 
-    VLOG(10) << cache_.ubx.transpose();
-    VLOG(10) << cache_.lbx.transpose();
+    VLOG(10) << cache_.variables_lower_bound.transpose();
+    VLOG(10) << cache_.variables_upper_bound.transpose();
 
     // Decision variable bounds
     // todo - copy n
@@ -249,10 +251,7 @@ bool ipopt_solver_instance::get_starting_point(Index n, bool init_x, Number* x,
     assert(init_lambda == false);
 
     if (init_x) {
-        for (const symbolic::Variable& v : program().x().all()) {
-            std::size_t idx = program().x().getIndex(v);
-            x[idx] = program().x().getInitialValue(v);
-        }
+        std::memcpy(x, program().variables_initial_value().data(), n);
     }
 
     return true;
@@ -275,7 +274,6 @@ int IpoptSolver::solve() {
     Ipopt::SmartPtr<Ipopt::TNLP> nlp = new ipopt_solver_instance(program_);
 
     Ipopt::SmartPtr<IpoptApplication> app = IpoptApplicationFactory();
-
     app->Options()->SetNumericValue("tol", 1e-3);
     app->Options()->SetStringValue("mu_strategy", "adaptive");
 

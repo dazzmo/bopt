@@ -7,7 +7,6 @@ if(CXX)
   enable_language(CXX)
 endif()
 
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS "-O3 -fPIC -march=native")
@@ -26,6 +25,8 @@ option(BUILD_TESTS "Build bopt with tests" OFF)
 if(BUILD_TESTS)
   add_subdirectory(test)
 endif(BUILD_TESTS)
+
+# Export compile commands
 
 ## We install the export that we defined above
 ## Export the targets to a script
