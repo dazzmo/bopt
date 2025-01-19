@@ -81,7 +81,8 @@ void qpoases_solver_instance::solve(mathematical_program<double>& program) {
             }
         }
 
-        // Perform block insert
+        // Perform block insert for lower-triangular hessian
+        // todo - use lower triangular
         if (binding.indices().is_block()) {
             data.H.block(x_indices[0], x_indices[0], x_indices.size(),
                          x_indices.size()) += A;
@@ -143,7 +144,7 @@ void qpoases_solver_instance::solve(mathematical_program<double>& program) {
     }
 
     int nWSR = options_.nWSR;
-
+    
     qp_->setHessianType(qpOASES::HessianType::HST_POSDEF);
 
     // Solve

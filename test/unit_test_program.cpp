@@ -9,7 +9,7 @@
 
 class GenericConstraint : public bopt::constraint {
    public:
-    GenericConstraint() : bopt::constraint(2, 2) {
+    GenericConstraint() : bopt::constraint(2, 2, 0) {
         this->set_name("constraint");
     }
 
@@ -20,12 +20,19 @@ class GenericConstraint : public bopt::constraint {
         jac.coeffRef(1, 1) = 0.0;
     }
 
+    void sparsity_hessian(sparse_matrix_t &hes) const override {
+        hes.resize(rows_hessian(), cols_hessian());
+        hes.coeffRef(0, 0) = 0.0;
+        hes.coeffRef(1, 0) = 0.0;
+        hes.coeffRef(1, 1) = 0.0;
+    }
+
    protected:
     bopt::evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) override {
-        out[0] = x[0];
-        out[1] = x[0] + x[1];
+        out[0] = x[0] * x[0];
+        out[1] = x[1] * x[1];
         return bopt::evaluator::return_status::Success;
     }
 
@@ -38,19 +45,20 @@ class GenericConstraint : public bopt::constraint {
         return bopt::evaluator::return_status::Success;
     }
 
-    bopt::evaluator::return_status eval_jacobian_impl(
+    bopt::evaluator::return_status eval_hessian_impl(
         const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
         sparse_matrix_t &out) override {
-        out.coeffRef(0, 1) = 1.0;
-        out.coeffRef(1, 0) = 1.0;
-        out.coeffRef(1, 1) = 1.0;
+        out.coeffRef(0, 0) = lambda[0];
+        out.coeffRef(1, 0) = lambda[1];
+        out.coeffRef(1, 1) = lambda[1];
         return bopt::evaluator::return_status::Success;
     }
 };
 
 class GenericLinearConstraint : public bopt::linear_constraint {
    public:
-    GenericLinearConstraint() : bopt::linear_constraint(2, 2) {
+    GenericLinearConstraint() : bopt::linear_constraint(2, 2, 0) {
         this->set_name("linear_constraint");
     }
 
@@ -113,6 +121,31 @@ TEST(Program, ConstraintJacobian) {
     VLOG(10) << jacobian;
 }
 
+TEST(Program, LagrangianHessian) {
+    auto c0 = std::make_shared<GenericConstraint>();
+
+    auto x = bopt::create_variable_vector("x", 5);
+    auto b0 =
+        bopt::binding<bopt::constraint>(c0, std::vector<Eigen::Index>({0, 1}));
+    auto b1 =
+        bopt::binding<bopt::constraint>(c0, std::vector<Eigen::Index>({1, 2}));
+    auto b2 =
+        bopt::binding<bopt::constraint>(c0, std::vector<Eigen::Index>({2, 4}));
+
+    Eigen::SparseMatrix<double> hessian;
+    std::vector<bopt::binding<bopt::constraint>> bindings = {b0, b1, b2};
+    bopt::get_lagrangian_hessian(hessian, x.size(), {}, bindings);
+
+    VLOG(10) << hessian;
+    Eigen::VectorXd values(5);
+    Eigen::VectorXd lambda(6);
+    values.setRandom();
+    lambda.setRandom();
+    bopt::eval_lagrangian_hessian(values, lambda, hessian, {}, bindings);
+
+    VLOG(10) << hessian;
+}
+
 TEST(Program, AddVariable) {
     bopt::mathematical_program<double> p("program");
     bopt::variable x("x"), y("y");
@@ -144,7 +177,7 @@ TEST(Program, AddConstraints) {
     auto c0 = std::make_shared<GenericConstraint>();
     auto c1 = std::make_shared<GenericLinearConstraint>();
     auto c2 = std::make_shared<bopt::bounding_box_constraint_tpl<double>>(
-        2, Eigen::Vector2d(-1.0, -2.0), Eigen::Vector2d(2.0, 1.0));
+        2, 0, Eigen::Vector2d(-1.0, -2.0), Eigen::Vector2d(2.0, 1.0));
 
     p.add_constraint(c0, x.topRows(2));
     p.add_constraint(c0, x.middleRows(1, 2));
@@ -162,7 +195,7 @@ TEST(Program, AddCosts) {
     auto c0 = std::make_shared<GenericConstraint>();
     auto c1 = std::make_shared<GenericLinearConstraint>();
     auto c2 = std::make_shared<bopt::bounding_box_constraint_tpl<double>>(
-        2, Eigen::Vector2d(-1.0, -2.0), Eigen::Vector2d(2.0, 1.0));
+        2, 0, Eigen::Vector2d(-1.0, -2.0), Eigen::Vector2d(2.0, 1.0));
 
     p.add_constraint(c0, x.topRows(2));
     p.add_constraint(c0, x.middleRows(1, 2));

@@ -149,28 +149,54 @@ void eval_lagrangian_hessian(
     const std::vector<binding<cost_tpl<ValueType>>> &cost_bindings,
     const std::vector<binding<constraint_tpl<ValueType>>>
         &constraint_bindings) {
-    // for (auto &b : cost_bindings) {
-    //     typename constraint_tpl<ValueType>::sparse_matrix_t &hes =
-    //         b.get()->buffer_jacobian().sparse;
+    // Costs
+    for (auto &b : cost_bindings) {
+        typename cost_tpl<ValueType>::sparse_matrix_t &hes =
+            b.get()->buffer_hessian().sparse;
 
-    //     Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
+        Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
 
-    //     if (b.get()->eval_hessian(xi, hes) ==
-    //         evaluator::return_status::NotImplemented) {
-    //     }
+        if (b.get()->eval_hessian(xi, hes) ==
+            evaluator::return_status::NotImplemented) {
+        }
 
-    //     // Iterate over non-zeros
-    //     for (int k = 0; k < hes.outerSize(); ++k) {
-    //         for (Eigen::SparseMatrix<double>::InnerIterator it(hes, k); it;
-    //              ++it) {
-    //             // todo - speed this up
-    //             hessian.coeffRef(cnt + it.row(),
-    //                               b.indices().indices()[it.col()]) = it.value();
-    //         }
-    //     }
+        // Iterate over non-zeros
+        for (int k = 0; k < hes.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(hes, k); it;
+                 ++it) {
+                Eigen::Index row = b.indices().indices()[it.row()],
+                             col = b.indices().indices()[it.col()];
+                if (col > row) continue;
+                hessian.coeffRef(row, col) += it.value();
+            }
+        }
+    }
 
-    //     cnt += b.get()->sz_out();
-    // }
+    // Constraints
+    bopt_index cnt = 0;
+    for (auto &b : constraint_bindings) {
+        typename constraint_tpl<ValueType>::sparse_matrix_t &hes =
+            b.get()->buffer_hessian().sparse;
+
+        Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
+        Eigen::Ref<const Eigen::VectorXd> li =
+            lambda.middleRows(cnt, b.get()->sz_out());
+
+        if (b.get()->eval_hessian(xi, li, hes) ==
+            evaluator::return_status::NotImplemented) {
+        }
+
+        // Iterate over non-zeros
+        for (int k = 0; k < hes.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(hes, k); it;
+                 ++it) {
+                Eigen::Index row = b.indices().indices()[it.row()],
+                             col = b.indices().indices()[it.col()];
+                if (col > row) continue;
+                hessian.coeffRef(row, col) += it.value();
+            }
+        }
+    }
 }
 
 /**
@@ -185,7 +211,6 @@ void eval_lagrangian_hessian(
 template <typename ValueType>
 class mathematical_program {
    public:
-
     typedef ValueType value_type;
     typedef std::string string_t;
 

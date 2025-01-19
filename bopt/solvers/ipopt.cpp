@@ -22,7 +22,7 @@ bool ipopt_solver_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
     m = program().n_constraints();
 
     nnz_jac_g = cache_.constraint_jacobian.nonZeros();
-    // nnz_h_lag = data.lagrangian_hessian.nnz;
+    nnz_h_lag = cache_.lagrangian_hessian.nonZeros();
 
     index_style = TNLP::C_STYLE;
 
@@ -35,7 +35,7 @@ bool ipopt_solver_instance::eval_f(Index n, const Number* x, bool new_x,
     VLOG(10) << "eval_f()";
 
     if (new_x) {
-        std::memcpy(cache_.primal_vector.data(), x, n);
+        std::copy_n(x, n, cache_.primal_vector.data());
     }
 
     // Update caches
@@ -57,7 +57,7 @@ bool ipopt_solver_instance::eval_grad_f(Index n, const Number* x, bool new_x,
     VLOG(10) << "eval_grad_f()";
 
     if (new_x) {
-        std::memcpy(cache_.primal_vector.data(), x, n);
+        std::copy_n(x, n, cache_.primal_vector.data());
     }
 
     // Update caches
@@ -83,7 +83,7 @@ bool ipopt_solver_instance::eval_g(Index n, const Number* x, bool new_x,
     bopt::profiler profiler("ipopt_solver_instance::eval_g");
     VLOG(10) << "eval_g()";
     if (new_x) {
-        std::memcpy(cache_.primal_vector.data(), x, n);
+        std::copy_n(x, n, cache_.primal_vector.data());
     }
 
     // Update caches
@@ -132,7 +132,7 @@ bool ipopt_solver_instance::eval_jac_g(Index n, const Number* x, bool new_x,
 
     } else {
         if (new_x) {
-            std::memcpy(cache_.primal_vector.data(), x, n);
+            std::copy_n(x, n, cache_.primal_vector.data());
         }
 
         eval_constraint_jacobian(cache_.primal_vector,
@@ -155,9 +155,9 @@ bool ipopt_solver_instance::eval_h(Index n, const Number* x, bool new_x,
     if (values == NULL) {
         // Return the sparsity of the constraint Jacobian
         int cnt = 0;
-        for (int k = 0; k < cache_.lag_hes.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<double>::InnerIterator it(cache_.lag_hes,
-                                                               k);
+        for (int k = 0; k < cache_.lagrangian_hessian.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(
+                     cache_.lagrangian_hessian, k);
                  it; ++it) {
                 if (cnt > nele_hess) {
                     return false;
@@ -169,36 +169,17 @@ bool ipopt_solver_instance::eval_h(Index n, const Number* x, bool new_x,
         }
 
     } else {
-        if (new_x) mapVector(cache_.primal, x, n);
-        if (new_lambda) mapVector(cache_.dual, lambda, m);
+        if (new_x) {
+            std::copy_n(x, n, cache_.primal_vector.data());
+        }
+        if (new_lambda) {
+            std::copy_n(lambda, m, cache_.dual_vector.data());
+        }
 
         // Reset cache for hessian
-        cache_.lag_hes *= 0.0;
-
-        // Objective hessian
-        for (auto& b : program().f().all()) {
-            Eigen::MatrixXd H =
-                Eigen::MatrixXd::Zero(b.x().size(), b.x().size());
-            auto x_idx = program().x().getIndices(b.x());
-            b.get()->hessian(cache_.primal(x_idx), obj_factor, H);
-            updateSparseMatrix(cache_.lag_hes, H, x_idx, x_idx, Operation::ADD);
-        }
-        // Constraint hessians
-        std::size_t idx = 0;
-        for (auto& b : program().g().all()) {
-            Eigen::MatrixXd H =
-                Eigen::MatrixXd::Zero(b.x().size(), b.x().size());
-            auto x_idx = program().x().getIndices(b.x());
-            Eigen::VectorXd lam_i =
-                cache_.dual.middleRows(idx, b.get()->size());
-            b.get()->hessian(cache_.primal(x_idx), lam_i, H);
-            updateSparseMatrix(cache_.lag_hes, H, x_idx, x_idx, Operation::ADD);
-        }
-
-        VLOG(10) << "H = ";
-        VLOG(10) << cache_.lag_hes;
-
-        copy(cache_.lag_hes, values, nele_hess);
+        eval_lagrangian_hessian(cache_.primal_vector, cache_.dual_vector,
+                                cache_.lagrangian_hessian, costs_,
+                                constraints_);
     }
     return true;
 }

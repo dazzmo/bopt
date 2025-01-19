@@ -193,9 +193,10 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
 
     bounding_box_constraint_tpl(
         const bopt_index &sz_in,
+        const bopt_index &sz_p,
         const Eigen::Ref<const dense_vector_t> &lower_bound,
         const Eigen::Ref<const dense_vector_t> &upper_bound)
-        : constraint_tpl<ValueType>(sz_in, 2 * sz_in),
+        : constraint_tpl<ValueType>(sz_in, 2 * sz_in, sz_p),
           x_lower_bound_(lower_bound),
           x_upper_bound_(upper_bound),
           converted_(false) {

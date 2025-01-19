@@ -18,11 +18,6 @@
 <p align="left">
 This is a basic implementation of the necessary components required to represent optimisation problems within a programatic context. This library offers a means to easily express cost and constraints in a unified manner, to which we can interface to solvers (existing or customly made) to solve. Much effort has been put towards making costs and constraints as flexible to implement as possible, offering both dense and sparse evaluation methods which can be used for algorithms that request either (or both).
 
-In addition, we provide add-ons for automatic differentiation tools to provide the necessary derivatives, which currently we include the ability to use:
-* [CasADi](https://web.casadi.org/)
-</p>
-<p align="right">(<a href="#readme-top">back to top</a>)
-</p>
 
 ## Getting Started
 <a name="getting-started"></a>
@@ -37,18 +32,21 @@ For testing purposes we have (this is later be a toggle-able option):
 * [googletest](https://github.com/google/googletest)
 * [glog](https://github.com/google/glog)
 
+
+### Autodiff Utilities
+In addition, we provide add-ons for automatic differentiation tools to provide the necessary derivatives, which currently we include the ability to use:
+
+* [CasADi](https://web.casadi.org/)
+
+### Solver Interfaces
+
 We also include interfaces to open-source solvers for numerical optimisation, we currently include:
-* [qpOASES](https://github.com/coin-or/qpOASES) (-DWITH_QPOASES=ON in <a href="#installation">Installation</a>). Be sure to install qpOASES as a shared library, as this is what is expected by bopt.
+* [qpOASES](https://github.com/coin-or/qpOASES)
 
 Currently under integration:
+* [IPOPT](https://github.com/coin-or/Ipopt)
+* [GUROBI](https://www.gurobi.com/)
 
-<b> Nonlinear Solvers </b>
-* [Ipopt](https://github.com/coin-or/Ipopt)
-
-<b> Linear Programming and Convex Programming </b>
-* [GUROBI](https://www.gurobi.com/) (lisence not included, must be supplied by user).
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Installation
 <a name="installation"></a>
@@ -70,12 +68,19 @@ Currently under integration:
     ```
 
 ### CMake Flags
-* `-DWITH_CASADI`: Add features that use CasADi 
-* `-DWITH_QPOASES`: Add interface to the qpOASES library 
-* `-DWITH_IPOPT`: Add interface to the IPOPT library
-* `-DWITH_GUROBI`: Add interface to the GUROBI library
+In addition to performing Step 2, the following CMake flags can be set (ON/OFF).
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+#### Auto-Diff
+* `-DWITH_CASADI`: Add features that use [CasADi](https://web.casadi.org/) 
+
+#### Solvers
+* `-DWITH_QPOASES`: Add interface to the [qpOASES](https://github.com/coin-or/qpOASES) library. (<b>Note</b> - Install qpOASES as a shared library, as this is what is expected by BOPT).
+* `-DWITH_IPOPT`: Add interface to the [IPOPT](https://github.com/coin-or/Ipopt) library
+* `-DWITH_GUROBI`: Add interface to the [GUROBI](https://www.gurobi.com/) library (license not included, must be supplied by user). 
+
+#### Testing
+* `-DBUILD_TESTS`: Enables the building of tests to confirm functionality.
+
 
 
 <!-- LICENSE -->
@@ -83,16 +88,15 @@ Currently under integration:
 
 Distributed under the GNU General Public License v3.0 License. See `LICENSE.txt` for more information.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- CONTACT -->
 ## Contact
 
 Damian Abood - damian.abood@sydney.edu.au
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Acknowledgements
-Thank you to Jesse Morris for his assistance with build-related concerns and improving the layout of the library.
+
+
+
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

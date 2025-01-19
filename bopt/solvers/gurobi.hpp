@@ -1,6 +1,5 @@
 #pragma once
 
-#define BOPT_WITH_GUROBI
 #ifdef BOPT_WITH_GUROBI
 
 #include <gurobi_c++.h>
