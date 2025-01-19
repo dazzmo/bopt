@@ -3,11 +3,11 @@
 
 #include <Eigen/Core>
 
-#include "bopt/expression.hpp"
+#include "bopt/expressions/expression.hpp"
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
 
-class ScalarExpression1 : public bopt::expression_scalar_tpl<double> {
+class ScalarExpression1 : public bopt::scalar_expression_tpl<double> {
    public:
     bopt::bopt_index cols_gradient() const override { return 2; }
     bopt::bopt_index rows_hessian() const override { return 2; }
@@ -29,7 +29,7 @@ class ScalarExpression1 : public bopt::expression_scalar_tpl<double> {
 };
 
 TEST(Expression, ScalarExpression) {
-    std::shared_ptr<bopt::expression_scalar_tpl<double>> c =
+    std::shared_ptr<bopt::scalar_expression_tpl<double>> c =
         std::make_shared<ScalarExpression1>();
 
     LOG(INFO) << "p: " << c->parameters().transpose();

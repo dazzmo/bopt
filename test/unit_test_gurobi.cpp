@@ -37,7 +37,7 @@ class GenericQuadraticCost : public bopt::quadratic_cost {
 class GenericLinearConstraint : public bopt::linear_constraint {
    public:
     GenericLinearConstraint()
-        : bopt::linear_constraint(2, 2, bopt::bounds::type::Equality) {
+        : bopt::linear_constraint(2, 2, 0, bopt::bounds::type::Equality) {
         this->set_name("linear_constraint");
     }
 

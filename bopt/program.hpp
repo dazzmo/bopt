@@ -1,9 +1,5 @@
-#ifndef OPTIMISATION_PROGRAM_H
-#define OPTIMISATION_PROGRAM_H
+#pragma once
 
-#include <casadi/casadi.hpp>
-
-#include "bopt/ad/casadi/codegen.hpp"
 #include "bopt/binding.hpp"
 #include "bopt/common.hpp"
 #include "bopt/constraints.hpp"
@@ -12,11 +8,6 @@
 #include "bopt/profiler.hpp"
 
 namespace bopt {
-
-// Forward declaration of SolverBase
-namespace solvers {
-class SolverBase;
-}
 
 template <class ValueType>
 void get_constraint_jacobian(
@@ -80,41 +71,107 @@ void eval_constraint_jacobian(
     }
 }
 
-// template <class MatrixContainer, class EvaluatorType,
-//           class MatrixElementInserter>
-// void getHessianStructure(MatrixContainer &H,
-//                          std::vector<binding<EvaluatorType>> &bindings,
-//                          const MatrixElementInserter &inserter) {
-//     // Typdefs
-//     typedef typename evaluator_traits<EvaluatorType>::bopt_index bopt_index;
-//     typedef typename evaluator_traits<EvaluatorType>::value_type value_type;
-//     typedef evaluator_out_info<EvaluatorType> evaluator_out_info_t;
+/**
+ * @brief Constructs the hessian of a programs lagrangian, of the form \f$ H +
+ * \sum \lambda_i^T g(x)
+ *
+ * @tparam ValueType
+ * @param hessian
+ * @param sz Size of rows and columns of the hessian
+ * @param cost_bindings
+ * @param constraint_bindings
+ */
+template <class ValueType>
+void get_lagrangian_hessian(
+    Eigen::SparseMatrix<ValueType> &hessian, const bopt_index &sz,
+    const std::vector<binding<cost_tpl<ValueType>>> &cost_bindings,
+    const std::vector<binding<constraint_tpl<ValueType>>>
+        &constraint_bindings) {
+    // Populate cost entries
+    std::vector<Eigen::Triplet<ValueType>> triplets;
 
-//     for (auto &b : bindings) {
-//         // For each non-zero element of the hessian, get their variable
-//         // coordinates and convert to their vector locations based on x
-//         bopt_index idx_x, idx_y;
-//         evaluator_out_info_t info;
-//         b.get()->jac_info(info);
+    for (auto &b : cost_bindings) {
+        // todo - check if there is a sparse implementation, if not, assume it
+        // todo - is dense
 
-//         // Determine locations for each non-zero entry
-//         for (bopt_index col = 0; col < info.out_m; ++col) {
-//             bopt_index start =
-//                 ccs_traits<evaluator_out_info_t>::indptr(info)[col];
-//             bopt_index end =
-//                 ccs_traits<evaluator_out_info_t>::indptr(info)[col + 1];
+        // For each non-zero element of the hessian, get their variable
+        // coordinates and convert to their vector locations based on x
+        typename cost_tpl<ValueType>::sparse_matrix_t &hes =
+            b.get()->buffer_hessian().sparse;
+        b.get()->sparsity_hessian(hes);
 
-//             for (bopt_index row = start; row < end; ++row) {
-//                 // Get index of entry
-//                 bopt_index idx =
-//                     ccs_traits<evaluator_out_info_t>::indices(info)[row];
-//                 // Add entry to full Jacobian
-//                 inserter(H, b.get()->input_indices[0][idx],
-//                          b.get()->input_indices[0][col], value_type(0));
-//             }
-//         }
-//     }
-// }
+        // Iterate over non-zeros, only populate lower triangular entries
+        for (int k = 0; k < hes.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(hes, k); it;
+                 ++it) {
+                Eigen::Index row = b.indices().indices()[it.row()],
+                             col = b.indices().indices()[it.col()];
+                if (col > row) continue;
+                // Add entry to hessian
+                triplets.push_back(Eigen::Triplet<double>(row, col, 1.0));
+            }
+        }
+    }
+
+    bopt_index cnt = bopt_index(0);
+    for (auto &b : constraint_bindings) {
+        // todo - check if there is a sparse implementation, if not, assume it
+        // todo - is dense
+
+        // For each non-zero element of the hessian, get their variable
+        // coordinates and convert to their vector locations based on x
+        typename constraint_tpl<ValueType>::sparse_matrix_t &hes =
+            b.get()->buffer_hessian().sparse;
+        b.get()->sparsity_hessian(hes);
+
+        // Iterate over non-zeros, only populate lower triangular entries
+        for (int k = 0; k < hes.outerSize(); ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(hes, k); it;
+                 ++it) {
+                Eigen::Index row = b.indices().indices()[it.row()],
+                             col = b.indices().indices()[it.col()];
+                if (col > row) continue;
+                // Add entry to hessian
+                triplets.push_back(Eigen::Triplet<double>(row, col, 1.0));
+            }
+        }
+    }
+    // Create constraint hessian
+    hessian.resize(sz, sz);
+    hessian.setFromTriplets(triplets.begin(), triplets.end());
+}
+
+template <class ValueType>
+void eval_lagrangian_hessian(
+    const Eigen::Ref<const Eigen::VectorXd> &x,
+    const Eigen::Ref<const Eigen::VectorXd> &lambda,
+    Eigen::SparseMatrix<ValueType> &hessian,
+    const std::vector<binding<cost_tpl<ValueType>>> &cost_bindings,
+    const std::vector<binding<constraint_tpl<ValueType>>>
+        &constraint_bindings) {
+    // for (auto &b : cost_bindings) {
+    //     typename constraint_tpl<ValueType>::sparse_matrix_t &hes =
+    //         b.get()->buffer_jacobian().sparse;
+
+    //     Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
+
+    //     if (b.get()->eval_hessian(xi, hes) ==
+    //         evaluator::return_status::NotImplemented) {
+    //     }
+
+    //     // Iterate over non-zeros
+    //     for (int k = 0; k < hes.outerSize(); ++k) {
+    //         for (Eigen::SparseMatrix<double>::InnerIterator it(hes, k); it;
+    //              ++it) {
+    //             // todo - speed this up
+    //             hessian.coeffRef(cnt + it.row(),
+    //                               b.indices().indices()[it.col()]) = it.value();
+    //         }
+    //     }
+
+    //     cnt += b.get()->sz_out();
+    // }
+}
 
 /**
  * @brief Represents a generic mathematical program with constraints and
@@ -128,7 +185,6 @@ void eval_constraint_jacobian(
 template <typename ValueType>
 class mathematical_program {
    public:
-    friend class solvers::SolverBase;
 
     typedef ValueType value_type;
     typedef std::string string_t;
@@ -390,5 +446,3 @@ class mathematical_program {
 };
 
 }  // namespace bopt
-
-#endif /* OPTIMISATION_PROGRAM_H */

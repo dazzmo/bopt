@@ -1,25 +1,20 @@
 #pragma once
 
-#include <Eigen/Core>
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
-#include <memory>
-
 #include "bopt/bounds.hpp"
-#include "bopt/evaluator.hpp"
-#include "bopt/expression.hpp"
+#include "bopt/expressions.hpp"
 #include "bopt/logging.hpp"
 
 namespace bopt {
 
 template <typename ValueType>
-class constraint_tpl : public expression_tpl<ValueType> {
+class constraint_tpl : public differentiable_vector_expression_tpl<ValueType> {
    public:
-    using typename expression_tpl<ValueType>::value_t;
-    using typename expression_tpl<ValueType>::dense_vector_t;
-    using typename expression_tpl<ValueType>::sparse_vector_t;
-    using typename expression_tpl<ValueType>::dense_matrix_t;
-    using typename expression_tpl<ValueType>::sparse_matrix_t;
+    using base = differentiable_vector_expression_tpl<ValueType>;
+    using typename base::dense_matrix_t;
+    using typename base::dense_vector_t;
+    using typename base::sparse_matrix_t;
+    using typename base::sparse_vector_t;
+    using typename base::value_t;
 
     typedef std::string string_t;
 
@@ -27,13 +22,13 @@ class constraint_tpl : public expression_tpl<ValueType> {
     ~constraint_tpl() = default;
 
     constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
+                   const bopt_index &sz_p,
                    const bounds::type &type = bounds::type::Unbounded)
-        : expression_tpl<ValueType>(sz_in, sz_out),
+        : differentiable_vector_expression_tpl<ValueType>(sz_in, sz_out),
           name_(""),
           lower_bound_(sz_out),
           upper_bound_(sz_out) {
         set_bounds(type);
-        buffer_ = dense_vector_t::Zero(this->sz_out());
     }
 
     /**
@@ -42,14 +37,13 @@ class constraint_tpl : public expression_tpl<ValueType> {
      * @param expression
      * @param type
      */
-    constraint_tpl(const std::shared_ptr<expression_tpl<ValueType>> &expression,
+    constraint_tpl(const std::shared_ptr<base> &expression,
                    const bounds::type &type = bounds::type::Unbounded)
-        : expression_tpl<ValueType>(*expression),
+        : base(*expression),
           name_(""),
           lower_bound_(expression->sz_out()),
           upper_bound_(expression->sz_out()) {
         set_bounds(type);
-        buffer_ = dense_vector_t::Zero(this->sz_out());
     }
 
     const string_t &name() const { return name_; }
@@ -73,22 +67,17 @@ class constraint_tpl : public expression_tpl<ValueType> {
         upper_bound_ = upper_bound;
     }
 
-    const dense_vector_t &buffer() const { return buffer_; }
-    dense_vector_t &buffer() { return buffer_; }
-
     inline bool is_satisfied(
         const ValueType &epsilon =
             std::numeric_limits<ValueType>::epsilon()) const {
-        return (buffer_ - lower_bound_).minCoeff() >= epsilon &&
-               (upper_bound_ - buffer_).minCoeff() >= epsilon;
+        return (this->buffer() - lower_bound_).minCoeff() >= epsilon &&
+               (upper_bound_ - this->buffer()).minCoeff() >= epsilon;
     }
 
    private:
     string_t name_;
     dense_vector_t lower_bound_;
     dense_vector_t upper_bound_;
-
-    dense_vector_t buffer_;
 };
 
 typedef constraint_tpl<double> constraint;
@@ -105,7 +94,7 @@ std::ostream &operator<<(std::ostream &out,
 
 template <typename ValueType>
 class linear_constraint_tpl : public constraint_tpl<ValueType>,
-                              public linear_expression_tpl<ValueType> {
+                              public linear_vector_expression_tpl<ValueType> {
    public:
     using typename constraint_tpl<ValueType>::value_t;
     using typename constraint_tpl<ValueType>::dense_vector_t;
@@ -114,9 +103,24 @@ class linear_constraint_tpl : public constraint_tpl<ValueType>,
     using typename constraint_tpl<ValueType>::sparse_matrix_t;
 
     linear_constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
+                          const bopt_index &sz_p,
                           const bounds::type &type = bounds::type::Unbounded)
-        : constraint_tpl<ValueType>(sz_in, sz_out, type),
-          linear_expression_tpl<ValueType>(sz_in, sz_out) {}
+        : constraint_tpl<ValueType>(sz_in, sz_out, sz_p, type),
+          linear_vector_expression_tpl<ValueType>(sz_in, sz_out, sz_p) {}
+
+    /**
+     * @brief Construct a new constraint tpl object via a linear expression
+     *
+     * @param expression
+     * @param type
+     */
+    linear_constraint_tpl(
+        const std::shared_ptr<linear_vector_expression_tpl<ValueType>>
+            &expression,
+        const bounds::type &type = bounds::type::Unbounded)
+        : constraint_tpl<ValueType>(expression->sz_in(), expression->sz_out(),
+                                    expression->sz_p(), type),
+          linear_vector_expression_tpl<ValueType>(*expression) {}
 
     const bopt_index &sz_in() const {
         return constraint_tpl<ValueType>::sz_in();
@@ -180,9 +184,9 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
 
     bounding_box_constraint_tpl() = default;
 
-    bounding_box_constraint_tpl(const bopt_index &sz_in,
+    bounding_box_constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_p,
                                 const bounds::type &type)
-        : constraint_tpl<ValueType>(sz_in, 2 * sz_in),
+        : constraint_tpl<ValueType>(sz_in, 2 * sz_in, sz_p),
           x_lower_bound_(dense_vector_t::Zero(sz_in)),
           x_upper_bound_(dense_vector_t::Zero(sz_in)),
           converted_(false) {}

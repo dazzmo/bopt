@@ -2,19 +2,20 @@
 
 #include <memory>
 
-#include "bopt/expression.hpp"
+#include "bopt/expressions.hpp"
 #include "bopt/logging.hpp"
 
 namespace bopt {
 
 template <typename ValueType>
-class cost_tpl : public expression_scalar_tpl<ValueType> {
+class cost_tpl : public differentiable_scalar_expression_tpl<ValueType> {
    public:
-    using typename expression_scalar_tpl<ValueType>::value_t;
-    using typename expression_scalar_tpl<ValueType>::dense_vector_t;
-    using typename expression_scalar_tpl<ValueType>::sparse_vector_t;
-    using typename expression_scalar_tpl<ValueType>::dense_matrix_t;
-    using typename expression_scalar_tpl<ValueType>::sparse_matrix_t;
+    using base = differentiable_scalar_expression_tpl<ValueType>;
+    using typename base::dense_matrix_t;
+    using typename base::dense_vector_t;
+    using typename base::sparse_matrix_t;
+    using typename base::sparse_vector_t;
+    using typename base::value_t;
 
     typedef std::string string_t;
 
@@ -24,10 +25,8 @@ class cost_tpl : public expression_scalar_tpl<ValueType> {
     cost_tpl() = default;
     ~cost_tpl() = default;
 
-    cost_tpl(const bopt_index &sz_in)
-        : expression_scalar_tpl<ValueType>(sz_in), name_("") {
-        LOG(INFO) << "cost_tpl with input size " << this->sz_in();
-    }
+    cost_tpl(const bopt_index &sz_in, const bopt_index &sz_p = 0)
+        : base(sz_in, sz_p), name_("") {}
 
     const string_t &name() const { return name_; }
     void set_name(const string_t &name) { name_ = name; }
@@ -55,9 +54,9 @@ class linear_cost_tpl : public cost_tpl<ValueType>,
     using typename cost_tpl<ValueType>::dense_matrix_t;
     using typename cost_tpl<ValueType>::sparse_matrix_t;
 
-    linear_cost_tpl(const bopt_index &sz_in)
-        : cost_tpl<ValueType>(sz_in),
-          linear_scalar_expression_tpl<ValueType>(sz_in) {}
+    linear_cost_tpl(const bopt_index &sz_in, const bopt_index &sz_p = 0)
+        : cost_tpl<ValueType>(sz_in, sz_p),
+          linear_scalar_expression_tpl<ValueType>(sz_in, sz_p) {}
 
     const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
 
@@ -114,9 +113,9 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
     using typename cost_tpl<ValueType>::dense_matrix_t;
     using typename cost_tpl<ValueType>::sparse_matrix_t;
 
-    quadratic_cost_tpl(const bopt_index &sz_in)
-        : cost_tpl<ValueType>(sz_in),
-          quadratic_scalar_expression_tpl<ValueType>(sz_in) {}
+    quadratic_cost_tpl(const bopt_index &sz_in, const bopt_index &sz_p = 0)
+        : cost_tpl<ValueType>(sz_in, sz_p),
+          quadratic_scalar_expression_tpl<ValueType>(sz_in, sz_p) {}
 
     const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
     const bopt_index &sz_out() const { return cost_tpl<ValueType>::sz_out(); }

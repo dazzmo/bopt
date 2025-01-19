@@ -33,36 +33,7 @@ if(BOPT_USE_PROFILING)
 endif(BOPT_USE_PROFILING)
 
 add_subdirectory(ad)
-
-# Optional solvers to include 
-
-# qpOASES
-if(WITH_QPOASES)
-  message(STATUS "Including qpOASES as numeric optimization solver")
-  find_package(qpOASES REQUIRED)
-  target_sources(${PROJECT_NAME} PRIVATE solvers/qpoases.cpp)
-  target_link_libraries(${PROJECT_NAME} PUBLIC qpOASES)
-  add_compile_definitions(WITH_QPOASES)
-endif(WITH_QPOASES)
-
-# # GUROBI
-# if(WITH_GUROBI)
-#   message(STATUS "Including GUROBI as a numeric optimization solver")
-#   find_package(GUROBI REQUIRED)
-#   target_include_directories(${PROJECT_NAME} PUBLIC ${GUROBI_INCLUDE_DIRS})
-#   target_link_libraries(${PROJECT_NAME} PUBLIC ${GUROBI_CXX_LIBRARY})
-#   target_link_libraries(${PROJECT_NAME} PUBLIC ${GUROBI_LIBRARY})
-#   target_sources(${PROJECT_NAME} PRIVATE solvers/gurobi.cpp)
-#   add_compile_definitions(BOPT_WITH_GUROBI)
-# endif(WITH_GUROBI)
-
-# # IPOPT
-# if(WITH_IPOPT)
-#   message(STATUS "Including IPOPT as numeric optimization solver")
-#   list(APPEND ${PROJECT_NAME}_LIBRARIES ipopt)
-#   list(APPEND ${PROJECT_NAME}_SOURCES solvers/ipopt.cpp)
-#   add_compile_definitions(WITH_IPOPT)
-# endif(WITH_IPOPT)
+add_subdirectory(solvers)
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC
