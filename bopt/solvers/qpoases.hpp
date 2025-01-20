@@ -50,14 +50,14 @@ struct qpoases_data {
     Eigen::VectorXd ubx;
 };
 
-class qpoases_solver_instance : public solver<double> {
+class qpoases_solver : public solver<double> {
    public:
     qpoases_data data;
 
-    qpoases_solver_instance() = default;
-    qpoases_solver_instance(mathematical_program<double>& program);
+    qpoases_solver() = default;
+    qpoases_solver(mathematical_program<double>& program);
 
-    ~qpoases_solver_instance();
+    ~qpoases_solver();
 
     void reset();
     void solve(mathematical_program<double>& program);

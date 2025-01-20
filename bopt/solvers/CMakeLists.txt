@@ -26,8 +26,9 @@ endif(WITH_GUROBI)
 
 # IPOPT
 if(WITH_IPOPT)
-  message(STATUS "Including IPOPT as numeric optimization solver")
-  list(APPEND ${PROJECT_NAME}_LIBRARIES ipopt)
-  list(APPEND ${PROJECT_NAME}_SOURCES ipopt.cpp)
-  target_compile_definitions(${PROJECT_NAME} PUBLIC WITH_IPOPT)
+  message(STATUS "Including IPOPT as a numeric optimization solver")
+  find_package(ipopt REQUIRED)
+  target_link_libraries(${PROJECT_NAME} PUBLIC ipopt)
+  target_sources(${PROJECT_NAME} PRIVATE ipopt.cpp)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC BOPT_WITH_IPOPT)
 endif(WITH_IPOPT)

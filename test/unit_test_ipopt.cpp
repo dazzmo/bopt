@@ -6,7 +6,7 @@
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
-#include "bopt/solvers/qpoases.hpp"
+#include "bopt/solvers/ipopt.hpp"
 
 class GenericQuadraticCost : public bopt::quadratic_cost {
    public:
@@ -37,7 +37,7 @@ class GenericQuadraticCost : public bopt::quadratic_cost {
 class GenericLinearConstraint : public bopt::linear_constraint {
    public:
     GenericLinearConstraint()
-        : bopt::linear_constraint(2, 2, bopt::bounds::type::Equality) {
+        : bopt::linear_constraint(2, 2, 0, bopt::bounds::type::Equality) {
         this->set_name("linear_constraint");
     }
 
@@ -84,14 +84,10 @@ TEST(Program, SimpleProgram) {
     p.add_cost(c, x);
     p.add_linear_constraint(g0, x);
 
-    bopt::solvers::qpoases_options opt;
-    opt.perform_hotstart = false;
-    opt.nWSR = 100;
-
-    auto qp = bopt::solvers::qpoases_solver(p, opt);
-
-
-    qp.solve(p);
+    auto nlp = bopt::solvers::ipopt_solver(p);
+    nlp.options()->SetNumericValue("tol", 1e-3);
+    nlp.options()->SetStringValue("mu_strategy", "adaptive");
+    nlp.solve();
 }
 
 int main(int argc, char **argv) {

@@ -1,22 +1,28 @@
 #include "bopt/solvers/ipopt.hpp"
 
+#include "bopt/logging.hpp"
+
 namespace bopt {
 namespace solvers {
 
-ipopt_solver_instance::ipopt_solver_instance(
+ipopt_program_instance::ipopt_program_instance(
     mathematical_program<double>& program)
     : Ipopt::TNLP(),
-      solver(program),
+
       program_(program),
       cache_(program.n_variables(), program.n_constraints()) {
     // Construct constraint jacobian
     get_constraint_jacobian(cache_.constraint_jacobian, program.n_variables(),
                             program.get_all_constraints());
+
+    get_lagrangian_hessian(cache_.lagrangian_hessian, program.n_variables(),
+                           program.get_all_costs(),
+                           program.get_all_constraints());
 }
 
-bool ipopt_solver_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
-                                         Index& nnz_h_lag,
-                                         IndexStyleEnum& index_style) {
+bool ipopt_program_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
+                                          Index& nnz_h_lag,
+                                          IndexStyleEnum& index_style) {
     VLOG(10) << "get_nlp_info()";
     n = program().n_variables();
     m = program().n_constraints();
@@ -29,9 +35,9 @@ bool ipopt_solver_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
     return true;
 }
 
-bool ipopt_solver_instance::eval_f(Index n, const Number* x, bool new_x,
-                                   Number& obj_value) {
-    bopt::profiler profiler("ipopt_solver_instance::eval_f");
+bool ipopt_program_instance::eval_f(Index n, const Number* x, bool new_x,
+                                    Number& obj_value) {
+    bopt::profiler profiler("ipopt_program_instance::eval_f");
     VLOG(10) << "eval_f()";
 
     if (new_x) {
@@ -51,9 +57,9 @@ bool ipopt_solver_instance::eval_f(Index n, const Number* x, bool new_x,
     return true;
 }
 
-bool ipopt_solver_instance::eval_grad_f(Index n, const Number* x, bool new_x,
-                                        Number* grad_f) {
-    bopt::profiler profiler("ipopt_solver_instance::eval_grad_f");
+bool ipopt_program_instance::eval_grad_f(Index n, const Number* x, bool new_x,
+                                         Number* grad_f) {
+    bopt::profiler profiler("ipopt_program_instance::eval_grad_f");
     VLOG(10) << "eval_grad_f()";
 
     if (new_x) {
@@ -73,14 +79,14 @@ bool ipopt_solver_instance::eval_grad_f(Index n, const Number* x, bool new_x,
     }
 
     // TODO - See about mapping these
-    std::memcpy(grad_f, cache_.objective_gradient.data(), n);
     VLOG(10) << "grad_f : " << cache_.objective_gradient.transpose();
+    std::copy_n(cache_.objective_gradient.data(), n, grad_f);
     return true;
 }
 
-bool ipopt_solver_instance::eval_g(Index n, const Number* x, bool new_x,
-                                   Index m, Number* g) {
-    bopt::profiler profiler("ipopt_solver_instance::eval_g");
+bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
+                                    Index m, Number* g) {
+    bopt::profiler profiler("ipopt_program_instance::eval_g");
     VLOG(10) << "eval_g()";
     if (new_x) {
         std::copy_n(x, n, cache_.primal_vector.data());
@@ -105,14 +111,14 @@ bool ipopt_solver_instance::eval_g(Index n, const Number* x, bool new_x,
         }
     }
     VLOG(10) << "c : " << cache_.constraint_vector.transpose();
-    std::memcpy(g, cache_.constraint_vector.data(), m);
+    std::copy_n(cache_.constraint_vector.data(), m, g);
     return true;
 };
 
-bool ipopt_solver_instance::eval_jac_g(Index n, const Number* x, bool new_x,
-                                       Index m, Index nele_jac, Index* iRow,
-                                       Index* jCol, Number* values) {
-    bopt::profiler profiler("ipopt_solver_instance::eval_jac_g");
+bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
+                                        Index m, Index nele_jac, Index* iRow,
+                                        Index* jCol, Number* values) {
+    bopt::profiler profiler("ipopt_program_instance::eval_jac_g");
     VLOG(10) << "eval_jac_g()";
     if (values == NULL) {
         // Return the sparsity of the constraint Jacobian
@@ -140,17 +146,17 @@ bool ipopt_solver_instance::eval_jac_g(Index n, const Number* x, bool new_x,
 
         // Update caches
         VLOG(10) << "jac : " << cache_.constraint_jacobian;
-        std::memcpy(values, cache_.constraint_jacobian.valuePtr(), nele_jac);
+        std::copy_n(cache_.constraint_jacobian.valuePtr(), nele_jac, values);
     }
     return true;
 }
 
-bool ipopt_solver_instance::eval_h(Index n, const Number* x, bool new_x,
-                                   Number obj_factor, Index m,
-                                   const Number* lambda, bool new_lambda,
-                                   Index nele_hess, Index* iRow, Index* jCol,
-                                   Number* values) {
-    bopt::profiler profiler("ipopt_solver_instance::eval_h");
+bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
+                                    Number obj_factor, Index m,
+                                    const Number* lambda, bool new_lambda,
+                                    Index nele_hess, Index* iRow, Index* jCol,
+                                    Number* values) {
+    bopt::profiler profiler("ipopt_program_instance::eval_h");
     VLOG(10) << "eval_h()";
     if (values == NULL) {
         // Return the sparsity of the constraint Jacobian
@@ -184,8 +190,9 @@ bool ipopt_solver_instance::eval_h(Index n, const Number* x, bool new_x,
     return true;
 }
 
-bool ipopt_solver_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
-                                            Index m, Number* g_l, Number* g_u) {
+bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
+                                             Index m, Number* g_l,
+                                             Number* g_u) {
     VLOG(10) << "get_bounds_info()";
 
     auto bb = program().bounding_box_constraints();
@@ -221,24 +228,24 @@ bool ipopt_solver_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
     return true;
 }
 
-bool ipopt_solver_instance::get_starting_point(Index n, bool init_x, Number* x,
-                                               bool init_z, Number* z_L,
-                                               Number* z_U, Index m,
-                                               bool init_lambda,
-                                               Number* lambda) {
+bool ipopt_program_instance::get_starting_point(Index n, bool init_x, Number* x,
+                                                bool init_z, Number* z_L,
+                                                Number* z_U, Index m,
+                                                bool init_lambda,
+                                                Number* lambda) {
     VLOG(10) << "get_starting_point()";
 
     assert(init_z == false);
     assert(init_lambda == false);
 
     if (init_x) {
-        std::memcpy(x, program().variables_initial_value().data(), n);
+        std::copy_n(program().variables_initial_value().data(), n, x);
     }
 
     return true;
 }
 
-void ipopt_solver_instance::finalize_solution(
+void ipopt_program_instance::finalize_solution(
     SolverReturn status, Index n, const Number* x, const Number* z_L,
     const Number* z_U, Index m, const Number* g, const Number* lambda,
     Number obj_value, const IpoptData* ip_data,
@@ -249,27 +256,27 @@ void ipopt_solver_instance::finalize_solution(
     }
 }
 
-int IpoptSolver::solve() {
-    // Create a new instance of your nlp
-    //  (use a SmartPtr, not raw)
-    Ipopt::SmartPtr<Ipopt::TNLP> nlp = new ipopt_solver_instance(program_);
+ipopt_solver::ipopt_solver(mathematical_program<double>& program)
+    : solver(program) {
+    // Create program instance
+    nlp_ = new ipopt_program_instance(program);
 
-    Ipopt::SmartPtr<IpoptApplication> app = IpoptApplicationFactory();
-    app->Options()->SetNumericValue("tol", 1e-3);
-    app->Options()->SetStringValue("mu_strategy", "adaptive");
-
+    // Create application
+    app_ = IpoptApplicationFactory();
     // Initialize the IpoptApplication and process the options
     Ipopt::ApplicationReturnStatus status;
-    status = app->Initialize();
+    status = app_->Initialize();
     if (status != Ipopt::Solve_Succeeded) {
         LOG(INFO) << std::endl
                   << std::endl
                   << "*** Error during initialization!" << std::endl;
-        return (int)status;
     }
+}
 
+int ipopt_solver::solve() {
     // Ask Ipopt to solve the problem
-    status = app->OptimizeTNLP(nlp);
+    Ipopt::ApplicationReturnStatus status;
+    status = app_->OptimizeTNLP(nlp_);
 
     if (status == Solve_Succeeded) {
         LOG(INFO) << "*** The problem solved!" << std::endl;

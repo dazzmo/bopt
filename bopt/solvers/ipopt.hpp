@@ -48,13 +48,11 @@ struct ipopt_data {
     Eigen::VectorXd variables_upper_bound;
 };
 
-class ipopt_solver_instance : public Ipopt::TNLP, public solver<double> {
+class ipopt_program_instance : public Ipopt::TNLP {
    public:
-    ipopt_solver_instance(mathematical_program<double>& program);
+    ipopt_program_instance(mathematical_program<double>& program);
 
-    ~ipopt_solver_instance() {}
-
-    // void solve(mathematical_program<double>& program);
+    ~ipopt_program_instance() { VLOG(10) << "Destructing!"; }
 
    private:
     bool get_nlp_info(Index& n, Index& m, Index& nnz_jac_g, Index& nnz_h_lag,
@@ -93,8 +91,19 @@ class ipopt_solver_instance : public Ipopt::TNLP, public solver<double> {
     std::vector<binding<constraint_tpl<Number>>> constraints_;
 
     mathematical_program<Number>& program_;
-
     mathematical_program<Number>& program() { return program_; }
+};
+
+class ipopt_solver : public solver<double> {
+   public:
+    ipopt_solver(mathematical_program<double>& program);
+    int solve();
+
+    Ipopt::SmartPtr<Ipopt::OptionsList> options() { return app_->Options(); }
+
+   private:
+    Ipopt::SmartPtr<Ipopt::TNLP> nlp_;
+    Ipopt::SmartPtr<IpoptApplication> app_;
 };
 
 }  // namespace solvers

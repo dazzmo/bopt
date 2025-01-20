@@ -3,10 +3,10 @@
 namespace bopt {
 namespace solvers {
 
-qpoases_solver_instance::qpoases_solver_instance(
+qpoases_solver::qpoases_solver(
     mathematical_program<double>& program)
     : solver(program) {
-    LOG(INFO) << "qpoases_solver_instance::qpoases_solver_instance";
+    LOG(INFO) << "qpoases_solver::qpoases_solver";
 
     // Create problem
     int nx = program.n_variables();
@@ -39,9 +39,9 @@ qpoases_solver_instance::qpoases_solver_instance(
     VLOG(10) << "ubx: " << data.ubx.transpose();
 }
 
-qpoases_solver_instance::~qpoases_solver_instance() = default;
+qpoases_solver::~qpoases_solver() = default;
 
-void qpoases_solver_instance::solve(mathematical_program<double>& program) {
+void qpoases_solver::solve(mathematical_program<double>& program) {
     Eigen::MatrixXd tmp;
 
     /** Linear costs **/
@@ -177,7 +177,7 @@ void qpoases_solver_instance::solve(mathematical_program<double>& program) {
     }
 };
 
-void qpoases_solver_instance::reset() { info_.number_of_solves = 0; }
+void qpoases_solver::reset() { info_.number_of_solves = 0; }
 
 }  // namespace solvers
 }  // namespace bopt
