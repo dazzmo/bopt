@@ -48,15 +48,25 @@ void eval_constraint_jacobian(
     const std::vector<binding<constraint_tpl<ValueType>>> &bindings) {
     bopt_index cnt = bopt_index(0);
     for (auto &b : bindings) {
-        typename constraint_tpl<ValueType>::sparse_matrix_t &jac =
-            b.get()->buffer_jacobian().sparse;
-
         Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
 
-        if (b.get()->eval_jacobian(xi, jac) ==
+        if (b.get()->eval_jacobian(xi, b.get()->buffer_jacobian().sparse) ==
             evaluator::return_status::NotImplemented) {
+            if (b.get()->eval_jacobian(xi, b.get()->buffer_jacobian().dense) ==
+                evaluator::return_status::NotImplemented) {
+                std::stringstream ss;
+                ss << "No implementation for " << b.get()->name()
+                   << " eval_jacobian()!";
+                throw std::runtime_error(ss.str());
+            }
+
+            // Perform sparse view
+            b.get()->buffer_jacobian().sparse =
+                b.get()->buffer_jacobian().dense.sparseView();
         }
 
+        typename constraint_tpl<ValueType>::sparse_matrix_t &jac =
+            b.get()->buffer_jacobian().sparse;
         // Iterate over non-zeros
         for (int k = 0; k < jac.outerSize(); ++k) {
             for (Eigen::SparseMatrix<double>::InnerIterator it(jac, k); it;
@@ -147,8 +157,11 @@ void eval_lagrangian_hessian(
     const Eigen::Ref<const Eigen::VectorXd> &lambda,
     Eigen::SparseMatrix<ValueType> &hessian,
     const std::vector<binding<cost_tpl<ValueType>>> &cost_bindings,
-    const std::vector<binding<constraint_tpl<ValueType>>>
-        &constraint_bindings) {
+    const std::vector<binding<constraint_tpl<ValueType>>> &constraint_bindings,
+    const ValueType &objective_factor = ValueType(1.0)) {
+    // Zero all non-zeros of the hessian matrix
+    for (auto i = 0; i < hessian.nonZeros(); ++i) hessian.valuePtr()[i] = 0.0;
+
     // Costs
     for (auto &b : cost_bindings) {
         typename cost_tpl<ValueType>::sparse_matrix_t &hes =
@@ -167,7 +180,7 @@ void eval_lagrangian_hessian(
                 Eigen::Index row = b.indices().indices()[it.row()],
                              col = b.indices().indices()[it.col()];
                 if (col > row) continue;
-                hessian.coeffRef(row, col) += it.value();
+                hessian.coeffRef(row, col) += objective_factor * it.value();
             }
         }
     }

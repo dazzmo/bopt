@@ -14,6 +14,12 @@ class GenericQuadraticCost : public bopt::quadratic_cost {
         this->set_name("quadratic cost");
     }
 
+    void sparsity_A(sparse_matrix_t &out) const override {
+        out.resize(2, 2);
+        out.coeffRef(0, 0) = 0.0;
+        out.coeffRef(1, 1) = 0.0;
+    }
+
    protected:
     bopt::evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x, double &out) override {
@@ -24,6 +30,12 @@ class GenericQuadraticCost : public bopt::quadratic_cost {
     bopt::evaluator::return_status eval_A_impl(
         Eigen::Ref<dense_matrix_t> out) override {
         out.setIdentity();
+        return bopt::evaluator::return_status::Success;
+    }
+
+    bopt::evaluator::return_status eval_A_impl(sparse_matrix_t &out) override {
+        out.coeffRef(0, 0) = 1.0;
+        out.coeffRef(1, 1) = 1.0;
         return bopt::evaluator::return_status::Success;
     }
 
@@ -53,7 +65,7 @@ class GenericLinearConstraint : public bopt::linear_constraint {
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) override {
         out[0] = x[1];
-        out[0] = x[0] - x[1];
+        out[1] = x[0] + x[1];
         return bopt::evaluator::return_status::Success;
     }
 
@@ -61,7 +73,7 @@ class GenericLinearConstraint : public bopt::linear_constraint {
         Eigen::Ref<dense_matrix_t> out) override {
         out(0, 1) = 1.0;
         out(1, 0) = 1.0;
-        out(1, 1) = -1.0;
+        out(1, 1) = 1.0;
         return bopt::evaluator::return_status::Success;
     }
 
@@ -75,6 +87,8 @@ class GenericLinearConstraint : public bopt::linear_constraint {
 TEST(Program, SimpleProgram) {
     auto c = std::make_shared<GenericQuadraticCost>();
     auto g0 = std::make_shared<GenericLinearConstraint>();
+    g0->set_lower_bound(Eigen::Vector2d(1.0, 2.0));
+    g0->set_upper_bound(Eigen::Vector2d(10.0, 5.0));
 
     auto x = bopt::create_variable_vector("x", 2);
 

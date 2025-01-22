@@ -17,8 +17,11 @@ using namespace Ipopt;
 struct ipopt_data {
     ipopt_data(const bopt_index& n, const bopt_index& m) {
         primal_vector = Eigen::VectorXd::Zero(n);
-        variables_lower_bound = Eigen::VectorXd::Zero(n);
-        variables_upper_bound = Eigen::VectorXd::Zero(n);
+        dual_vector = Eigen::VectorXd::Zero(m);
+        variables_lower_bound =
+            Eigen::VectorXd::Constant(n, -std::numeric_limits<Number>::max());
+        variables_upper_bound =
+            Eigen::VectorXd::Constant(n, std::numeric_limits<Number>::max());
 
         objective_gradient = Eigen::VectorXd::Zero(n);
 

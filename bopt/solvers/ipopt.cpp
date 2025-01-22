@@ -8,16 +8,17 @@ namespace solvers {
 ipopt_program_instance::ipopt_program_instance(
     mathematical_program<double>& program)
     : Ipopt::TNLP(),
-
       program_(program),
       cache_(program.n_variables(), program.n_constraints()) {
+    costs_ = program.get_all_costs();
+    constraints_ = program.get_all_constraints();
+
     // Construct constraint jacobian
     get_constraint_jacobian(cache_.constraint_jacobian, program.n_variables(),
-                            program.get_all_constraints());
+                            constraints_);
 
     get_lagrangian_hessian(cache_.lagrangian_hessian, program.n_variables(),
-                           program.get_all_costs(),
-                           program.get_all_constraints());
+                           costs_, constraints_);
 }
 
 bool ipopt_program_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
@@ -67,6 +68,7 @@ bool ipopt_program_instance::eval_grad_f(Index n, const Number* x, bool new_x,
     }
 
     // Update caches
+    cache_.objective_gradient.setZero();
     for (auto& binding : costs_) {
         cost_tpl<Number>::dense_vector_t& grd =
             binding.get()->buffer_gradient().dense;
@@ -110,6 +112,7 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
             cache_.constraint_vector(binding.indices().indices()) = g;
         }
     }
+
     VLOG(10) << "c : " << cache_.constraint_vector.transpose();
     std::copy_n(cache_.constraint_vector.data(), m, g);
     return true;
@@ -157,7 +160,6 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
                                     Index nele_hess, Index* iRow, Index* jCol,
                                     Number* values) {
     bopt::profiler profiler("ipopt_program_instance::eval_h");
-    VLOG(10) << "eval_h()";
     if (values == NULL) {
         // Return the sparsity of the constraint Jacobian
         int cnt = 0;
@@ -184,8 +186,9 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
 
         // Reset cache for hessian
         eval_lagrangian_hessian(cache_.primal_vector, cache_.dual_vector,
-                                cache_.lagrangian_hessian, costs_,
-                                constraints_);
+                                cache_.lagrangian_hessian, costs_, constraints_,
+                                obj_factor);
+        std::copy_n(cache_.lagrangian_hessian.valuePtr(), nele_hess, values);
     }
     return true;
 }
@@ -200,31 +203,26 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
     VLOG(10) << cache_.variables_lower_bound.transpose();
     VLOG(10) << cache_.variables_upper_bound.transpose();
 
-    // Decision variable bounds
-    // todo - copy n
+    std::copy_n(cache_.variables_lower_bound.data(), n, x_u);
+    std::copy_n(cache_.variables_upper_bound.data(), n, x_u);
 
     // Constraint bounds
+    int cnt = 0;
     for (auto& binding : constraints_) {
-        if (binding.indices().is_block()) {
-            cache_.constraint_lower_bound.block(binding.indices().indices()[0],
-                                                0, binding.get()->sz_out(), 1)
-                << binding.get()->lower_bound();
+        cache_.constraint_lower_bound.middleRows(cnt, binding.get()->sz_out())
+            << binding.get()->lower_bound();
 
-            cache_.constraint_upper_bound.block(binding.indices().indices()[0],
-                                                0, binding.get()->sz_out(), 1)
-                << binding.get()->upper_bound();
-        } else {
-            cache_.constraint_lower_bound(binding.indices().indices()) =
-                binding.get()->lower_bound();
-            cache_.constraint_upper_bound(binding.indices().indices()) =
-                binding.get()->upper_bound();
-        }
+        cache_.constraint_upper_bound.middleRows(cnt, binding.get()->sz_out())
+            << binding.get()->upper_bound();
+        cnt += binding.get()->sz_out();
     }
 
     VLOG(10) << cache_.constraint_lower_bound.transpose();
     VLOG(10) << cache_.constraint_upper_bound.transpose();
 
-    // todo - copy n
+    std::copy_n(cache_.constraint_lower_bound.data(), m, g_l);
+    std::copy_n(cache_.constraint_upper_bound.data(), m, g_u);
+
     return true;
 }
 
@@ -278,7 +276,7 @@ int ipopt_solver::solve() {
     Ipopt::ApplicationReturnStatus status;
     status = app_->OptimizeTNLP(nlp_);
 
-    if (status == Solve_Succeeded) {
+    if (status == Ipopt::ApplicationReturnStatus::Solve_Succeeded) {
         LOG(INFO) << "*** The problem solved!" << std::endl;
     } else {
         LOG(INFO) << "*** The problem FAILED!" << std::endl;

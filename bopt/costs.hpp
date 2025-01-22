@@ -120,6 +120,10 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
     const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
     const bopt_index &sz_out() const { return cost_tpl<ValueType>::sz_out(); }
 
+    void sparsity_hessian(sparse_matrix_t &out) const override {
+        this->sparsity_A(out);
+    }
+
    protected:
     // Overrides
     evaluator::return_status eval_gradient_impl(
