@@ -37,7 +37,7 @@ class GenericQuadraticCost : public bopt::quadratic_cost {
 class GenericLinearConstraint : public bopt::linear_constraint {
    public:
     GenericLinearConstraint()
-        : bopt::linear_constraint(2, 2, bopt::bounds::type::Equality) {
+        : bopt::linear_constraint(2, 2, 0, bopt::bounds::type::Equality) {
         this->set_name("linear_constraint");
     }
 
@@ -84,12 +84,11 @@ TEST(Program, SimpleProgram) {
     p.add_cost(c, x);
     p.add_linear_constraint(g0, x);
 
-    bopt::solvers::qpoases_options opt;
-    opt.perform_hotstart = false;
-    opt.nWSR = 100;
 
-    auto qp = bopt::solvers::qpoases_solver(p, opt);
-
+    auto qp = bopt::solvers::qpoases_solver(p);
+    qp.options().printLevel = qpOASES::PrintLevel::PL_LOW;
+    qp.options().nWSR = 100;
+    qp.options().perform_hotstart = false;
 
     qp.solve(p);
 }

@@ -69,7 +69,7 @@ void set_bound_limits(const type &type,
 
         case bounds::type::Negative: {
             lower_bound.setConstant(-inf);
-            upper_bound.setConstant(inf);
+            upper_bound.setConstant(0.0);
             break;
         }
 

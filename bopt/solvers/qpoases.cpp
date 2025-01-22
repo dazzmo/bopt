@@ -3,8 +3,7 @@
 namespace bopt {
 namespace solvers {
 
-qpoases_solver::qpoases_solver(
-    mathematical_program<double>& program)
+qpoases_solver::qpoases_solver(mathematical_program<double>& program)
     : solver(program) {
     LOG(INFO) << "qpoases_solver::qpoases_solver";
 
@@ -53,11 +52,9 @@ void qpoases_solver::solve(mathematical_program<double>& program) {
             if (binding.get()->eval_a(binding.get()->buffer_a().sparse) ==
                 evaluator::return_status::NotImplemented) {
                 throw std::runtime_error("no method implemented for eval_a");
-            } else {
-                // Compute through sparse view
-                binding.get()->buffer_a().dense =
-                    binding.get()->buffer_a().sparse;
             }
+            // Compute through sparse view
+            binding.get()->buffer_a().dense = binding.get()->buffer_a().sparse;
         }
         data.g(x_indices) += binding.get()->buffer_a().dense;
     }
@@ -75,10 +72,9 @@ void qpoases_solver::solve(mathematical_program<double>& program) {
             if (binding.get()->eval_A(binding.get()->buffer_A().sparse) ==
                 evaluator::return_status::NotImplemented) {
                 throw std::runtime_error("no method implemented for eval_A");
-            } else {
-                // Compute through sparse view
-                A = binding.get()->buffer_A().sparse;
             }
+            // Compute through sparse view
+            A = binding.get()->buffer_A().sparse;
         }
 
         // Perform block insert for lower-triangular hessian
@@ -95,10 +91,9 @@ void qpoases_solver::solve(mathematical_program<double>& program) {
             if (binding.get()->eval_b(binding.get()->buffer_b().sparse) ==
                 evaluator::return_status::NotImplemented) {
                 throw std::runtime_error("no method implemented for eval_b");
-            } else {
-                // Compute through sparse view
-                b = binding.get()->buffer_b().sparse;
             }
+            // Compute through sparse view
+            b = binding.get()->buffer_b().sparse;
         }
         data.g(x_indices) += A * b;
     }
@@ -116,10 +111,9 @@ void qpoases_solver::solve(mathematical_program<double>& program) {
             if (binding.get()->eval_A(binding.get()->buffer_A().sparse) ==
                 evaluator::return_status::NotImplemented) {
                 throw std::runtime_error("no method implemented for eval_A");
-            } else {
-                // Compute through sparse view
-                A = binding.get()->buffer_A().sparse;
             }
+            // Compute through sparse view
+            A = binding.get()->buffer_A().sparse;
         }
         // Perform block insert
         if (binding.indices().is_block()) {
@@ -134,18 +128,19 @@ void qpoases_solver::solve(mathematical_program<double>& program) {
             if (binding.get()->eval_b(binding.get()->buffer_b().sparse) ==
                 evaluator::return_status::NotImplemented) {
                 throw std::runtime_error("no method implemented for eval_b");
-            } else {
-                // Compute through sparse view
-                b = binding.get()->buffer_b().sparse;
             }
+            // Compute through sparse view
+            b = binding.get()->buffer_b().sparse;
         }
         data.lbA(x_indices) = binding.get()->lower_bound() - b;
         data.ubA(x_indices) = binding.get()->upper_bound() - b;
     }
 
     int nWSR = options_.nWSR;
-    
+
     qp_->setHessianType(qpOASES::HessianType::HST_POSDEF);
+    // todo - set this only once?
+    qp_->setOptions(options_);
 
     // Solve
     if (info_.number_of_solves > 0 && options_.perform_hotstart) {

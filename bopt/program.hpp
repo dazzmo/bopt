@@ -169,7 +169,7 @@ void eval_lagrangian_hessian(
 
         Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
 
-        if (b.get()->eval_hessian(xi, hes) ==
+        if (b.get()->eval_hessian(xi, Eigen::Vector<ValueType, 1>(objective_factor), hes) ==
             evaluator::return_status::NotImplemented) {
         }
 
@@ -180,7 +180,7 @@ void eval_lagrangian_hessian(
                 Eigen::Index row = b.indices().indices()[it.row()],
                              col = b.indices().indices()[it.col()];
                 if (col > row) continue;
-                hessian.coeffRef(row, col) += objective_factor * it.value();
+                hessian.coeffRef(row, col) += it.value();
             }
         }
     }

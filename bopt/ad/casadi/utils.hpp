@@ -48,5 +48,4 @@ function_t create_function(const std::string &name,
                            bool codegen = false);
 
 }  // namespace casadi
-
 }  // namespace bopt

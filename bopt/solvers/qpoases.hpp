@@ -59,9 +59,11 @@ class qpoases_solver : public solver<double> {
 
     ~qpoases_solver();
 
+    qpoases_options& options() { return options_; }
+
     void reset();
     void solve(mathematical_program<double>& program);
-    
+
    private:
     bool first_solve_ = true;
     int n_solves_ = 0;

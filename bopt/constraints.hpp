@@ -1,20 +1,22 @@
 #pragma once
 
 #include "bopt/bounds.hpp"
-#include "bopt/expressions.hpp"
 #include "bopt/logging.hpp"
 
 namespace bopt {
 
 template <typename ValueType>
-class constraint_tpl : public differentiable_vector_expression_tpl<ValueType> {
+class constraint_tpl : public differentiable_vector_evaluator_tpl<ValueType> {
    public:
-    using base = differentiable_vector_expression_tpl<ValueType>;
+    using base = differentiable_vector_evaluator_tpl<ValueType>;
     using typename base::dense_matrix_t;
     using typename base::dense_vector_t;
     using typename base::sparse_matrix_t;
     using typename base::sparse_vector_t;
     using typename base::value_t;
+
+    using matrix_buffer_t =
+        dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
 
     typedef std::string string_t;
 
@@ -22,33 +24,58 @@ class constraint_tpl : public differentiable_vector_expression_tpl<ValueType> {
     ~constraint_tpl() = default;
 
     constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
-                   const bopt_index &sz_p,
-                   const bounds::type &type = bounds::type::Unbounded)
-        : differentiable_vector_expression_tpl<ValueType>(sz_in, sz_out),
+                   const bounds::type &type, const bopt_index &sz_p = 0)
+        : differentiable_vector_evaluator_tpl<ValueType>(sz_in, sz_out, sz_p),
           name_(""),
           lower_bound_(sz_out),
           upper_bound_(sz_out) {
         set_bounds(type);
+
+        //     // Set up dense buffers
+        //     buffer_ = dense_vector_t::Zero(sz_out);
+        //     buffer_jacobian_.dense =
+        //         dense_matrix_t::Zero(this->rows_jacobian(),
+        //         this->cols_jacobian());
+        //     buffer_hessian_.dense =
+        //         dense_matrix_t::Zero(this->rows_hessian(),
+        //         this->cols_hessian());
     }
 
     /**
-     * @brief Construct a new constraint tpl object via an expression
+     * @brief Construct a new constraint tpl object through an expression
      *
      * @param expression
      * @param type
      */
-    constraint_tpl(const std::shared_ptr<base> &expression,
-                   const bounds::type &type = bounds::type::Unbounded)
-        : base(*expression),
+    constraint_tpl(const std::shared_ptr<base> &ptr, const bounds::type &type)
+        : base(ptr),
           name_(""),
-          lower_bound_(expression->sz_out()),
-          upper_bound_(expression->sz_out()) {
+          lower_bound_(ptr->sz_out()),
+          upper_bound_(ptr->sz_out()) {
         set_bounds(type);
+
+        // // Set up dense buffers
+        // buffer_ = dense_vector_t::Zero(this->sz_out());
+        // buffer_jacobian_.dense =
+        //     dense_matrix_t::Zero(this->rows_jacobian(),
+        //     this->cols_jacobian());
+        // buffer_hessian_.dense =
+        //     dense_matrix_t::Zero(this->rows_hessian(), this->cols_hessian());
     }
 
+    /**
+     * @brief Name of the constraint
+     *
+     * @return const string_t&
+     */
     const string_t &name() const { return name_; }
     void set_name(const string_t &name) { name_ = name; }
 
+    /**
+     * @brief Set the bounds of the constraint by type
+     *
+     * @param type
+     */
     void set_bounds(const bounds::type &type) {
         bounds::set_bound_limits<ValueType>(type, lower_bound_, upper_bound_);
     }
@@ -67,6 +94,14 @@ class constraint_tpl : public differentiable_vector_expression_tpl<ValueType> {
         upper_bound_ = upper_bound;
     }
 
+    /**
+     * @brief Determines whether the constraint (evaluated with the @ref
+     * constraint_tpl::buffer()) is within the specified bounds.
+     *
+     * @param epsilon
+     * @return true
+     * @return false
+     */
     inline bool is_satisfied(
         const ValueType &epsilon =
             std::numeric_limits<ValueType>::epsilon()) const {
@@ -74,10 +109,19 @@ class constraint_tpl : public differentiable_vector_expression_tpl<ValueType> {
                (upper_bound_ - this->buffer()).minCoeff() >= epsilon;
     }
 
+    dense_vector_t &buffer() { return buffer_; }
+    matrix_buffer_t &buffer_jacobian() { return buffer_jacobian_; }
+    matrix_buffer_t &buffer_hessian() { return buffer_hessian_; }
+
+   protected:
    private:
     string_t name_;
     dense_vector_t lower_bound_;
     dense_vector_t upper_bound_;
+
+    dense_vector_t buffer_;
+    matrix_buffer_t buffer_jacobian_;
+    matrix_buffer_t buffer_hessian_;
 };
 
 typedef constraint_tpl<double> constraint;
@@ -86,7 +130,7 @@ template <typename ValueType>
 std::ostream &operator<<(std::ostream &out,
                          constraint_tpl<ValueType> const &constraint) {
     out << "constraint name: " << constraint.name() << '\n';
-    out << "buffer: " << constraint.buffer().transpose() << '\n';
+    // out << "buffer: " << constraint.buffer().transpose() << '\n';
     out << "lower bound: " << constraint.lower_bound().transpose() << '\n';
     out << "upper bound: " << constraint.upper_bound().transpose() << '\n';
     return out;
@@ -94,7 +138,7 @@ std::ostream &operator<<(std::ostream &out,
 
 template <typename ValueType>
 class linear_constraint_tpl : public constraint_tpl<ValueType>,
-                              public linear_vector_expression_tpl<ValueType> {
+                              public linear_vector_evaluator_tpl<ValueType> {
    public:
     using typename constraint_tpl<ValueType>::value_t;
     using typename constraint_tpl<ValueType>::dense_vector_t;
@@ -102,25 +146,32 @@ class linear_constraint_tpl : public constraint_tpl<ValueType>,
     using typename constraint_tpl<ValueType>::dense_matrix_t;
     using typename constraint_tpl<ValueType>::sparse_matrix_t;
 
+    using typename constraint_tpl<ValueType>::matrix_buffer_t;
+    using vector_buffer_t =
+        dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
+
     linear_constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
                           const bopt_index &sz_p,
                           const bounds::type &type = bounds::type::Unbounded)
         : constraint_tpl<ValueType>(sz_in, sz_out, sz_p, type),
-          linear_vector_expression_tpl<ValueType>(sz_in, sz_out, sz_p) {}
+          linear_vector_evaluator_tpl<ValueType>(sz_in, sz_out, sz_p) {}
 
-    /**
-     * @brief Construct a new constraint tpl object via a linear expression
-     *
-     * @param expression
-     * @param type
-     */
-    linear_constraint_tpl(
-        const std::shared_ptr<linear_vector_expression_tpl<ValueType>>
-            &expression,
-        const bounds::type &type = bounds::type::Unbounded)
-        : constraint_tpl<ValueType>(expression->sz_in(), expression->sz_out(),
-                                    expression->sz_p(), type),
-          linear_vector_expression_tpl<ValueType>(*expression) {}
+    // /**
+    //  * @brief Construct a new constraint tpl object via a linear expression
+    //  *
+    //  * @param expression
+    //  * @param type
+    //  */
+    // linear_constraint_tpl(
+    //     const std::shared_ptr<linear_vector_evaluator_tpl<ValueType>>
+    //         &evaluator_,
+    //     const bounds::type &type)
+    //     : constraint_tpl<ValueType>(evaluator_->sz_in(),
+    //     evaluator_->sz_out(),
+    //                                 evaluator_->sz_p(), type),
+    //       linear_vector_evaluator_tpl<ValueType>(
+    //           evaluator_->sz_in(), evaluator_->sz_out(), evaluator_->sz_p()),
+    //       evaluator_(evaluator) {}
 
     const bopt_index &sz_in() const {
         return constraint_tpl<ValueType>::sz_in();
@@ -130,40 +181,77 @@ class linear_constraint_tpl : public constraint_tpl<ValueType>,
         return constraint_tpl<ValueType>::sz_out();
     }
 
+    matrix_buffer_t &buffer_A() { return buffer_A_; }
+    vector_buffer_t &buffer_b() { return buffer_b_; }
+
    protected:
-    // Overrides given the structure
-    evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        return this->eval_A(out);
-    }
+    // evaluator::return_status eval_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     Eigen::Ref<dense_vector_t> out) override {
+    //     return evaluator_->eval(x, out);
+    // }
 
-    evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        sparse_matrix_t &out) override {
-        return this->eval_A(out);
-    }
+    // evaluator::return_status eval_A_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     Eigen::Ref<dense_matrix_t> out) override {
+    //     return evaluator_->eval_A(x, out);
+    // }
 
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        Eigen::Ref<dense_matrix_t> out) override {
-        out.setZero();
-        return evaluator::return_status::Success;
-    }
+    // evaluator::return_status eval_A_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     sparse_matrix_t &out) override {
+    //     return evaluator_->eval_A(x, out);
+    // }
 
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        sparse_matrix_t &out) override {
-        for (int k = 0; k < out.outerSize(); ++k)
-            for (Eigen::SparseMatrix<double>::InnerIterator it(out, k); it;
-                 ++it)
-                it.valueRef() = 0.0;
-        return evaluator::return_status::Success;
-    }
+    // evaluator::return_status eval_b_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     Eigen::Ref<dense_vector_t> out) override {
+    //     return evaluator_->eval_b(x, out);
+    // }
+
+    // evaluator::return_status eval_b_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     sparse_vector_t &out) override {
+    //     return evaluator_->eval_b(x, out);
+    // }
+
+    // // Overrides given the structure
+    // evaluator::return_status eval_jacobian_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     Eigen::Ref<dense_matrix_t> out) override {
+    //     return this->eval_A(out);
+    // }
+
+    // evaluator::return_status eval_jacobian_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     sparse_matrix_t &out) override {
+    //     return this->eval_A(out);
+    // }
+
+    // evaluator::return_status eval_hessian_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     const Eigen::Ref<const dense_vector_t> &lambda,
+    //     Eigen::Ref<dense_matrix_t> out) override {
+    //     out.setZero();
+    //     return evaluator::return_status::Success;
+    // }
+
+    // evaluator::return_status eval_hessian_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     const Eigen::Ref<const dense_vector_t> &lambda,
+    //     sparse_matrix_t &out) override {
+    //     for (int k = 0; k < out.outerSize(); ++k)
+    //         for (Eigen::SparseMatrix<double>::InnerIterator it(out, k); it;
+    //              ++it)
+    //             it.valueRef() = 0.0;
+    //     return evaluator::return_status::Success;
+    // }
 
    private:
+    matrix_buffer_t buffer_A_;
+    vector_buffer_t buffer_b_;
+
+    // std::shared_ptr<linear_vector_evaluator_tpl<ValueType>> evaluator_;
 };
 
 typedef linear_constraint_tpl<double> linear_constraint;
@@ -192,8 +280,7 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
           converted_(false) {}
 
     bounding_box_constraint_tpl(
-        const bopt_index &sz_in,
-        const bopt_index &sz_p,
+        const bopt_index &sz_in, const bopt_index &sz_p,
         const Eigen::Ref<const dense_vector_t> &lower_bound,
         const Eigen::Ref<const dense_vector_t> &upper_bound)
         : constraint_tpl<ValueType>(sz_in, 2 * sz_in, sz_p),

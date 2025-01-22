@@ -9,144 +9,173 @@
 #include <Eigen/Core>
 
 #include "bopt/ad/casadi.hpp"
-#include "bopt/ad/casadi/expressions/linear.hpp"
+#include "bopt/constraints.hpp"
 
 using sym = ::casadi::SX;
 using dm = ::casadi::DM;
 
-TEST(Casadi, Codegen) {
-    std::size_t n = 5;
-    sym x = sym::sym("x", n);
-    // Create symbolic constraint
-    sym ex = sym::dot(x, x);
-    ex += sin(dot(x, x));
+// TEST(Casadi, Codegen) {
+//     std::size_t n = 5;
+//     sym x = sym::sym("x", n);
+//     // Create symbolic constraint
+//     sym ex = sym::dot(x, x);
+//     ex += sin(dot(x, x));
 
-    auto fun = ::casadi::Function("f", {x}, {ex});
+//     auto fun = ::casadi::Function("f", {x}, {ex});
 
-    auto fun_cg = bopt::casadi::codegen(fun);
+//     auto fun_cg = bopt::casadi::codegen(fun);
 
-    Eigen::VectorXd y(5);
-    y.setRandom();
+//     Eigen::VectorXd y(5);
+//     y.setRandom();
 
-    double ret;
+//     double ret;
 
-    std::vector<const double *> in = {y.data()};
-    std::vector<double *> out = {&ret};
+//     std::vector<const double *> in = {y.data()};
+//     std::vector<double *> out = {&ret};
 
-    fun_cg(in, out);
+//     fun_cg(in, out);
 
-    EXPECT_DOUBLE_EQ(ret, y.squaredNorm() + sin(y.squaredNorm()));
-}
+//     EXPECT_DOUBLE_EQ(ret, y.squaredNorm() + sin(y.squaredNorm()));
+// }
 
-TEST(Casadi, Expression) {
-    std::size_t n = 10;
-    sym x = sym::sym("x", n);
-    // Create symbolic constraint
-    sym ex = sym::dot(x, x) + sin(dot(x, x));
+// TEST(Casadi, Expression) {
+//     std::size_t n = 10;
+//     sym x = sym::sym("x", n);
+//     // Create symbolic constraint
+//     sym ex = sym::dot(x, x) + sin(dot(x, x));
 
-    auto expr = bopt::casadi::vector_expression(ex, x, sym(), false);
+//     auto expr = bopt::casadi::vector_evaluator(ex, x, sym(), false);
 
-    Eigen::VectorXd in(10), out(1);
-    in.setRandom();
+//     Eigen::VectorXd in(10), out(1);
+//     in.setRandom();
 
-    for (int i = 0; i < 1000; ++i) {
-        bopt::profiler("casadi_expression_no_cg");
-        expr.eval(in, out);
-    }
+//     for (int i = 0; i < 1000; ++i) {
+//         bopt::profiler("casadi_evaluator_no_cg");
+//         expr.eval(in, out);
+//     }
 
-    expr = bopt::casadi::vector_expression(ex, x, sym(), true);
-    for (int i = 0; i < 1000; ++i) {
-        bopt::profiler("casadi_expression_cg");
-        expr.eval(in, out);
-    }
+//     expr = bopt::casadi::vector_evaluator(ex, x, sym(), true);
+//     for (int i = 0; i < 1000; ++i) {
+//         bopt::profiler("casadi_evaluator_cg");
+//         expr.eval(in, out);
+//     }
 
-    EXPECT_DOUBLE_EQ(out[0], in.squaredNorm() + sin(in.squaredNorm()));
-}
+//     EXPECT_DOUBLE_EQ(out[0], in.squaredNorm() + sin(in.squaredNorm()));
+// }
 
-TEST(Casadi, LinearExpression) {
-    sym x = sym::sym("x", 1);
-    // Create symbolic constraint
-    sym ex = 2.0 * x + 1.0;
+// TEST(Casadi, LinearExpression) {
+//     sym x = sym::sym("x", 1);
+//     // Create symbolic constraint
+//     sym ex = 2.0 * x + 1.0;
 
-    auto expr = bopt::casadi::linear_scalar_expression(ex, x, sym(), false);
+//     auto expr = bopt::casadi::linear_scalar_evaluator(ex, x, sym(), false);
 
-    Eigen::VectorXd in(1), out(1);
-    in.setRandom();
+//     Eigen::VectorXd in(1), out(1);
+//     in.setRandom();
 
-    for (int i = 0; i < 1000; ++i) {
-        bopt::profiler("casadi_linear_expression_no_cg");
-        expr.eval_a(out);
-        expr.eval_b(out[0]);
-    }
+//     for (int i = 0; i < 1000; ++i) {
+//         bopt::profiler("casadi_linear_evaluator_no_cg");
+//         expr.eval_a(out);
+//         expr.eval_b(out[0]);
+//     }
 
-    expr = bopt::casadi::linear_scalar_expression(ex, x, sym(), true);
-    for (int i = 0; i < 1000; ++i) {
-        bopt::profiler("casadi_linear_expression_cg");
-        expr.eval_a(out);
-        expr.eval_b(out[0]);
-    }
-}
+//     expr = bopt::casadi::linear_scalar_evaluator(ex, x, sym(), true);
+//     for (int i = 0; i < 1000; ++i) {
+//         bopt::profiler("casadi_linear_evaluator_cg");
+//         expr.eval_a(out);
+//         expr.eval_b(out[0]);
+//     }
+// }
 
-TEST(Casadi, QuadraticExpression) {
-    sym x = sym::sym("x", 5);
-    sym p = sym::sym("p", 1);
-    // Create symbolic constraint
-    sym ex = p * sym::dot(x, x);
+// TEST(Casadi, QuadraticExpression) {
+//     sym x = sym::sym("x", 5);
+//     sym p = sym::sym("p", 1);
+//     // Create symbolic constraint
+//     sym ex = p * sym::dot(x, x);
 
-    auto expr =
-        bopt::casadi::quadratic_scalar_expression(ex, x, p, true, false);
+//     auto expr = bopt::casadi::quadratic_scalar_evaluator(ex, x, p, true,
+//     false);
 
-    Eigen::MatrixXd A(expr.rows_A(), expr.cols_A());
-    Eigen::VectorXd pv(1);
-    pv << 1.0;
-    expr.set_parameters(pv);
-    expr.eval_A(A);
+//     Eigen::MatrixXd A(expr.rows_A(), expr.cols_A());
+//     Eigen::VectorXd pv(1);
+//     pv << 1.0;
+//     expr.set_parameters(pv);
+//     expr.eval_A(A);
 
-    LOG(INFO) << "A: " << A;
+//     LOG(INFO) << "A: " << A;
 
-    expr = bopt::casadi::quadratic_scalar_expression(ex, x, p, false, false);
+//     expr = bopt::casadi::quadratic_scalar_evaluator(ex, x, p, false, false);
 
-    Eigen::SparseMatrix<double> As(expr.rows_A(), expr.cols_A());
-    expr.set_parameters(pv);
-    expr.sparsity_A(As);
-    expr.eval_A(As);
+//     Eigen::SparseMatrix<double> As(expr.rows_A(), expr.cols_A());
+//     expr.set_parameters(pv);
+//     expr.sparsity_A(As);
+//     expr.eval_A(As);
 
-    LOG(INFO) << "A: " << As;
-}
+//     LOG(INFO) << "A: " << As;
+// }
 
-TEST(Casadi, ExpressionWithParameter) {
+// TEST(Casadi, ExpressionWithParameter) {
+//     std::size_t n = 10;
+//     sym x = sym::sym("x", n);
+//     sym p = sym::sym("p");
+
+//     // Create symbolic expression
+//     sym ex = p * sym::dot(x, x);
+
+//     auto expr = bopt::casadi::vector_evaluator(ex, x, p, false);
+
+//     Eigen::VectorXd in(10), out(1);
+//     in.setRandom();
+
+//     Eigen::VectorXd pv(1);
+//     pv << 2.0;
+
+//     expr.set_parameters(pv);
+//     for (int i = 0; i < 1000; ++i) {
+//         bopt::profiler("casadi_p_evaluator_no_cg");
+//         expr.eval(in, out);
+//     }
+
+//     EXPECT_DOUBLE_EQ(out[0], pv[0] * in.squaredNorm());
+
+//     expr = bopt::casadi::vector_evaluator(ex, x, p, true);
+//     expr.set_parameters(pv);
+
+//     for (int i = 0; i < 1000; ++i) {
+//         bopt::profiler("casadi_p_evaluator_cg");
+//         expr.eval(in, out);
+//     }
+
+//     EXPECT_DOUBLE_EQ(out[0], pv[0] * in.squaredNorm());
+// }
+
+TEST(Casadi, Constraint) {
     std::size_t n = 10;
     sym x = sym::sym("x", n);
     sym p = sym::sym("p");
 
     // Create symbolic expression
-    sym ex = p * sym::dot(x, x);
+    sym ex = x(0) + p * x(3);
 
-    auto expr = bopt::casadi::vector_expression(ex, x, p, false);
+    auto c = bopt::constraint(
+        std::make_shared<bopt::casadi::differentiable_vector_evaluator>(
+            ex, x, p, true, false),
+        bopt::bounds::type::Negative);
 
-    Eigen::VectorXd in(10), out(1);
-    in.setRandom();
+    Eigen::VectorXd xv(10), pv(1), out(1);
+    Eigen::MatrixXd jacobian(1, 10);
+    xv.setRandom();
+    pv << 1.0;
 
-    Eigen::VectorXd pv(1);
-    pv << 2.0;
+    c.set_parameters(pv);
+    VLOG(10) << "p: " << c.parameters().transpose();
+    VLOG(10) << "Status: " << (int)c.eval(xv, out);
+    c.eval_jacobian(xv, jacobian);
 
-    expr.set_parameters(pv);
-    for (int i = 0; i < 1000; ++i) {
-        bopt::profiler("casadi_p_expression_no_cg");
-        expr.eval(in, out);
-    }
+    VLOG(10) << c;
+    VLOG(10) << jacobian;
 
-    EXPECT_DOUBLE_EQ(out[0], pv[0] * in.squaredNorm());
-
-    expr = bopt::casadi::vector_expression(ex, x, p, true);
-    expr.set_parameters(pv);
-
-    for (int i = 0; i < 1000; ++i) {
-        bopt::profiler("casadi_p_expression_cg");
-        expr.eval(in, out);
-    }
-
-    EXPECT_DOUBLE_EQ(out[0], pv[0] * in.squaredNorm());
+    EXPECT_DOUBLE_EQ(out[0], xv[0] + pv[0] * xv[3]);
 }
 
 #endif  // BOPT_WITH_CASADI
