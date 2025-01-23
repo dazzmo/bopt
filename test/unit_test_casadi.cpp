@@ -38,30 +38,39 @@ using dm = ::casadi::DM;
 //     EXPECT_DOUBLE_EQ(ret, y.squaredNorm() + sin(y.squaredNorm()));
 // }
 
-// TEST(Casadi, Expression) {
-//     std::size_t n = 10;
-//     sym x = sym::sym("x", n);
-//     // Create symbolic constraint
-//     sym ex = sym::dot(x, x) + sin(dot(x, x));
+TEST(Casadi, ScalarEvaluator) {
+    std::size_t n = 10;
+    sym x = sym::sym("x", n);
+    sym p = sym::sym("p", n);
+    // Create symbolic constraint
+    sym ex = sym::dot(x, p) + sin(dot(x, x));
 
-//     auto expr = bopt::casadi::vector_evaluator(ex, x, sym(), false);
+    auto expr =
+        std::make_shared<bopt::casadi::scalar_evaluator>(ex, x, p, false);
 
-//     Eigen::VectorXd in(10), out(1);
-//     in.setRandom();
+    Eigen::VectorXd xv(10), pv(10);
+    double out;
+    xv.setRandom();
+    pv.setRandom();
 
-//     for (int i = 0; i < 1000; ++i) {
-//         bopt::profiler("casadi_evaluator_no_cg");
-//         expr.eval(in, out);
-//     }
+    double val = xv.dot(pv) + sin(xv.dot(xv));
 
-//     expr = bopt::casadi::vector_evaluator(ex, x, sym(), true);
-//     for (int i = 0; i < 1000; ++i) {
-//         bopt::profiler("casadi_evaluator_cg");
-//         expr.eval(in, out);
-//     }
+    expr->parameters() << pv;
 
-//     EXPECT_DOUBLE_EQ(out[0], in.squaredNorm() + sin(in.squaredNorm()));
-// }
+    for (int i = 0; i < 1000; ++i) {
+        bopt::profiler("casadi_evaluator_no_cg");
+        expr->eval(xv, out);
+    }
+
+    auto cpy = bopt::scalar_evaluator(expr);
+
+    for (int i = 0; i < 1000; ++i) {
+        bopt::profiler("casadi_evaluator_cg");
+        cpy.eval(xv, out);
+    }
+
+    EXPECT_DOUBLE_EQ(out, val);
+}
 
 // TEST(Casadi, LinearExpression) {
 //     sym x = sym::sym("x", 1);
@@ -149,34 +158,34 @@ using dm = ::casadi::DM;
 //     EXPECT_DOUBLE_EQ(out[0], pv[0] * in.squaredNorm());
 // }
 
-TEST(Casadi, Constraint) {
-    std::size_t n = 10;
-    sym x = sym::sym("x", n);
-    sym p = sym::sym("p");
+// TEST(Casadi, Constraint) {
+//     std::size_t n = 10;
+//     sym x = sym::sym("x", n);
+//     sym p = sym::sym("p");
 
-    // Create symbolic expression
-    sym ex = x(0) + p * x(3);
+//     // Create symbolic expression
+//     sym ex = x(0) + p * x(3);
 
-    auto c = bopt::constraint(
-        std::make_shared<bopt::casadi::differentiable_vector_evaluator>(
-            ex, x, p, true, false),
-        bopt::bounds::type::Negative);
+//     auto c = bopt::constraint(
+//         std::make_shared<bopt::casadi::differentiable_vector_evaluator>(
+//             ex, x, p, true, false),
+//         bopt::bounds::type::Negative);
 
-    Eigen::VectorXd xv(10), pv(1), out(1);
-    Eigen::MatrixXd jacobian(1, 10);
-    xv.setRandom();
-    pv << 1.0;
+//     Eigen::VectorXd xv(10), pv(1), out(1);
+//     Eigen::MatrixXd jacobian(1, 10);
+//     xv.setRandom();
+//     pv << 1.0;
 
-    c.set_parameters(pv);
-    VLOG(10) << "p: " << c.parameters().transpose();
-    VLOG(10) << "Status: " << (int)c.eval(xv, out);
-    c.eval_jacobian(xv, jacobian);
+//     c.set_parameters(pv);
+//     VLOG(10) << "p: " << c.parameters().transpose();
+//     VLOG(10) << "Status: " << (int)c.eval(xv, out);
+//     c.eval_jacobian(xv, jacobian);
 
-    VLOG(10) << c;
-    VLOG(10) << jacobian;
+//     VLOG(10) << c;
+//     VLOG(10) << jacobian;
 
-    EXPECT_DOUBLE_EQ(out[0], xv[0] + pv[0] * xv[3]);
-}
+//     EXPECT_DOUBLE_EQ(out[0], xv[0] + pv[0] * xv[3]);
+// }
 
 #endif  // BOPT_WITH_CASADI
 

@@ -8,12 +8,12 @@ namespace bopt {
 template <typename ValueType>
 class constraint_tpl : public differentiable_vector_evaluator_tpl<ValueType> {
    public:
-    using base = differentiable_vector_evaluator_tpl<ValueType>;
-    using typename base::dense_matrix_t;
-    using typename base::dense_vector_t;
-    using typename base::sparse_matrix_t;
-    using typename base::sparse_vector_t;
-    using typename base::value_t;
+    using base_t = differentiable_vector_evaluator_tpl<ValueType>;
+    using typename base_t::dense_matrix_t;
+    using typename base_t::dense_vector_t;
+    using typename base_t::sparse_matrix_t;
+    using typename base_t::sparse_vector_t;
+    using typename base_t::value_t;
 
     using matrix_buffer_t =
         dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
@@ -25,7 +25,7 @@ class constraint_tpl : public differentiable_vector_evaluator_tpl<ValueType> {
 
     constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
                    const bounds::type &type, const bopt_index &sz_p = 0)
-        : differentiable_vector_evaluator_tpl<ValueType>(sz_in, sz_out, sz_p),
+        : base_t(sz_in, sz_out, sz_p),
           name_(""),
           lower_bound_(sz_out),
           upper_bound_(sz_out) {
@@ -47,8 +47,9 @@ class constraint_tpl : public differentiable_vector_evaluator_tpl<ValueType> {
      * @param expression
      * @param type
      */
-    constraint_tpl(const std::shared_ptr<base> &ptr, const bounds::type &type)
-        : base(ptr),
+    constraint_tpl(const typename base_t::shared_ptr_t &ptr,
+                   const bounds::type &type)
+        : base_t(ptr),
           name_(""),
           lower_bound_(ptr->sz_out()),
           upper_bound_(ptr->sz_out()) {

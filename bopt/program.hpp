@@ -34,7 +34,7 @@ void get_constraint_jacobian(
             }
         }
 
-        cnt += b.get()->sz_out();
+        cnt += b.get()->sz_out().first;
     }
     // Create constraint jacobian
     jacobian.resize(cnt, cols);
@@ -77,7 +77,7 @@ void eval_constraint_jacobian(
             }
         }
 
-        cnt += b.get()->sz_out();
+        cnt += b.get()->sz_out().first;
     }
 }
 
@@ -169,7 +169,8 @@ void eval_lagrangian_hessian(
 
         Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
 
-        if (b.get()->eval_hessian(xi, Eigen::Vector<ValueType, 1>(objective_factor), hes) ==
+        if (b.get()->eval_hessian(
+                xi, Eigen::Vector<ValueType, 1>(objective_factor), hes) ==
             evaluator::return_status::NotImplemented) {
         }
 
@@ -193,7 +194,7 @@ void eval_lagrangian_hessian(
 
         Eigen::Ref<const Eigen::VectorXd> xi = x(b.indices().indices());
         Eigen::Ref<const Eigen::VectorXd> li =
-            lambda.middleRows(cnt, b.get()->sz_out());
+            lambda.middleRows(cnt, b.get()->sz_out().first);
 
         if (b.get()->eval_hessian(xi, li, hes) ==
             evaluator::return_status::NotImplemented) {
@@ -279,7 +280,7 @@ class mathematical_program {
     bopt_index n_constraints() const {
         bopt_index n = 0;
         for (const auto &c : get_all_constraints()) {
-            n += c.get()->sz_out();
+            n += c.get()->sz_out().first;
         }
         return n;
     }

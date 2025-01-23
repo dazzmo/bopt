@@ -106,7 +106,7 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
         VLOG(10) << "g : " << g.transpose();
         if (binding.indices().is_block()) {
             cache_.constraint_vector.block(binding.indices().indices()[0], 0,
-                                           binding.get()->sz_out(), 1)
+                                           binding.get()->sz_out().first, 1)
                 << g;
         } else {
             cache_.constraint_vector(binding.indices().indices()) = g;
@@ -209,12 +209,14 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
     // Constraint bounds
     int cnt = 0;
     for (auto& binding : constraints_) {
-        cache_.constraint_lower_bound.middleRows(cnt, binding.get()->sz_out())
+        cache_.constraint_lower_bound.middleRows(cnt,
+                                                 binding.get()->sz_out().first)
             << binding.get()->lower_bound();
 
-        cache_.constraint_upper_bound.middleRows(cnt, binding.get()->sz_out())
+        cache_.constraint_upper_bound.middleRows(cnt,
+                                                 binding.get()->sz_out().first)
             << binding.get()->upper_bound();
-        cnt += binding.get()->sz_out();
+        cnt += binding.get()->sz_out().first;
     }
 
     VLOG(10) << cache_.constraint_lower_bound.transpose();
