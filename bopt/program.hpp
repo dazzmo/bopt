@@ -23,7 +23,7 @@ void get_constraint_jacobian(
         // coordinates and convert to their vector locations based on x
         typename constraint_tpl<ValueType>::sparse_matrix_t &jac =
             b.get()->buffer_jacobian().sparse;
-        b.get()->sparsity_jacobian(jac);
+        b.get()->get_jacobian_sparsity(jac);
 
         // Iterate over non-zeros
         for (int k = 0; k < jac.outerSize(); ++k) {
@@ -108,7 +108,7 @@ void get_lagrangian_hessian(
         // coordinates and convert to their vector locations based on x
         typename cost_tpl<ValueType>::sparse_matrix_t &hes =
             b.get()->buffer_hessian().sparse;
-        b.get()->sparsity_hessian(hes);
+        b.get()->get_hessian_sparsity(hes);
 
         // Iterate over non-zeros, only populate lower triangular entries
         for (int k = 0; k < hes.outerSize(); ++k) {
@@ -132,7 +132,7 @@ void get_lagrangian_hessian(
         // coordinates and convert to their vector locations based on x
         typename constraint_tpl<ValueType>::sparse_matrix_t &hes =
             b.get()->buffer_hessian().sparse;
-        b.get()->sparsity_hessian(hes);
+        b.get()->get_hessian_sparsity(hes);
 
         // Iterate over non-zeros, only populate lower triangular entries
         for (int k = 0; k < hes.outerSize(); ++k) {

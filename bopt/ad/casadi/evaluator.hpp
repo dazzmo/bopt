@@ -62,97 +62,6 @@ class vector_evaluator : public bopt::vector_evaluator_tpl<double> {
     function_t fun_;
 };
 
-class gradient_evaluator : public bopt::gradient_evaluator_tpl<double> {
-   public:
-    using base_t = bopt::gradient_evaluator_tpl<double>;
-
-    using typename base_t::dense_matrix_t;
-    using typename base_t::dense_vector_t;
-    using typename base_t::sparse_matrix_t;
-    using typename base_t::sparse_vector_t;
-    using typename base_t::value_t;
-
-    gradient_evaluator(const sym_t &expression, const sym_vector_t &x,
-                       const sym_vector_t &p, bool densify = false,
-                       bool codegen = false);
-
-    void sparsity_gradient(sparse_vector_t &out) const override;
-
-   protected:
-    evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override;
-
-    evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        sparse_vector_t &out) override;
-
-   private:
-    function_t fun_;
-};
-
-// class jacobian_evaluator : public bopt::jacobian_evaluator_tpl<double> {
-//    public:
-//     using base = bopt::jacobian_evaluator_tpl<double>;
-
-//     using typename base::dense_matrix_t;
-//     using typename base::dense_vector_t;
-//     using typename base::sparse_matrix_t;
-//     using typename base::sparse_vector_t;
-//     using typename base::value_t;
-
-//     jacobian_evaluator(const sym_t &expression, const sym_vector_t &x,
-//                        const sym_vector_t &p, bool densify = false,
-//                        bool codegen = false);
-
-//     void sparsity_jacobian(sparse_matrix_t &out) const override;
-
-//    protected:
-//     evaluator::return_status eval_jacobian_impl(
-//         const Eigen::Ref<const dense_vector_t> &x,
-//         Eigen::Ref<dense_matrix_t> out) override;
-
-//     evaluator::return_status eval_jacobian_impl(
-//         const Eigen::Ref<const dense_vector_t> &x,
-//         sparse_matrix_t &out) override;
-
-//    private:
-//     function_t fun_;
-// };
-
-class hessian_evaluator : public bopt::hessian_evaluator_tpl<double> {
-   public:
-    using base = bopt::hessian_evaluator_tpl<double>;
-
-    using base_t = bopt::hessian_evaluator_tpl<double>;
-
-    using typename base_t::dense_matrix_t;
-    using typename base_t::dense_vector_t;
-    using typename base_t::sparse_matrix_t;
-    using typename base_t::sparse_vector_t;
-    using typename base_t::value_t;
-
-    hessian_evaluator(const sym_t &expression, const sym_vector_t &x,
-                      const sym_vector_t &p, bool densify = false,
-                      bool codegen = false);
-
-    void sparsity_hessian(sparse_matrix_t &out) const override;
-
-   protected:
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        Eigen::Ref<dense_matrix_t> out) override;
-
-    evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        sparse_matrix_t &out) override;
-
-   private:
-    function_t fun_;
-};
-
 class differentiable_scalar_evaluator
     : public bopt::differentiable_scalar_evaluator_tpl<double> {
    public:
@@ -169,7 +78,36 @@ class differentiable_scalar_evaluator
                                     const sym_vector_t &p, bool densify = false,
                                     bool codegen = false);
 
+   protected:
+    evaluator::return_status eval_impl(
+        const Eigen::Ref<const dense_vector_t> &x, value_t &out) override;
+
+    evaluator::return_status eval_gradient_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) override;
+
+    evaluator::return_status eval_gradient_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        sparse_vector_t &out) override;
+
+    void get_gradient_sparsity_impl(sparse_vector_t &out) const override;
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) override;
+
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        sparse_matrix_t &out) override;
+
+    void get_hessian_sparsity_impl(sparse_matrix_t &out) const override;
+
    private:
+    function_t fun_;
+    function_t grd_;
+    function_t hes_;
 };
 
 // class differentiable_vector_evaluator

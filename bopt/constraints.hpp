@@ -293,31 +293,31 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
     }
 
    protected:
-    evaluator::return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        if (!converted_) {
-            x_lower_bound_ = this->lower_bound();
-            x_upper_bound_ = this->upper_bound();
-            this->set_bounds(bounds::type::Negative);
-            converted_ = true;
-        }
+    // evaluator::return_status eval_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     Eigen::Ref<dense_vector_t> out) override {
+    //     if (!converted_) {
+    //         x_lower_bound_ = this->lower_bound();
+    //         x_upper_bound_ = this->upper_bound();
+    //         this->set_bounds(bounds::type::Negative);
+    //         converted_ = true;
+    //     }
 
-        for (bopt_index i = 0; i < this->sz_out(); ++i) {
-            out[i] = x[i] - x_upper_bound_[i];
-            out[this->sz_out() + i] = -x[i] + x_lower_bound_[i];
-        }
+    //     for (bopt_index i = 0; i < this->sz_out(); ++i) {
+    //         out[i] = x[i] - x_upper_bound_[i];
+    //         out[this->sz_out() + i] = -x[i] + x_lower_bound_[i];
+    //     }
 
-        return evaluator::return_status::Success;
-    }
+    //     return evaluator::return_status::Success;
+    // }
 
-    evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) {
-        out.topRows(this->sz_in()).diagonal().array().setConstant(1.0);
-        out.bottomRows(this->sz_in()).diagonal().array().setConstant(-1.0);
-        return evaluator::return_status::Success;
-    }
+    // evaluator::return_status eval_jacobian_impl(
+    //     const Eigen::Ref<const dense_vector_t> &x,
+    //     Eigen::Ref<dense_vector_t> out) {
+    //     out.topRows(this->sz_in()).diagonal().array().setConstant(1.0);
+    //     out.bottomRows(this->sz_in()).diagonal().array().setConstant(-1.0);
+    //     return evaluator::return_status::Success;
+    // }
 
    private:
     bool converted_;

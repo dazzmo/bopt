@@ -40,136 +40,75 @@ evaluator::return_status vector_evaluator::eval_impl(
     return evaluator::return_status::Success;
 }
 
-gradient_evaluator::gradient_evaluator(const sym_t &expression,
-                                       const sym_vector_t &x,
-                                       const sym_vector_t &p, bool densify,
-                                       bool codegen)
-    : base_t(x.size1(), x.size1(), p.size1()) {
-    DBGASSERT(expression.size1() == 1 && expression.size2() == 1 &&
-              "Expression is not scalar!");
+differentiable_scalar_evaluator::differentiable_scalar_evaluator(
+    const sym_t &expression, const sym_vector_t &x, const sym_vector_t &p,
+    bool densify, bool codegen)
+    : base_t(x.size1(), p.size1()) {
+    DBGASSERT(expression.is_scalar() && "Expression is not scalar!");
     std::vector<sym_vector_t> in = {};
     in.push_back(x);
     in.push_back(p);
 
-    VLOG(10) << "gradient: ";
-    VLOG(10) << sym_t::gradient(expression, x);
-
-    fun_ = create_function("grd", in, {sym_t::gradient(expression, x)}, densify,
+    fun_ = create_function("f", in, {expression}, true, codegen);
+    grd_ = create_function("grd", in, {sym_t::gradient(expression, x)}, densify,
                            codegen);
-}
 
-void gradient_evaluator::sparsity_gradient(sparse_vector_t &out) const {}
-
-evaluator::return_status gradient_evaluator::eval_gradient_impl(
-    const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_vector_t> out) {
-    VLOG(10) << "In casadi gradient function";
-    VLOG(10) << "p = " << this->parameters();
-    fun_({x.data(), this->parameters().data()}, {out.data()});
-    return evaluator::return_status::Success;
-}
-
-evaluator::return_status gradient_evaluator::eval_gradient_impl(
-    const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
-    fun_({x.data(), this->parameters().data()}, {out.valuePtr()});
-    return evaluator::return_status::Success;
-}
-
-hessian_evaluator::hessian_evaluator(const sym_t &expression,
-                                     const sym_vector_t &x,
-                                     const sym_vector_t &p, bool densify,
-                                     bool codegen)
-    : base_t(x.size1(), out_size_t(x.size1(), x.size1()), p.size1()) {
-    // Create dual variables
+    // Create hessian
     sym_vector_t l = sym_vector_t::sym("l", expression.size1());
     // Create input list
-    std::vector<sym_vector_t> in = {};
+    in = {};
     in.push_back(x);
     in.push_back(l);
     in.push_back(p);
 
-    fun_ = create_function(
+    hes_ = create_function(
         "hes", in, {sym_t::tril(sym_t::hessian(sym_t::dot(l, expression), x))},
         densify, codegen);
 }
 
-void hessian_evaluator::sparsity_hessian(sparse_matrix_t &out) const {}
-
-evaluator::return_status hessian_evaluator::eval_hessian_impl(
-    const Eigen::Ref<const dense_vector_t> &x,
-    const Eigen::Ref<const dense_vector_t> &lambda,
-    Eigen::Ref<dense_matrix_t> out) {
-    VLOG(10) << "In casadi hessian function";
-    VLOG(10) << "p = " << this->parameters();
-    fun_({x.data(), lambda.data(), this->parameters().data()}, {out.data()});
+evaluator::return_status differentiable_scalar_evaluator::eval_impl(
+    const Eigen::Ref<const dense_vector_t> &x, value_t &out) {
+    fun_({x.data(), this->parameters().data()}, {&out});
     return evaluator::return_status::Success;
 }
 
-evaluator::return_status hessian_evaluator::eval_hessian_impl(
+evaluator::return_status differentiable_scalar_evaluator::eval_gradient_impl(
+    const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_vector_t> out) {
+    grd_({x.data(), this->parameters().data()}, {out.data()});
+    return evaluator::return_status::Success;
+}
+
+evaluator::return_status differentiable_scalar_evaluator::eval_gradient_impl(
+    const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
+    grd_({x.data(), this->parameters().data()}, {out.valuePtr()});
+    return evaluator::return_status::Success;
+}
+
+void differentiable_scalar_evaluator::get_gradient_sparsity_impl(
+    sparse_vector_t &out) const {
+    set_eigen_sparsity(out, grd_.sparsity_out(0));
+}
+
+evaluator::return_status differentiable_scalar_evaluator::eval_hessian_impl(
+    const Eigen::Ref<const dense_vector_t> &x,
+    const Eigen::Ref<const dense_vector_t> &lambda,
+    Eigen::Ref<dense_matrix_t> out) {
+    hes_({x.data(), lambda.data(), this->parameters().data()}, {out.data()});
+    return evaluator::return_status::Success;
+}
+
+evaluator::return_status differentiable_scalar_evaluator::eval_hessian_impl(
     const Eigen::Ref<const dense_vector_t> &x,
     const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
-    fun_({x.data(), lambda.data(), this->parameters().data()},
+    hes_({x.data(), lambda.data(), this->parameters().data()},
          {out.valuePtr()});
     return evaluator::return_status::Success;
 }
 
-differentiable_scalar_evaluator::differentiable_scalar_evaluator(
-    const sym_t &expression, const sym_vector_t &x, const sym_vector_t &p,
-    bool densify, bool codegen)
-    : base_t(std::make_shared<scalar_evaluator>(expression, x, p, codegen),
-             std::make_shared<gradient_evaluator>(expression, x, p, densify,
-                                                  codegen),
-             std::make_shared<hessian_evaluator>(expression, x, p, densify,
-                                                 codegen)) {
-    // Make all elements shared the same parameter data
-    if (this->has_parameters()) {
-        gradient_evaluator_t::set_parameter_data(this->parameter_data());
-        hessian_evaluator_t::set_parameter_data(this->parameter_data());
-    }
+void differentiable_scalar_evaluator::get_hessian_sparsity_impl(
+    sparse_matrix_t &out) const {
+    set_eigen_sparsity(out, hes_.sparsity_out(0));
 }
-
-// void differentiable_scalar_evaluator::sparsity_gradient(
-//     sparse_vector_t &out) const {
-//     set_eigen_sparsity(out, grd_.sparsity_out(0));
-// }
-
-// void differentiable_scalar_evaluator::sparsity_hessian(
-//     sparse_matrix_t &out) const {
-//     set_eigen_sparsity(out, hes_.sparsity_out(0));
-// }
-
-// evaluator::return_status differentiable_scalar_evaluator::eval_impl(
-//     const Eigen::Ref<const dense_vector_t> &x, value_t &out) {
-//     fun_({x.data(), this->parameters().data()}, {&out});
-//     return evaluator::return_status::Success;
-// }
-
-// evaluator::return_status differentiable_scalar_evaluator::eval_gradient_impl(
-//     const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_vector_t>
-//     out) { grd_({x.data(), this->parameters().data()}, {out.data()}); return
-//     evaluator::return_status::Success;
-// }
-
-// evaluator::return_status differentiable_scalar_evaluator::eval_gradient_impl(
-//     const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
-//     grd_({x.data(), this->parameters().data()}, {out.valuePtr()});
-//     return evaluator::return_status::Success;
-// }
-
-// evaluator::return_status differentiable_scalar_evaluator::eval_hessian_impl(
-//     const Eigen::Ref<const dense_vector_t> &x,
-//     const Eigen::Ref<const dense_vector_t> &lambda,
-//     Eigen::Ref<dense_matrix_t> out) {
-//     hes_({x.data(), lambda.data(), this->parameters().data()}, {out.data()});
-//     return evaluator::return_status::Success;
-// }
-
-// evaluator::return_status differentiable_scalar_evaluator::eval_hessian_impl(
-//     const Eigen::Ref<const dense_vector_t> &x,
-//     const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
-//     hes_({x.data(), lambda.data(), this->parameters().data()},
-//          {out.valuePtr()});
-//     return evaluator::return_status::Success;
-// }
 
 // differentiable_vector_evaluator::differentiable_vector_evaluator(
 //     const sym_t &expression, const sym_vector_t &x, const sym_vector_t &p,

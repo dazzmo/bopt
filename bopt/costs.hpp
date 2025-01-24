@@ -101,7 +101,8 @@ class linear_cost_tpl : public cost_tpl<ValueType>,
     //     const Eigen::Ref<const dense_vector_t> &x,
     //     sparse_matrix_t &out) override {
     //     for (int k = 0; k < out.outerSize(); ++k)
-    //         for (typename sparse_matrix_t::InnerIterator it(out, k); it; ++it)
+    //         for (typename sparse_matrix_t::InnerIterator it(out, k); it;
+    //         ++it)
     //             it.valueRef() = 0.0;
     //     return evaluator::return_status::Success;
     // }
@@ -138,10 +139,6 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
     const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
     const bopt_index &sz_out() const { return cost_tpl<ValueType>::sz_out(); }
 
-    void sparsity_hessian(sparse_matrix_t &out) const override {
-        this->sparsity_A(out);
-    }
-
     matrix_buffer_t &buffer_A() { return buffer_A_; }
     vector_buffer_t &buffer_b() { return buffer_b_; }
 
@@ -171,6 +168,10 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
 
         out = ValueType(2.0) * A * x + b;
         return evaluator::return_status::Success;
+    }
+
+    void get_hessian_sparsity_impl(sparse_matrix_t &out) const override {
+        this->sparsity_A(out);
     }
 
     // evaluator::return_status eval_hessian_impl(

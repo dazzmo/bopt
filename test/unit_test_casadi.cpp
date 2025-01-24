@@ -117,65 +117,6 @@ TEST(Casadi, VectorEvaluator) {
     EXPECT_EQ(cpy.parameters().size(), n);
 }
 
-TEST(Casadi, GradientEvaluator) {
-    sym x = sym::sym("x", 2);
-    sym p = sym::sym("p", 1);
-    // Create symbolic constraint
-    sym ex = p * sym::dot(x, x);
-
-    auto expr = bopt::casadi::gradient_evaluator(ex, x, p, false);
-
-    Eigen::Vector2d xv;
-    Eigen::VectorXd pv(1);
-    Eigen::Vector2d grd;
-
-    xv.setRandom();
-    pv.setRandom();
-    expr.parameters() << pv;
-
-    expr.eval_gradient(xv, grd);
-
-    EXPECT_EQ(expr.sz_in(), 2);
-    EXPECT_EQ(expr.sz_out().first, 1);
-    EXPECT_EQ(expr.sz_out().second, 2);
-    EXPECT_EQ(expr.rows_gradient(), 1);
-    EXPECT_EQ(expr.cols_gradient(), 2);
-
-    VLOG(10) << "x: " << xv.transpose();
-    VLOG(10) << "p: " << pv.transpose();
-    VLOG(10) << "res: " << grd.transpose();
-}
-
-TEST(Casadi, HessianEvaluator) {
-    sym x = sym::sym("x", 2);
-    sym p = sym::sym("p", 1);
-    // Create symbolic expression
-    sym ex = p * sym::dot(x, x);
-
-    auto expr = bopt::casadi::hessian_evaluator(ex, x, p, true, false);
-
-    Eigen::Vector2d xv;
-    Eigen::VectorXd pv(1), lambda(1);
-    Eigen::Matrix2d hes;
-
-    xv.setRandom();
-    lambda << 1.0;
-    pv.setRandom();
-    expr.parameters() << pv;
-
-    expr.eval_hessian(xv, lambda, hes);
-
-    EXPECT_EQ(expr.sz_in(), 2);
-    EXPECT_EQ(expr.sz_out().first, 2);
-    EXPECT_EQ(expr.sz_out().second, 2);
-    EXPECT_EQ(expr.rows_hessian(), 2);
-    EXPECT_EQ(expr.cols_hessian(), 2);
-
-    VLOG(10) << "x: " << xv.transpose();
-    VLOG(10) << "p: " << pv.transpose();
-    VLOG(10) << "res: " << hes.transpose();
-}
-
 TEST(Casadi, DifferentiableScalarEvaluator) {
     sym x = sym::sym("x", 2);
     sym p = sym::sym("p", 1);
@@ -191,26 +132,45 @@ TEST(Casadi, DifferentiableScalarEvaluator) {
     xv.setOnes();
     lv << 1.0;
 
-    auto expr =
-        bopt::casadi::differentiable_scalar_evaluator(ex, x, p, true, false);
+    // Map to bopt
+    auto cpy = bopt::differentiable_scalar_evaluator(
+        std::make_shared<bopt::casadi::differentiable_scalar_evaluator>(
+            ex, x, p, true, false));
 
-    expr.parameters().setConstant(1.0);
-    expr.eval(xv, out);
-    expr.eval_gradient(xv, grd);
-    expr.eval_hessian(xv, lv, hes);
+    cpy.parameters().setConstant(1.0);
+    cpy.eval(xv, out);
+    cpy.eval_gradient(xv, grd);
+    cpy.eval_hessian(xv, lv, hes);
+
+    VLOG(10) << out;
+    VLOG(10) << grd.transpose();
+    VLOG(10) << hes;
+
+    cpy.parameters().setConstant(5.0);
+    for (int i = 0; i < 1000; ++i) {
+        {
+            bopt::profiler("test eval");
+            cpy.eval(xv, out);
+        }
+        {
+            bopt::profiler("test grd");
+            cpy.eval_gradient(xv, grd);
+        }
+        {
+            bopt::profiler("test hes");
+            cpy.eval_hessian(xv, lv, hes);
+        }
+    }
 
     VLOG(10) << out;
     VLOG(10) << grd.transpose();
     VLOG(10) << hes;
 
-    expr.parameters().setConstant(5.0);
-    expr.eval(xv, out);
-    expr.eval_gradient(xv, grd);
-    expr.eval_hessian(xv, lv, hes);
+    EXPECT_EQ(cpy.sz_gradient().first, 1);
+    EXPECT_EQ(cpy.sz_gradient().second, 2);
 
-    VLOG(10) << out;
-    VLOG(10) << grd.transpose();
-    VLOG(10) << hes;
+    EXPECT_EQ(cpy.sz_hessian().first, 2);
+    EXPECT_EQ(cpy.sz_hessian().second, 2);
 }
 
 // TEST(Casadi, QuadraticExpression) {

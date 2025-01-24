@@ -84,9 +84,6 @@ class parameter_data_tpl {
     dense_vector_t p_;
 };
 
-// todo - pass in a pointer of the parameters rather than do all this weird
-// pointer handling, allows forwarding to be easier
-
 /**
  * @brief Evaluator base class. Describes the input-output structure of an
  * evaluator, as well as contains parameter data for the evaluator.
@@ -271,6 +268,14 @@ class vector_evaluator_tpl : public evaluator_base_tpl<ValueType> {
         return eval_impl(x, out);
     }
 
+    evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
+                                  sparse_vector_t &out) {
+        DBGASSERT(check_vector(x) && "Invalid input");
+        return eval_impl(x, out);
+    }
+
+    void get_sparsity(sparse_vector_t &out) { get_sparsity_impl(out); }
+
    protected:
     virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
@@ -279,124 +284,29 @@ class vector_evaluator_tpl : public evaluator_base_tpl<ValueType> {
         return evaluator::return_status::NotImplemented;
     }
 
+    virtual evaluator::return_status eval_impl(
+        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
+        if (ptr_) return ptr_->eval(x, out);
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual void get_sparsity_impl(sparse_vector_t &out) {
+        if (ptr_) ptr_->get_sparsity(out);
+    }
+
    private:
     shared_ptr_t ptr_;
 };
 
 typedef vector_evaluator_tpl<double> vector_evaluator;
 
-template <typename ValueType>
-class gradient_evaluator_tpl : public evaluator_base_tpl<ValueType> {
-   public:
-    using base_t = evaluator_base_tpl<ValueType>;
-
-    using value_t = typename base_t::value_t;
-    using dense_vector_t = typename base_t::dense_vector_t;
-    using sparse_vector_t = typename base_t::sparse_vector_t;
-    using dense_matrix_t = typename base_t::dense_matrix_t;
-    using sparse_matrix_t = typename base_t::sparse_matrix_t;
-    using parameter_data_t = typename base_t::parameter_data_t;
-
-    using shared_ptr_t = std::shared_ptr<gradient_evaluator_tpl<value_t>>;
-
-    gradient_evaluator_tpl() = default;
-    ~gradient_evaluator_tpl() = default;
-
-    gradient_evaluator_tpl(const bopt_index &sz_in, const bopt_index &sz_grd,
-                           const bopt_index &sz_p = 0)
-        : evaluator_base_tpl<ValueType>(sz_in, out_size_t(1, sz_grd), sz_p),
-          ptr_(nullptr) {}
-
-    gradient_evaluator_tpl(const shared_ptr_t &ptr)
-        : evaluator_base_tpl<ValueType>(ptr), ptr_(ptr) {}
-
-    /**
-     * @brief Evaluates the dense gradient for the expression \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial c}{\partial x}\f$)
-     *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
-     */
-    evaluator::return_status eval_gradient(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) {
-        DBGASSERT(check_vector(x) && "Gradient input is invalid");
-        // DBGASSERT(out.rows() == rows_gradient() &&
-        //           out.cols() == cols_gradient() &&
-        //           "Gradient out is incorrect size");
-        return eval_gradient_impl(x, out);
-    }
-
-    /**
-     * @brief Evaluates the sparse gradient for the expression \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial c}{\partial x}\f$)
-     *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
-     */
-    evaluator::return_status eval_gradient(
-        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
-        DBGASSERT(check_vector(x) && "Gradient input is invalid");
-        // DBGASSERT(out.rows() == rows_gradient() &&
-        //           out.cols() == cols_gradient() &&
-        //           "Gradient out is incorrect size");
-        return eval_gradient_impl(x, out);
-    }
-
-    /**
-     * @brief The number of rows within the expression gradient
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index rows_gradient() const { return this->sz_out().first; }
-
-    /**
-     * @brief The number of columns within the expression gradient
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index cols_gradient() const { return this->sz_out().second; }
-
-    /**
-     * @brief Populates a sparse matrix with the sparsity pattern of the
-     * gradient
-     *
-     * @param gradient
-     */
-    virtual void sparsity_gradient(sparse_vector_t &out) const {
-        if (ptr_) ptr_->sparsity_gradient(out);
-    }
-
-   protected:
-    virtual evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) {
-        if (ptr_) return ptr_->eval_gradient(x, out);
-        return evaluator::return_status::NotImplemented;
-    }
-
-    virtual evaluator::return_status eval_gradient_impl(
-        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
-        if (ptr_) return ptr_->eval_gradient(x, out);
-        return evaluator::return_status::NotImplemented;
-    }
-
-   private:
-    shared_ptr_t ptr_;
-};
-
-typedef gradient_evaluator_tpl<double> gradient_evaluator;
-
 /**
- * @brief Evaluator class containing interface methods for evaluation of a
- * Jacobian.
+ * @brief Evaluator class that computes an output given an input. Also provides
+ * the option for a parameterised evaluator of the form \f$ y = f_p(x) \f$
  *
- * @tparam ValueType
  */
 template <typename ValueType>
-class jacobian_evaluator_tpl : public evaluator_base_tpl<ValueType> {
+class matrix_evaluator_tpl : public evaluator_base_tpl<ValueType> {
    public:
     using base_t = evaluator_base_tpl<ValueType>;
 
@@ -407,191 +317,64 @@ class jacobian_evaluator_tpl : public evaluator_base_tpl<ValueType> {
     using sparse_matrix_t = typename base_t::sparse_matrix_t;
     using parameter_data_t = typename base_t::parameter_data_t;
 
-    using shared_ptr_t = std::shared_ptr<jacobian_evaluator_tpl<value_t>>;
+    using shared_ptr_t = std::shared_ptr<matrix_evaluator_tpl<value_t>>;
 
-    jacobian_evaluator_tpl() = default;
-    ~jacobian_evaluator_tpl() = default;
-
-    jacobian_evaluator_tpl(const bopt_index &sz_in, const out_size_t &sz_out,
-                           const bopt_index &sz_p = 0)
-        : base_t(sz_in, sz_out, sz_p), ptr_(nullptr) {}
-
-    jacobian_evaluator_tpl(const shared_ptr_t &ptr) : base_t(ptr), ptr_(ptr) {}
-
-    /**
-     * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial c}{\partial x}\f$)
-     *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
-     */
-    evaluator::return_status eval_jacobian(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) {
-        DBGASSERT(check_vector(x) && "Jacobian input is invalid");
-        return eval_jacobian_impl(x, out);
-    }
-
-    /**
-     * @brief Evaluates the sparse jacobian for the expression \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial c}{\partial x}\f$)
-     *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
-     */
-    evaluator::return_status eval_jacobian(
-        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
-        DBGASSERT(check_vector(x) && "Jacobian input is invalid");
-        return eval_jacobian_impl(x, out);
-    }
-
-    /**
-     * @brief The number of rows within the expression jacobian
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index rows_jacobian() const { return this->sz_out().first; }
-
-    /**
-     * @brief The number of columns within the expression jacobian
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index cols_jacobian() const { return this->sz_out().second; }
-
-    /**
-     * @brief Populates a sparse matrix with the sparsity pattern of the
-     * jacobian
-     *
-     * @param jacobian
-     */
-    virtual void sparsity_jacobian(sparse_matrix_t &out) const {
-        if (ptr_) ptr_->sparsity_jacobian(out);
-    }
-
-   protected:
-    virtual evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) {
-        if (ptr_) return ptr_->eval_jacobian(x, out);
-        return evaluator::return_status::NotImplemented;
-    }
-
-    virtual evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
-        if (ptr_) return ptr_->eval_jacobian(x, out);
-        return evaluator::return_status::NotImplemented;
-    }
-
-   private:
-    shared_ptr_t ptr_;
-};
-
-typedef jacobian_evaluator_tpl<double> jacobian_evaluator;
-
-template <typename ValueType>
-class hessian_evaluator_tpl : public evaluator_base_tpl<ValueType> {
    public:
-    using base_t = evaluator_base_tpl<ValueType>;
+    matrix_evaluator_tpl() = default;
 
-    using value_t = typename base_t::value_t;
-    using dense_vector_t = typename base_t::dense_vector_t;
-    using sparse_vector_t = typename base_t::sparse_vector_t;
-    using dense_matrix_t = typename base_t::dense_matrix_t;
-    using sparse_matrix_t = typename base_t::sparse_matrix_t;
-    using parameter_data_t = typename base_t::parameter_data_t;
-
-    using shared_ptr_t = std::shared_ptr<hessian_evaluator_tpl<value_t>>;
-
-    hessian_evaluator_tpl() = default;
-    ~hessian_evaluator_tpl() = default;
-
-    hessian_evaluator_tpl(const bopt_index &sz_in, const out_size_t &sz_out,
-                          const bopt_index &sz_p = 0)
-        : base_t(sz_in, sz_out, sz_p), ptr_(nullptr) {}
-
-    hessian_evaluator_tpl(const shared_ptr_t &ptr) : base_t(ptr), ptr_(ptr) {}
+    matrix_evaluator_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
+                         const bopt_index &sz_p = 0)
+        : evaluator_base_tpl<ValueType>(sz_in, out_size_t(sz_out, 1), sz_p) {}
 
     /**
-     * @brief Evaluates the dense hessian for the expression \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial^2 (\lambda ^T c)}{\partial x^2}\f$)
+     * @brief Construct a new matrix_evaluator_tpl object using an existing
+     * evaluator. Useful where evaluators are created through other means such
+     * as code generation or symbolic algebra.
      *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
+     * @param evaluator shared_ptr
      */
-    evaluator::return_status eval_hessian(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        Eigen::Ref<dense_matrix_t> out) {
-        DBGASSERT(check_vector(x) && check_vector(lambda) &&
-                  "Hessian input is invalid");
-        return eval_hessian_impl(x, lambda, out);
+    matrix_evaluator_tpl(const shared_ptr_t &ptr)
+        : evaluator_base_tpl<ValueType>(ptr), ptr_(ptr) {}
+
+    ~matrix_evaluator_tpl() = default;
+
+    evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
+                                  Eigen::Ref<dense_matrix_t> out) {
+        DBGASSERT(check_vector(x) && "Invalid input");
+        return eval_impl(x, out);
     }
 
-    /**
-     * @brief Evaluates the sparse hessian for the expression \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial^2 (\lambda ^T c)}{\partial x^2}\f$)
-     *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
-     */
-    evaluator::return_status eval_hessian(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
-        DBGASSERT(check_vector(x) && check_vector(lambda) &&
-                  "Hessian input is invalid");
-        return eval_hessian_impl(x, lambda, out);
+    evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
+                                  sparse_matrix_t &out) {
+        DBGASSERT(check_vector(x) && "Invalid input");
+        return eval_impl(x, out);
     }
 
-    /**
-     * @brief The number of rows within the expression hessian
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index rows_hessian() const { return this->sz_out().first; }
-
-    /**
-     * @brief The number of columns within the expression hessian
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index cols_hessian() const { return this->sz_out().second; }
-
-    /**
-     * @brief Populates a sparse matrix with the sparsity pattern of the
-     * hessian
-     *
-     * @param hessian
-     */
-    virtual void sparsity_hessian(sparse_matrix_t &out) const {
-        if (ptr_) ptr_->sparsity_hessian(out);
-    }
+    void get_sparsity(sparse_matrix_t &out) { get_sparsity_impl(out); }
 
    protected:
-    virtual evaluator::return_status eval_hessian_impl(
+    virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        Eigen::Ref<dense_matrix_t> out) {
-        if (ptr_) return ptr_->eval_hessian(x, lambda, out);
+        Eigen::Ref<dense_vector_t> out) {
+        if (ptr_) return ptr_->eval(x, out);
         return evaluator::return_status::NotImplemented;
     }
 
-    virtual evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
-        if (ptr_) return ptr_->eval_hessian(x, lambda, out);
+    virtual evaluator::return_status eval_impl(
+        const Eigen::Ref<const dense_matrix_t> &x,
+        Eigen::Ref<dense_matrix_t> out) {
+        if (ptr_) return ptr_->eval(x, out);
         return evaluator::return_status::NotImplemented;
+    }
+    virtual void get_sparsity_impl(sparse_matrix_t &out) {
+        if (ptr_) ptr_->get_sparsity(out);
     }
 
    private:
     shared_ptr_t ptr_;
 };
 
-typedef hessian_evaluator_tpl<double> hessian_evaluator;
+typedef matrix_evaluator_tpl<double> matrix_evaluator;
 
 template <typename ValueType>
 class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
@@ -647,13 +430,10 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index rows_A() const { return this->sz_out().first; }
-
-    /**
-     * @brief The number of columns within the coefficient matrix A
-     * @return bopt_index
-     */
-    virtual bopt_index cols_A() const { return this->sz_in(); }
+    virtual out_size_t sz_A() const {
+        if (ptr_) return ptr_->sz_A();
+        return out_size_t(this->sz_out().first, this->sz_in());
+    }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -661,8 +441,8 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      *
      * @param A
      */
-    virtual void sparsity_A(sparse_matrix_t &out) const {
-        if (ptr_) ptr_->sparsity_A(out);
+    virtual void get_sparsity_A(sparse_matrix_t &out) const {
+        if (ptr_) ptr_->get_sparsity_A(out);
     }
 
     /**
@@ -695,7 +475,7 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index rows_b() const { return this->sz_out().first; }
+    virtual out_size_t sz_b() const {}
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -985,9 +765,7 @@ class quadratic_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
  */
 template <typename ValueType>
 class differentiable_scalar_evaluator_tpl
-    : public scalar_evaluator_tpl<ValueType>,
-      public gradient_evaluator_tpl<ValueType>,
-      public hessian_evaluator_tpl<ValueType> {
+    : public scalar_evaluator_tpl<ValueType> {
    public:
     using base_t = scalar_evaluator_tpl<ValueType>;
 
@@ -999,9 +777,6 @@ class differentiable_scalar_evaluator_tpl
 
     using parameter_data_t = typename base_t::parameter_data_t;
 
-    using gradient_evaluator_t = gradient_evaluator_tpl<ValueType>;
-    using hessian_evaluator_t = hessian_evaluator_tpl<ValueType>;
-
     using shared_ptr_t =
         std::shared_ptr<differentiable_scalar_evaluator_tpl<value_t>>;
 
@@ -1009,45 +784,96 @@ class differentiable_scalar_evaluator_tpl
 
     differentiable_scalar_evaluator_tpl(const bopt_index &sz_in,
                                         const bopt_index &sz_p = 0)
-        : base_t(sz_in, sz_p),
-          gradient_evaluator_t(sz_in, sz_in, sz_p),
-          hessian_evaluator_t(sz_in, out_size_t(sz_in, sz_in), sz_p) {
-        // Set parameters to this
-        gradient_evaluator_t::parameter_data(this->parameter_data());
-        hessian_evaluator_t::parameter_data(this->parameter_data());
-    }
+        : base_t(sz_in, sz_p), ptr_(nullptr) {}
 
     differentiable_scalar_evaluator_tpl(const shared_ptr_t &ptr)
-        : base_t(ptr), gradient_evaluator_t(ptr), hessian_evaluator_t(ptr) {}
-
-    differentiable_scalar_evaluator_tpl(
-        const typename base_t::shared_ptr_t &evl_ptr,
-        const typename gradient_evaluator_t::shared_ptr_t &grd_ptr,
-        const typename hessian_evaluator_t::shared_ptr_t &hes_ptr)
-        : base_t(evl_ptr),
-          gradient_evaluator_t(grd_ptr),
-          hessian_evaluator_t(hes_ptr) {}
+        : base_t(ptr), ptr_(ptr) {}
 
     ~differentiable_scalar_evaluator_tpl() = default;
 
-    bool has_parameters() const { return base_t::has_parameters(); }
-
-    const std::shared_ptr<parameter_data_t> &parameter_data() const {
-        return base_t::parameter_data();
+    virtual out_size_t sz_gradient() const {
+        if (ptr_) return ptr_->sz_gradient();
+        return out_size_t(1, this->sz_in());
     }
 
-    void parameter_data(const std::shared_ptr<parameter_data_t> &data) {
-        return base_t::parameter_data(data);
+    evaluator::return_status eval_gradient(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) {
+        if (ptr_) return ptr_->eval_gradient(x, out);
+        return eval_gradient_impl(x, out);
     }
 
-    const dense_vector_t &parameters() const { return base_t::parameters(); }
-    dense_vector_t &parameters() { return base_t::parameters(); }
+    evaluator::return_status eval_gradient(
+        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
+        if (ptr_) return ptr_->eval_gradient(x, out);
+        return eval_gradient_impl(x, out);
+    }
 
-    const bopt_index &sz_in() const { return base_t::sz_in(); }
-    const out_size_t &sz_out() const { return base_t::sz_out(); }
+    void get_gradient_sparsity(sparse_vector_t &out) const {
+        if (ptr_)
+            ptr_->get_gradient_sparsity(out);
+        else
+            get_gradient_sparsity_impl(out);
+    }
+
+    virtual out_size_t sz_hessian() {
+        if (ptr_) return ptr_->sz_hessian();
+        return out_size_t(this->sz_in(), this->sz_in());
+    }
+
+    evaluator::return_status eval_hessian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) {
+        if (ptr_) return ptr_->eval_hessian(x, lambda, out);
+        return eval_hessian_impl(x, lambda, out);
+    }
+
+    evaluator::return_status eval_hessian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
+        if (ptr_) return ptr_->eval_hessian(x, lambda, out);
+        return eval_hessian_impl(x, lambda, out);
+    }
+
+    void get_hessian_sparsity(sparse_matrix_t &out) const {
+        if (ptr_)
+            ptr_->get_hessian_sparsity(out);
+        else
+            get_hessian_sparsity_impl(out);
+    }
 
    protected:
+    virtual evaluator::return_status eval_gradient_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual evaluator::return_status eval_gradient_impl(
+        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual void get_gradient_sparsity_impl(sparse_vector_t &out) const {}
+
+    virtual evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual void get_hessian_sparsity_impl(sparse_matrix_t &out) const {}
+
    private:
+    shared_ptr_t ptr_;
 };
 
 typedef differentiable_scalar_evaluator_tpl<double>
@@ -1060,9 +886,7 @@ typedef differentiable_scalar_evaluator_tpl<double>
  */
 template <typename ValueType>
 class differentiable_vector_evaluator_tpl
-    : public vector_evaluator_tpl<ValueType>,
-      public jacobian_evaluator_tpl<ValueType>,
-      public hessian_evaluator_tpl<ValueType> {
+    : public vector_evaluator_tpl<ValueType> {
    public:
     using base_t = vector_evaluator_tpl<ValueType>;
 
@@ -1074,9 +898,6 @@ class differentiable_vector_evaluator_tpl
 
     using parameter_data_t = typename base_t::parameter_data_t;
 
-    using jacobian_evaluator_t = jacobian_evaluator_tpl<ValueType>;
-    using hessian_evaluator_t = hessian_evaluator_tpl<ValueType>;
-
     using shared_ptr_t =
         std::shared_ptr<differentiable_vector_evaluator_tpl<value_t>>;
 
@@ -1085,29 +906,95 @@ class differentiable_vector_evaluator_tpl
     differentiable_vector_evaluator_tpl(const bopt_index &sz_in,
                                         const bopt_index &sz_out,
                                         const bopt_index &sz_p = 0)
-        : base_t(sz_in, sz_p),
-          jacobian_evaluator_t(sz_in, out_size_t(sz_out, sz_in), sz_p),
-          hessian_evaluator_t(sz_in, out_size_t(sz_in, sz_in), sz_p) {
-        // Set parameters to this
-        jacobian_evaluator_t::parameters(this->parameter());
-        hessian_evaluator_t::parameters(this->parameter());
-    }
+        : base_t(sz_in, out_size_t(sz_out, 1), sz_p), ptr_(nullptr) {}
 
     differentiable_vector_evaluator_tpl(const shared_ptr_t &ptr)
-        : base_t(ptr), jacobian_evaluator_t(ptr), hessian_evaluator_t(ptr) {}
+        : base_t(ptr), ptr_(ptr) {}
 
     ~differentiable_vector_evaluator_tpl() = default;
 
-    using base_t::parameter_data;
-    using base_t::parameters;
+    virtual out_size_t sz_jacobian() const {
+        if (ptr_) return ptr_->sz_jacobian();
+        return out_size_t(this->sz_out().first, this->sz_in());
+    }
 
-    const bopt_index &sz_in() const { return base_t::sz_in(); }
-    const out_size_t &sz_out() const { return base_t::sz_out(); }
+    evaluator::return_status eval_jacobian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) {
+        if (ptr_) return ptr_->eval_jacobian(x, out);
+        return eval_jacobian_impl(x, out);
+    }
 
-    using base_t::sz_in;
+    evaluator::return_status eval_jacobian(
+        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+        if (ptr_) return ptr_->eval_jacobian(x, out);
+        return eval_jacobian_impl(x, out);
+    }
+
+    void get_jacobian_sparsity(sparse_matrix_t &out) const {
+        if (ptr_)
+            ptr_->get_jacobian_sparsity(out);
+        else
+            get_jacobian_sparsity_impl(out);
+    }
+
+    virtual out_size_t sz_hessian() {
+        if (ptr_) return ptr_->sz_hessian();
+    }
+
+    evaluator::return_status eval_hessian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) {
+        if (ptr_) return ptr_->eval_hessian(x, lambda, out);
+        return eval_hessian_impl(x, lambda, out);
+    }
+
+    evaluator::return_status eval_hessian(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
+        if (ptr_) return ptr_->eval_hessian(x, lambda, out);
+        return eval_hessian_impl(x, lambda, out);
+    }
+
+    void get_hessian_sparsity(sparse_matrix_t &out) const {
+        if (ptr_)
+            ptr_->get_hessian_sparsity(out);
+        else
+            get_hessian_sparsity_impl(out);
+    }
 
    protected:
+    virtual evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual void get_jacobian_sparsity_impl(sparse_matrix_t &out) const {}
+
+    virtual evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual void get_hessian_sparsity_impl(sparse_matrix_t &out) const {}
+
    private:
+    shared_ptr_t ptr_;
 };
 
 typedef differentiable_vector_evaluator_tpl<double>
