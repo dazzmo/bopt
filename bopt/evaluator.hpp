@@ -207,14 +207,13 @@ class scalar_evaluator_tpl : public evaluator_base_tpl<ValueType> {
 
     evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
                                   value_t &out) {
-        DBGASSERT(check_vector(x) && "Invalid input");
+        if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
 
    protected:
     virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x, value_t &out) {
-        if (ptr_) return ptr_->eval(x, out);
         return evaluator::return_status::NotImplemented;
     }
 
@@ -264,35 +263,36 @@ class vector_evaluator_tpl : public evaluator_base_tpl<ValueType> {
 
     evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
                                   Eigen::Ref<dense_vector_t> out) {
-        DBGASSERT(check_vector(x) && "Invalid input");
+        if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
 
     evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
                                   sparse_vector_t &out) {
-        DBGASSERT(check_vector(x) && "Invalid input");
+        if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
 
-    void get_sparsity(sparse_vector_t &out) { get_sparsity_impl(out); }
+    void get_sparsity(sparse_vector_t &out) const {
+        if (ptr_)
+            ptr_->get_sparsity(out);
+        else
+            get_sparsity_impl(out);
+    }
 
    protected:
     virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) {
-        if (ptr_) return ptr_->eval(x, out);
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
-        if (ptr_) return ptr_->eval(x, out);
         return evaluator::return_status::NotImplemented;
     }
 
-    virtual void get_sparsity_impl(sparse_vector_t &out) {
-        if (ptr_) ptr_->get_sparsity(out);
-    }
+    virtual void get_sparsity_impl(sparse_vector_t &out) const {}
 
    private:
     shared_ptr_t ptr_;
@@ -340,41 +340,149 @@ class matrix_evaluator_tpl : public evaluator_base_tpl<ValueType> {
 
     evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
                                   Eigen::Ref<dense_matrix_t> out) {
-        DBGASSERT(check_vector(x) && "Invalid input");
+        if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
 
     evaluator::return_status eval(const Eigen::Ref<const dense_vector_t> &x,
                                   sparse_matrix_t &out) {
-        DBGASSERT(check_vector(x) && "Invalid input");
+        if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
 
-    void get_sparsity(sparse_matrix_t &out) { get_sparsity_impl(out); }
+    void get_sparsity(sparse_matrix_t &out) const {
+        if (ptr_)
+            ptr_->get_sparsity(out);
+        else
+            get_sparsity_impl(out);
+    }
 
    protected:
     virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) {
-        if (ptr_) return ptr_->eval(x, out);
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_matrix_t> &x,
         Eigen::Ref<dense_matrix_t> out) {
-        if (ptr_) return ptr_->eval(x, out);
         return evaluator::return_status::NotImplemented;
     }
-    virtual void get_sparsity_impl(sparse_matrix_t &out) {
-        if (ptr_) ptr_->get_sparsity(out);
-    }
+    virtual void get_sparsity_impl(sparse_matrix_t &out) const {}
 
    private:
     shared_ptr_t ptr_;
 };
 
 typedef matrix_evaluator_tpl<double> matrix_evaluator;
+
+template <typename ValueType>
+class linear_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
+   public:
+    using base_t = scalar_evaluator_tpl<ValueType>;
+
+    using value_t = typename base_t::value_t;
+    using dense_vector_t = typename base_t::dense_vector_t;
+    using sparse_vector_t = typename base_t::sparse_vector_t;
+    using dense_matrix_t = typename base_t::dense_matrix_t;
+    using sparse_matrix_t = typename base_t::sparse_matrix_t;
+    using parameter_data_t = typename base_t::parameter_data_t;
+
+    using shared_ptr_t = std::shared_ptr<linear_scalar_evaluator_tpl<value_t>>;
+
+    linear_scalar_evaluator_tpl() = default;
+
+    linear_scalar_evaluator_tpl(const bopt_index &sz_in,
+                                const bopt_index &sz_p = 0)
+        : base_t(sz_in, out_size_t(1, 1), sz_p), ptr_(nullptr) {}
+
+    linear_scalar_evaluator_tpl(const shared_ptr_t &ptr)
+        : base_t(ptr), ptr_(ptr) {}
+
+    /**
+     * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
+     * \f$ \frac{\partial c}{\partial x}\f$)
+     *
+     * @param x
+     * @param out
+     * @return evaluator::return_status
+     */
+    evaluator::return_status eval_a(Eigen::Ref<dense_vector_t> out) {
+        if (ptr_) return ptr_->eval_a(out);
+        return eval_a_impl(out);
+    }
+
+    /**
+     * @brief Evaluates the sparse coefficient matrix for the linear expression
+     * \f$c(x)\f$ (i.e.
+     * \f$ \frac{\partial c}{\partial x}\f$)
+     *
+     * @param x
+     * @param out
+     * @return evaluator::return_status
+     */
+    evaluator::return_status eval_a(sparse_vector_t &out) {
+        if (ptr_) return ptr_->eval_a(out);
+        return eval_a_impl(out);
+    }
+
+    /**
+     * @brief The number of rows within the coefficient vector a for the
+     * expression a^T x + b
+     *
+     * @return bopt_index
+     */
+    virtual out_size_t sz_a() const {
+        if (ptr_) return ptr_->sz_a();
+        return out_size_t(this->sz_in(), 1);
+    }
+
+    /**
+     * @brief Populates a sparse matrix with the sparsity pattern of the
+     * coefficient matrix A
+     *
+     * @param A
+     */
+    virtual void get_sparsity_a(sparse_vector_t &out) const {
+        if (ptr_)
+            ptr_->get_sparsity_a(out);
+        else
+            get_a_sparsity_impl(out);
+    }
+
+    /**
+     * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
+     * \f$ \frac{\partial c}{\partial x}\f$)
+     *
+     * @param x
+     * @param out
+     * @return evaluator::return_status
+     */
+    evaluator::return_status eval_b(ValueType &out) {
+        if (ptr_) return ptr_->eval_b(out);
+        return eval_b_impl(out);
+    }
+
+   protected:
+    virtual evaluator::return_status eval_a_impl(
+        Eigen::Ref<dense_vector_t> out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual evaluator::return_status eval_a_impl(sparse_vector_t &out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+    virtual void get_a_sparsity_impl(sparse_vector_t &out) {}
+
+    virtual evaluator::return_status eval_b_impl(ValueType &out) {
+        return evaluator::return_status::NotImplemented;
+    }
+
+   private:
+    shared_ptr_t ptr_;
+};
 
 template <typename ValueType>
 class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
@@ -410,6 +518,7 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      * @return evaluator::return_status
      */
     evaluator::return_status eval_A(Eigen::Ref<dense_matrix_t> out) {
+        if (ptr_) return ptr_->eval_A(out);
         return eval_A_impl(out);
     }
 
@@ -422,6 +531,7 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      * @return evaluator::return_status
      */
     evaluator::return_status eval_A(sparse_matrix_t &out) {
+        if (ptr_) return ptr_->eval_A(out);
         return eval_A_impl(out);
     }
 
@@ -439,10 +549,13 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      * @brief Populates a sparse matrix with the sparsity pattern of the
      * coefficient matrix A
      *
-     * @param A
+     * @param out
      */
-    virtual void get_sparsity_A(sparse_matrix_t &out) const {
-        if (ptr_) ptr_->get_sparsity_A(out);
+    void get_A_sparsity(sparse_matrix_t &out) const {
+        if (ptr_)
+            ptr_->sparsity_A(out);
+        else
+            get_A_sparsity_impl(out);
     }
 
     /**
@@ -454,6 +567,7 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      * @return evaluator::return_status
      */
     evaluator::return_status eval_b(Eigen::Ref<dense_vector_t> out) {
+        if (ptr_) return ptr_->eval_b(out);
         return eval_b_impl(out);
     }
 
@@ -467,6 +581,7 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      * @return evaluator::return_status
      */
     evaluator::return_status eval_b(sparse_vector_t &out) {
+        if (ptr_) return ptr_->eval_b(out);
         return eval_b_impl(out);
     }
 
@@ -475,135 +590,40 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual out_size_t sz_b() const {}
+    virtual out_size_t sz_b() const {
+        if (ptr_) return ptr_->sz_b();
+        return out_size_t(this->sz_out().first, 1);
+    }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
      * coefficient matrix A
      *
-     * @param A
+     * @param out
      */
-    virtual void sparsity_b(sparse_vector_t &out) const {
-        if (ptr_) ptr_->sparsity_b(out);
+    void get_b_sparsity(sparse_matrix_t &out) const {
+        if (ptr_)
+            ptr_->get_sparsity_b(out);
+        else
+            get_b_sparsity_impl(out);
     }
 
    protected:
     virtual evaluator::return_status eval_A_impl(
         Eigen::Ref<dense_matrix_t> out) {
-        if (ptr_) return ptr_->eval_A(out);
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_A_impl(sparse_matrix_t &out) {
-        if (ptr_) return ptr_->eval_A(out);
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_b_impl(
         Eigen::Ref<dense_vector_t> out) {
-        if (ptr_) return ptr_->eval_b(out);
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_b_impl(sparse_vector_t &out) {
-        if (ptr_) return ptr_->eval_b(out);
-        return evaluator::return_status::NotImplemented;
-    }
-
-   private:
-    shared_ptr_t ptr_;
-};
-
-template <typename ValueType>
-class linear_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
-   public:
-    using base_t = scalar_evaluator_tpl<ValueType>;
-
-    using value_t = typename base_t::value_t;
-    using dense_vector_t = typename base_t::dense_vector_t;
-    using sparse_vector_t = typename base_t::sparse_vector_t;
-    using dense_matrix_t = typename base_t::dense_matrix_t;
-    using sparse_matrix_t = typename base_t::sparse_matrix_t;
-    using parameter_data_t = typename base_t::parameter_data_t;
-
-    using shared_ptr_t = std::shared_ptr<linear_scalar_evaluator_tpl<value_t>>;
-
-    linear_scalar_evaluator_tpl() = default;
-
-    linear_scalar_evaluator_tpl(const bopt_index &sz_in,
-                                const bopt_index &sz_p = 0)
-        : base_t(sz_in, out_size_t(1, 1), sz_p), ptr_(nullptr) {}
-
-    linear_scalar_evaluator_tpl(const shared_ptr_t &ptr)
-        : base_t(ptr), ptr_(ptr) {}
-
-    /**
-     * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial c}{\partial x}\f$)
-     *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
-     */
-    evaluator::return_status eval_a(Eigen::Ref<dense_vector_t> out) {
-        return eval_a_impl(out);
-    }
-
-    /**
-     * @brief Evaluates the sparse coefficient matrix for the linear expression
-     * \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial c}{\partial x}\f$)
-     *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
-     */
-    evaluator::return_status eval_a(sparse_vector_t &out) {
-        return eval_a_impl(out);
-    }
-
-    /**
-     * @brief The number of rows within the coefficient vector a for the
-     * expression a^T x + b
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index rows_a() const { return this->sz_in(); }
-
-    /**
-     * @brief Populates a sparse matrix with the sparsity pattern of the
-     * coefficient matrix A
-     *
-     * @param A
-     */
-    virtual void sparsity_a(sparse_vector_t &out) const {
-        if (ptr_) ptr_->sparsity_a(out);
-    }
-
-    /**
-     * @brief Evaluates the dense jacobian for the expression \f$c(x)\f$ (i.e.
-     * \f$ \frac{\partial c}{\partial x}\f$)
-     *
-     * @param x
-     * @param out
-     * @return evaluator::return_status
-     */
-    evaluator::return_status eval_b(ValueType &out) { return eval_b_impl(out); }
-
-   protected:
-    virtual evaluator::return_status eval_a_impl(
-        Eigen::Ref<dense_vector_t> out) {
-        if (ptr_) return ptr_->eval_a(out);
-        return evaluator::return_status::NotImplemented;
-    }
-
-    virtual evaluator::return_status eval_a_impl(sparse_vector_t &out) {
-        if (ptr_) return ptr_->eval_a(out);
-        return evaluator::return_status::NotImplemented;
-    }
-
-    virtual evaluator::return_status eval_b_impl(ValueType &out) {
-        if (ptr_) return ptr_->eval_b(out);
         return evaluator::return_status::NotImplemented;
     }
 
@@ -621,6 +641,7 @@ class quadratic_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
     using sparse_vector_t = typename base_t::sparse_vector_t;
     using dense_matrix_t = typename base_t::dense_matrix_t;
     using sparse_matrix_t = typename base_t::sparse_matrix_t;
+
     using parameter_data_t = typename base_t::parameter_data_t;
 
     using shared_ptr_t =
@@ -629,7 +650,7 @@ class quadratic_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
     quadratic_scalar_evaluator_tpl() = default;
     quadratic_scalar_evaluator_tpl(const bopt_index &sz_in,
                                    const bopt_index &sz_p = 0)
-        : base_t(sz_in, out_size_t(1, 1), sz_p), ptr_(nullptr) {}
+        : base_t(sz_in, sz_p), ptr_(nullptr) {}
 
     quadratic_scalar_evaluator_tpl(const shared_ptr_t &ptr)
         : base_t(ptr), ptr_(ptr) {}
@@ -664,14 +685,10 @@ class quadratic_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index rows_A() const { return this->sz_in(); }
-
-    /**
-     * @brief The number of columns within the coefficient matrix A
-     *
-     * @return bopt_index
-     */
-    virtual bopt_index cols_A() const { return this->sz_in(); }
+    virtual out_size_t sz_A() const {
+        if (ptr_) return ptr_->sz_A();
+        return out_size_t(this->sz_out(), this->sz_in());
+    }
 
     /**
      * @brief Populates a sparse matrix with the sparsity pattern of the
@@ -679,8 +696,11 @@ class quadratic_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
      *
      * @param out
      */
-    virtual void sparsity_A(sparse_matrix_t &out) const {
-        if (ptr_) ptr_->sparsity_A(out);
+    void get_A_sparsity(sparse_matrix_t &out) const {
+        if (ptr_)
+            ptr_->get_A_sparsity(out);
+        else
+            get_A_sparsity_impl(out);
     }
 
     /**
@@ -712,45 +732,53 @@ class quadratic_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
      *
      * @return bopt_index
      */
-    virtual bopt_index rows_b() const { return this->sz_in(); }
+    virtual out_size_t sz_b() const {
+        if (ptr_) return ptr_->sz_b();
+        return out_size_t(this->sz_in(), 1);
+    }
 
     /**
      * @brief Populates a sparse vector with the sparsity pattern of the
      * coefficient vector b
      *
-     * @param A
+     * @param out
      */
-    virtual void sparsity_b(sparse_vector_t &out) const {
-        if (ptr_) ptr_->sparsity_b(out);
+    void get_b_sparsity(sparse_vector_t &out) const {
+        if (ptr_)
+            ptr_->get_b_sparsity(out);
+        else
+            get_b_sparsity_impl(out);
     }
 
-    evaluator::return_status eval_c(value_t &out) { return eval_c_impl(out); }
+    evaluator::return_status eval_c(value_t &out) {
+        if (ptr_) return ptr_->eval_c(out);
+        return eval_c_impl(out);
+    }
 
    protected:
     virtual evaluator::return_status eval_A_impl(
         Eigen::Ref<dense_matrix_t> out) {
-        if (ptr_) return ptr_->eval_A(out);
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_A_impl(sparse_matrix_t &out) {
-        if (ptr_) return ptr_->eval_A(out);
         return evaluator::return_status::NotImplemented;
     }
 
+    virtual void get_A_sparsity_impl(sparse_matrix_t &out) const {}
+
     virtual evaluator::return_status eval_b_impl(
         Eigen::Ref<dense_vector_t> out) {
-        if (ptr_) return ptr_->eval_b(out);
         return evaluator::return_status::NotImplemented;
     }
 
     virtual evaluator::return_status eval_b_impl(sparse_vector_t &out) {
-        if (ptr_) return ptr_->eval_b(out);
         return evaluator::return_status::NotImplemented;
     }
 
+    virtual void get_b_sparsity_impl(sparse_vector_t &out) const {}
+
     virtual evaluator::return_status eval_c_impl(value_t &out) {
-        if (ptr_) return ptr_->eval_c(out);
         return evaluator::return_status::NotImplemented;
     }
 
