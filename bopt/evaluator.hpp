@@ -84,6 +84,9 @@ class parameter_data_tpl {
     dense_vector_t p_;
 };
 
+// todo - pass in a pointer of the parameters rather than do all this weird
+// pointer handling, allows forwarding to be easier
+
 /**
  * @brief Evaluator base class. Describes the input-output structure of an
  * evaluator, as well as contains parameter data for the evaluator.
@@ -102,14 +105,32 @@ class evaluator_base_tpl : public input_output_traits {
     using evaluator_t = evaluator_base_tpl<ValueType>;
     using parameter_data_t = parameter_data_tpl<ValueType>;
 
+    using shared_ptr_t = std::shared_ptr<evaluator_base_tpl<ValueType>>;
+
     evaluator_base_tpl(const bopt_index &sz_in, const out_size_t &sz_out,
                        const bopt_index &sz_p = 0)
         : input_output_traits(sz_in, sz_out),
-          parameter_data_(std::make_shared<parameter_data_t>(sz_p)) {}
+          parameter_data_(nullptr),
+          ptr_(nullptr) {
+        // Create parameter data if parameter count is non-zero
+        if (sz_p) parameter_data_ = std::make_shared<parameter_data_t>(sz_p);
+    }
 
-    evaluator_base_tpl(const std::shared_ptr<evaluator_t> &ptr)
+    evaluator_base_tpl(const shared_ptr_t &ptr)
         : input_output_traits(ptr->sz_in(), ptr->sz_out()),
-          parameter_data_(ptr->parameter_data()) {}
+          parameter_data_(nullptr),
+          ptr_(ptr) {}
+
+    /**
+     * @brief Whether the evaluator has parameters that can be modified.
+     *
+     * @return true
+     * @return false
+     */
+    bool has_parameters() const {
+        if (ptr_) return ptr_->has_parameters();
+        return parameter_data_ != nullptr;
+    }
 
     /**
      * @brief Parameters used by the evaluator
@@ -117,22 +138,29 @@ class evaluator_base_tpl : public input_output_traits {
      * @return const std::shared_ptr<parameter_data_t>&
      */
     const dense_vector_t &parameters() const {
+        if (ptr_) return ptr_->parameters();
         return parameter_data_->values();
     }
-    dense_vector_t &parameters() { return parameter_data_->values(); }
 
-    const std::shared_ptr<parameter_data_t> &parameter_data() const {
-        return parameter_data_;
+    dense_vector_t &parameters() {
+        if (ptr_) return ptr_->parameters();
+        return parameter_data_->values();
     }
 
     /**
-     * @brief Set data for the parameters for the evaluator to the set provided
-     * by p
+     * @brief shared_ptr to the parameter data used by the evaluator
      *
-     * @param p
+     * @return const std::shared_ptr<parameter_data_t>&
      */
-    void parameter_data(const std::shared_ptr<parameter_data_t> &p) {
-        parameter_data_ = p;
+    const std::shared_ptr<parameter_data_t> &parameter_data() const {
+        if (ptr_) return ptr_->parameter_data();
+        return parameter_data_;
+    }
+
+    void set_parameter_data(
+        const std::shared_ptr<parameter_data_t> &parameter_data) {
+        if (ptr_) ptr_->set_parameter_data(parameter_data);
+        parameter_data_ = parameter_data;
     }
 
    private:
@@ -140,6 +168,7 @@ class evaluator_base_tpl : public input_output_traits {
                   "ValueType for evaluator_base_tpl "
                   "must be a numerical type.");
 
+    shared_ptr_t ptr_;
     std::shared_ptr<parameter_data_t> parameter_data_;
 };
 
@@ -266,6 +295,7 @@ class gradient_evaluator_tpl : public evaluator_base_tpl<ValueType> {
     using sparse_vector_t = typename base_t::sparse_vector_t;
     using dense_matrix_t = typename base_t::dense_matrix_t;
     using sparse_matrix_t = typename base_t::sparse_matrix_t;
+    using parameter_data_t = typename base_t::parameter_data_t;
 
     using shared_ptr_t = std::shared_ptr<gradient_evaluator_tpl<value_t>>;
 
@@ -292,9 +322,9 @@ class gradient_evaluator_tpl : public evaluator_base_tpl<ValueType> {
         const Eigen::Ref<const dense_vector_t> &x,
         Eigen::Ref<dense_vector_t> out) {
         DBGASSERT(check_vector(x) && "Gradient input is invalid");
-        DBGASSERT(out.rows() == rows_gradient() &&
-                  out.cols() == cols_gradient() &&
-                  "Gradient out is incorrect size");
+        // DBGASSERT(out.rows() == rows_gradient() &&
+        //           out.cols() == cols_gradient() &&
+        //           "Gradient out is incorrect size");
         return eval_gradient_impl(x, out);
     }
 
@@ -309,9 +339,9 @@ class gradient_evaluator_tpl : public evaluator_base_tpl<ValueType> {
     evaluator::return_status eval_gradient(
         const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
         DBGASSERT(check_vector(x) && "Gradient input is invalid");
-        DBGASSERT(out.rows() == rows_gradient() &&
-                  out.cols() == cols_gradient() &&
-                  "Gradient out is incorrect size");
+        // DBGASSERT(out.rows() == rows_gradient() &&
+        //           out.cols() == cols_gradient() &&
+        //           "Gradient out is incorrect size");
         return eval_gradient_impl(x, out);
     }
 
@@ -375,6 +405,7 @@ class jacobian_evaluator_tpl : public evaluator_base_tpl<ValueType> {
     using sparse_vector_t = typename base_t::sparse_vector_t;
     using dense_matrix_t = typename base_t::dense_matrix_t;
     using sparse_matrix_t = typename base_t::sparse_matrix_t;
+    using parameter_data_t = typename base_t::parameter_data_t;
 
     using shared_ptr_t = std::shared_ptr<jacobian_evaluator_tpl<value_t>>;
 
@@ -470,6 +501,7 @@ class hessian_evaluator_tpl : public evaluator_base_tpl<ValueType> {
     using sparse_vector_t = typename base_t::sparse_vector_t;
     using dense_matrix_t = typename base_t::dense_matrix_t;
     using sparse_matrix_t = typename base_t::sparse_matrix_t;
+    using parameter_data_t = typename base_t::parameter_data_t;
 
     using shared_ptr_t = std::shared_ptr<hessian_evaluator_tpl<value_t>>;
 
@@ -571,6 +603,7 @@ class linear_vector_evaluator_tpl : public vector_evaluator_tpl<ValueType> {
     using sparse_vector_t = typename base_t::sparse_vector_t;
     using dense_matrix_t = typename base_t::dense_matrix_t;
     using sparse_matrix_t = typename base_t::sparse_matrix_t;
+    using parameter_data_t = typename base_t::parameter_data_t;
 
     using shared_ptr_t = std::shared_ptr<linear_vector_evaluator_tpl<value_t>>;
 
@@ -711,6 +744,7 @@ class linear_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
     using sparse_vector_t = typename base_t::sparse_vector_t;
     using dense_matrix_t = typename base_t::dense_matrix_t;
     using sparse_matrix_t = typename base_t::sparse_matrix_t;
+    using parameter_data_t = typename base_t::parameter_data_t;
 
     using shared_ptr_t = std::shared_ptr<linear_scalar_evaluator_tpl<value_t>>;
 
@@ -807,6 +841,7 @@ class quadratic_scalar_evaluator_tpl : public scalar_evaluator_tpl<ValueType> {
     using sparse_vector_t = typename base_t::sparse_vector_t;
     using dense_matrix_t = typename base_t::dense_matrix_t;
     using sparse_matrix_t = typename base_t::sparse_matrix_t;
+    using parameter_data_t = typename base_t::parameter_data_t;
 
     using shared_ptr_t =
         std::shared_ptr<quadratic_scalar_evaluator_tpl<value_t>>;
@@ -978,17 +1013,35 @@ class differentiable_scalar_evaluator_tpl
           gradient_evaluator_t(sz_in, sz_in, sz_p),
           hessian_evaluator_t(sz_in, out_size_t(sz_in, sz_in), sz_p) {
         // Set parameters to this
-        gradient_evaluator_t::parameters(this->parameter());
-        hessian_evaluator_t::parameters(this->parameter());
+        gradient_evaluator_t::parameter_data(this->parameter_data());
+        hessian_evaluator_t::parameter_data(this->parameter_data());
     }
 
     differentiable_scalar_evaluator_tpl(const shared_ptr_t &ptr)
         : base_t(ptr), gradient_evaluator_t(ptr), hessian_evaluator_t(ptr) {}
 
+    differentiable_scalar_evaluator_tpl(
+        const typename base_t::shared_ptr_t &evl_ptr,
+        const typename gradient_evaluator_t::shared_ptr_t &grd_ptr,
+        const typename hessian_evaluator_t::shared_ptr_t &hes_ptr)
+        : base_t(evl_ptr),
+          gradient_evaluator_t(grd_ptr),
+          hessian_evaluator_t(hes_ptr) {}
+
     ~differentiable_scalar_evaluator_tpl() = default;
 
-    using base_t::parameter_data;
-    using base_t::parameters;
+    bool has_parameters() const { return base_t::has_parameters(); }
+
+    const std::shared_ptr<parameter_data_t> &parameter_data() const {
+        return base_t::parameter_data();
+    }
+
+    void parameter_data(const std::shared_ptr<parameter_data_t> &data) {
+        return base_t::parameter_data(data);
+    }
+
+    const dense_vector_t &parameters() const { return base_t::parameters(); }
+    dense_vector_t &parameters() { return base_t::parameters(); }
 
     const bopt_index &sz_in() const { return base_t::sz_in(); }
     const out_size_t &sz_out() const { return base_t::sz_out(); }

@@ -46,7 +46,13 @@ TEST(Casadi, ScalarEvaluator) {
     sym ex = sym::dot(x, p) + sin(dot(x, x));
 
     auto expr =
-        std::make_shared<bopt::casadi::scalar_evaluator>(ex, x, p, false);
+        std::make_shared<bopt::casadi::scalar_evaluator>(ex, x, p, true);
+
+    EXPECT_EQ(expr->sz_in(), n);
+    EXPECT_EQ(expr->sz_out().first, 1);
+    EXPECT_EQ(expr->sz_out().second, 1);
+
+    EXPECT_EQ(expr->parameters().size(), n);
 
     Eigen::VectorXd xv(10), pv(10);
     double out;
@@ -64,6 +70,12 @@ TEST(Casadi, ScalarEvaluator) {
 
     auto cpy = bopt::scalar_evaluator(expr);
 
+    EXPECT_EQ(cpy.sz_in(), n);
+    EXPECT_EQ(cpy.sz_out().first, 1);
+    EXPECT_EQ(cpy.sz_out().second, 1);
+
+    EXPECT_EQ(cpy.parameters().size(), n);
+
     for (int i = 0; i < 1000; ++i) {
         bopt::profiler("casadi_evaluator_cg");
         cpy.eval(xv, out);
@@ -72,29 +84,134 @@ TEST(Casadi, ScalarEvaluator) {
     EXPECT_DOUBLE_EQ(out, val);
 }
 
-// TEST(Casadi, LinearExpression) {
-//     sym x = sym::sym("x", 1);
-//     // Create symbolic constraint
-//     sym ex = 2.0 * x + 1.0;
+TEST(Casadi, VectorEvaluator) {
+    std::size_t n = 10;
+    sym x = sym::sym("x", n);
+    sym p = sym::sym("p", n);
+    // Create symbolic constraint
+    sym ex = x;
+    for (int i = 0; i < n; ++i) {
+        ex(i) = sin(p(i)) * x(i);
+    }
 
-//     auto expr = bopt::casadi::linear_scalar_evaluator(ex, x, sym(), false);
+    auto expr =
+        std::make_shared<bopt::casadi::vector_evaluator>(ex, x, p, false);
 
-//     Eigen::VectorXd in(1), out(1);
-//     in.setRandom();
+    EXPECT_EQ(expr->sz_in(), n);
+    EXPECT_EQ(expr->sz_out().first, n);
+    EXPECT_EQ(expr->sz_out().second, 1);
 
-//     for (int i = 0; i < 1000; ++i) {
-//         bopt::profiler("casadi_linear_evaluator_no_cg");
-//         expr.eval_a(out);
-//         expr.eval_b(out[0]);
-//     }
+    EXPECT_EQ(expr->parameters().size(), n);
 
-//     expr = bopt::casadi::linear_scalar_evaluator(ex, x, sym(), true);
-//     for (int i = 0; i < 1000; ++i) {
-//         bopt::profiler("casadi_linear_evaluator_cg");
-//         expr.eval_a(out);
-//         expr.eval_b(out[0]);
-//     }
-// }
+    Eigen::VectorXd xv(10), pv(10);
+    double out;
+    xv.setRandom();
+    pv.setRandom();
+
+    auto cpy = bopt::vector_evaluator(expr);
+
+    EXPECT_EQ(cpy.sz_in(), n);
+    EXPECT_EQ(cpy.sz_out().first, n);
+    EXPECT_EQ(cpy.sz_out().second, 1);
+
+    EXPECT_EQ(cpy.parameters().size(), n);
+}
+
+TEST(Casadi, GradientEvaluator) {
+    sym x = sym::sym("x", 2);
+    sym p = sym::sym("p", 1);
+    // Create symbolic constraint
+    sym ex = p * sym::dot(x, x);
+
+    auto expr = bopt::casadi::gradient_evaluator(ex, x, p, false);
+
+    Eigen::Vector2d xv;
+    Eigen::VectorXd pv(1);
+    Eigen::Vector2d grd;
+
+    xv.setRandom();
+    pv.setRandom();
+    expr.parameters() << pv;
+
+    expr.eval_gradient(xv, grd);
+
+    EXPECT_EQ(expr.sz_in(), 2);
+    EXPECT_EQ(expr.sz_out().first, 1);
+    EXPECT_EQ(expr.sz_out().second, 2);
+    EXPECT_EQ(expr.rows_gradient(), 1);
+    EXPECT_EQ(expr.cols_gradient(), 2);
+
+    VLOG(10) << "x: " << xv.transpose();
+    VLOG(10) << "p: " << pv.transpose();
+    VLOG(10) << "res: " << grd.transpose();
+}
+
+TEST(Casadi, HessianEvaluator) {
+    sym x = sym::sym("x", 2);
+    sym p = sym::sym("p", 1);
+    // Create symbolic expression
+    sym ex = p * sym::dot(x, x);
+
+    auto expr = bopt::casadi::hessian_evaluator(ex, x, p, true, false);
+
+    Eigen::Vector2d xv;
+    Eigen::VectorXd pv(1), lambda(1);
+    Eigen::Matrix2d hes;
+
+    xv.setRandom();
+    lambda << 1.0;
+    pv.setRandom();
+    expr.parameters() << pv;
+
+    expr.eval_hessian(xv, lambda, hes);
+
+    EXPECT_EQ(expr.sz_in(), 2);
+    EXPECT_EQ(expr.sz_out().first, 2);
+    EXPECT_EQ(expr.sz_out().second, 2);
+    EXPECT_EQ(expr.rows_hessian(), 2);
+    EXPECT_EQ(expr.cols_hessian(), 2);
+
+    VLOG(10) << "x: " << xv.transpose();
+    VLOG(10) << "p: " << pv.transpose();
+    VLOG(10) << "res: " << hes.transpose();
+}
+
+TEST(Casadi, DifferentiableScalarEvaluator) {
+    sym x = sym::sym("x", 2);
+    sym p = sym::sym("p", 1);
+    // Create symbolic expression
+    sym ex = p * sym::dot(x, x);
+
+    double out;
+
+    Eigen::Vector2d xv, grd;
+    Eigen::VectorXd lv(1);
+    Eigen::Matrix2d hes;
+
+    xv.setOnes();
+    lv << 1.0;
+
+    auto expr =
+        bopt::casadi::differentiable_scalar_evaluator(ex, x, p, true, false);
+
+    expr.parameters().setConstant(1.0);
+    expr.eval(xv, out);
+    expr.eval_gradient(xv, grd);
+    expr.eval_hessian(xv, lv, hes);
+
+    VLOG(10) << out;
+    VLOG(10) << grd.transpose();
+    VLOG(10) << hes;
+
+    expr.parameters().setConstant(5.0);
+    expr.eval(xv, out);
+    expr.eval_gradient(xv, grd);
+    expr.eval_hessian(xv, lv, hes);
+
+    VLOG(10) << out;
+    VLOG(10) << grd.transpose();
+    VLOG(10) << hes;
+}
 
 // TEST(Casadi, QuadraticExpression) {
 //     sym x = sym::sym("x", 5);
