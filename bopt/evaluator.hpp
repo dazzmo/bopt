@@ -906,7 +906,7 @@ class differentiable_vector_evaluator_tpl
     differentiable_vector_evaluator_tpl(const bopt_index &sz_in,
                                         const bopt_index &sz_out,
                                         const bopt_index &sz_p = 0)
-        : base_t(sz_in, out_size_t(sz_out, 1), sz_p), ptr_(nullptr) {}
+        : base_t(sz_in, sz_out, sz_p), ptr_(nullptr) {}
 
     differentiable_vector_evaluator_tpl(const shared_ptr_t &ptr)
         : base_t(ptr), ptr_(ptr) {}
@@ -940,6 +940,7 @@ class differentiable_vector_evaluator_tpl
 
     virtual out_size_t sz_hessian() {
         if (ptr_) return ptr_->sz_hessian();
+        return out_size_t(this->sz_in(), this->sz_in());
     }
 
     evaluator::return_status eval_hessian(

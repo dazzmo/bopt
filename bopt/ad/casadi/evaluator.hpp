@@ -110,58 +110,54 @@ class differentiable_scalar_evaluator
     function_t hes_;
 };
 
-// class differentiable_vector_evaluator
-//     : public bopt::differentiable_vector_evaluator_tpl<double> {
-//    public:
-//     using base = bopt::differentiable_vector_evaluator_tpl<double>;
+class differentiable_vector_evaluator
+    : public bopt::differentiable_vector_evaluator_tpl<double> {
+   public:
+    using base_t = bopt::differentiable_vector_evaluator_tpl<double>;
 
-//     using typename base::dense_matrix_t;
-//     using typename base::dense_vector_t;
-//     using typename base::sparse_matrix_t;
-//     using typename base::sparse_vector_t;
-//     using typename base::value_t;
+    using typename base_t::dense_matrix_t;
+    using typename base_t::dense_vector_t;
+    using typename base_t::sparse_matrix_t;
+    using typename base_t::sparse_vector_t;
+    using typename base_t::value_t;
 
-//     differentiable_vector_evaluator(const sym_t &expression,
-//                                     const sym_vector_t &x,
-//                                     const sym_vector_t &p, bool densify =
-//                                     false, bool codegen = false);
-// };
+    differentiable_vector_evaluator(const sym_t &expression,
+                                    const sym_vector_t &x,
+                                    const sym_vector_t &p, bool densify = false,
+                                    bool codegen = false);
 
-// /**
-//  * @brief Generic expression evaluator, designed to compute the expression,
-//  * jacobian and hessian of the expression.
-//  *
-//  * @tparam T
-//  */
-// class linear_scalar_evaluator
-//     : public bopt::linear_scalar_evaluator_tpl<double> {
-//    public:
-//     using base = bopt::linear_scalar_evaluator_tpl<double>;
+   protected:
+    evaluator::return_status eval_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_vector_t> out) override;
 
-//     using typename base::dense_matrix_t;
-//     using typename base::dense_vector_t;
-//     using typename base::sparse_matrix_t;
-//     using typename base::sparse_vector_t;
-//     using typename base::value_t;
+    evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) override;
 
-//     linear_scalar_evaluator(const sym_t &expression, const sym_vector_t &x,
-//                             const sym_vector_t &p, bool densify = false,
-//                             bool codegen = false);
+    evaluator::return_status eval_jacobian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        sparse_matrix_t &out) override;
 
-//     void sparsity_a(sparse_vector_t &out) const override;
+    void get_jacobian_sparsity_impl(sparse_matrix_t &out) const override;
 
-//    protected:
-//     evaluator::return_status eval_a_impl(
-//         Eigen::Ref<dense_vector_t> out) override;
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        Eigen::Ref<dense_matrix_t> out) override;
 
-//     evaluator::return_status eval_a_impl(sparse_vector_t &out) override;
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        const Eigen::Ref<const dense_vector_t> &lambda,
+        sparse_matrix_t &out) override;
 
-//     evaluator::return_status eval_b_impl(value_t &out) override;
+    void get_hessian_sparsity_impl(sparse_matrix_t &out) const override;
 
-//    private:
-//     function_t a_;
-//     function_t b_;
-// };
+   private:
+    function_t fun_;
+    function_t jac_;
+    function_t hes_;
+};
 
 // /**
 //  * @brief Generic expression evaluator, designed to compute the expression,

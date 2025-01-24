@@ -110,71 +110,74 @@ void differentiable_scalar_evaluator::get_hessian_sparsity_impl(
     set_eigen_sparsity(out, hes_.sparsity_out(0));
 }
 
-// differentiable_vector_evaluator::differentiable_vector_evaluator(
-//     const sym_t &expression, const sym_vector_t &x, const sym_vector_t &p,
-//     bool densify, bool codegen)
-//     : bopt::differentiable_vector_evaluator_tpl<double>(
-//           x.size1(), expression.size1(), p.size1()) {
-//     std::vector<sym_vector_t> in = {};
-//     in.push_back(x);
-//     in.push_back(p);
+differentiable_vector_evaluator::differentiable_vector_evaluator(
+    const sym_t &expression, const sym_vector_t &x, const sym_vector_t &p,
+    bool densify, bool codegen)
+    : base_t(x.size1(), expression.rows(), p.size1()) {
+    std::vector<sym_vector_t> in = {};
+    in.push_back(x);
+    in.push_back(p);
 
-//     // Create lagrange multipliers
-//     sym_t l = sym_t::sym("l", expression.size1());
+    fun_ = create_function("f", in, {expression}, true, codegen);
+    jac_ = create_function("jacobian", in, {sym_t::jacobian(expression, x)}, densify,
+                           codegen);
 
-//     sym_t jacobian = sym_t::jacobian(expression, x),
-//           hessian = sym_t::tril(sym_t::hessian(sym_t::dot(expression, l),
-//           x));
+    // Create hessian
+    sym_vector_t l = sym_vector_t::sym("l", expression.size1());
+    // Create input list
+    in = {};
+    in.push_back(x);
+    in.push_back(l);
+    in.push_back(p);
 
-//     fun_ = create_function("f", in, {expression}, densify, codegen);
-//     jac_ = create_function("fjac", in, {jacobian}, densify, codegen);
-//     in.push_back(l);
-//     hes_ = create_function("fhes", in, {hessian}, densify, codegen);
-// }
+    hes_ = create_function(
+        "hes", in, {sym_t::tril(sym_t::hessian(sym_t::dot(l, expression), x))},
+        densify, codegen);
+}
 
-// void differentiable_vector_evaluator::sparsity_jacobian(
-//     sparse_matrix_t &out) const {
-//     set_eigen_sparsity(out, jac_.sparsity_out(0));
-// }
+evaluator::return_status differentiable_vector_evaluator::eval_impl(
+    const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_vector_t> out) {
+    fun_({x.data(), this->parameters().data()}, {out.data()});
+    return evaluator::return_status::Success;
+}
 
-// void differentiable_vector_evaluator::sparsity_hessian(
-//     sparse_matrix_t &out) const {
-//     set_eigen_sparsity(out, hes_.sparsity_out(0));
-// }
+evaluator::return_status differentiable_vector_evaluator::eval_jacobian_impl(
+    const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_matrix_t> out) {
+    jac_({x.data(), this->parameters().data()}, {out.data()});
+    return evaluator::return_status::Success;
+}
 
-// evaluator::return_status differentiable_vector_evaluator::eval_impl(
-//     const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_vector_t>
-//     out) { VLOG(10) << "IN CASADI EVAL IMPL"; fun_({x.data(),
-//     this->parameters().data()}, {out.data()}); return
-//     evaluator::return_status::Success;
-// }
+evaluator::return_status differentiable_vector_evaluator::eval_jacobian_impl(
+    const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+    jac_({x.data(), this->parameters().data()}, {out.valuePtr()});
+    return evaluator::return_status::Success;
+}
 
-// evaluator::return_status differentiable_vector_evaluator::eval_jacobian_impl(
-//     const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_matrix_t>
-//     out) { jac_({x.data(), this->parameters().data()}, {out.data()}); return
-//     evaluator::return_status::Success;
-// }
+void differentiable_vector_evaluator::get_jacobian_sparsity_impl(
+    sparse_matrix_t &out) const {
+    set_eigen_sparsity(out, jac_.sparsity_out(0));
+}
 
-// evaluator::return_status differentiable_vector_evaluator::eval_jacobian_impl(
-//     const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
-//     jac_({x.data(), this->parameters().data()}, {out.valuePtr()});
-//     return evaluator::return_status::Success;
-// }
+evaluator::return_status differentiable_vector_evaluator::eval_hessian_impl(
+    const Eigen::Ref<const dense_vector_t> &x,
+    const Eigen::Ref<const dense_vector_t> &lambda,
+    Eigen::Ref<dense_matrix_t> out) {
+    hes_({x.data(), lambda.data(), this->parameters().data()}, {out.data()});
+    return evaluator::return_status::Success;
+}
 
-// evaluator::return_status differentiable_vector_evaluator::eval_hessian_impl(
-//     const Eigen::Ref<const dense_vector_t> &x,
-//     const Eigen::Ref<const dense_vector_t> &lam,
-//     Eigen::Ref<dense_matrix_t> out) {
-//     hes_({x.data(), this->parameters().data(), lam.data()}, {out.data()});
-//     return evaluator::return_status::Success;
-// }
+evaluator::return_status differentiable_vector_evaluator::eval_hessian_impl(
+    const Eigen::Ref<const dense_vector_t> &x,
+    const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
+    hes_({x.data(), lambda.data(), this->parameters().data()},
+         {out.valuePtr()});
+    return evaluator::return_status::Success;
+}
 
-// evaluator::return_status differentiable_vector_evaluator::eval_hessian_impl(
-//     const Eigen::Ref<const dense_vector_t> &x,
-//     const Eigen::Ref<const dense_vector_t> &lam, sparse_matrix_t &out) {
-//     hes_({x.data(), this->parameters().data(), lam.data()},
-//     {out.valuePtr()}); return evaluator::return_status::Success;
-// }
+void differentiable_vector_evaluator::get_hessian_sparsity_impl(
+    sparse_matrix_t &out) const {
+    set_eigen_sparsity(out, hes_.sparsity_out(0));
+}
 
 // linear_scalar_evaluator::linear_scalar_evaluator(const sym_t &expression,
 //                                                  const sym_vector_t &x,

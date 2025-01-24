@@ -173,6 +173,64 @@ TEST(Casadi, DifferentiableScalarEvaluator) {
     EXPECT_EQ(cpy.sz_hessian().second, 2);
 }
 
+TEST(Casadi, DifferentiableVectorEvaluator) {
+    sym x = sym::sym("x", 10);
+    sym p = sym::sym("p", 2);
+    // Create symbolic expression
+    sym ex = x;
+    ex(2) = p(0) * x(2);
+    ex(7) = p(1) * x(7);
+
+    // Map to bopt
+    auto cpy = bopt::differentiable_vector_evaluator(
+        std::make_shared<bopt::casadi::differentiable_vector_evaluator>(
+            ex, x, p, true, false));
+
+    Eigen::VectorXd out(cpy.sz_out().first);
+    Eigen::VectorXd xv(cpy.sz_in());
+    Eigen::VectorXd lv(cpy.sz_out().first);
+    Eigen::MatrixXd jac(cpy.sz_jacobian().first, cpy.sz_jacobian().second);
+    Eigen::MatrixXd hes(cpy.sz_hessian().first, cpy.sz_hessian().second);
+
+    xv.setRandom();
+    lv.setRandom();
+    cpy.parameters().setRandom();
+    
+    cpy.eval(xv, out);
+    cpy.eval_jacobian(xv, jac);
+    cpy.eval_hessian(xv, lv, hes);
+
+    VLOG(10) << out;
+    VLOG(10) << jac.transpose();
+    VLOG(10) << hes;
+
+    // cpy.parameters().setConstant(5.0);
+    // for (int i = 0; i < 1000; ++i) {
+    //     {
+    //         bopt::profiler("test eval");
+    //         cpy.eval(xv, out);
+    //     }
+    //     {
+    //         bopt::profiler("test grd");
+    //         cpy.eval_gradient(xv, grd);
+    //     }
+    //     {
+    //         bopt::profiler("test hes");
+    //         cpy.eval_hessian(xv, lv, hes);
+    //     }
+    // }
+
+    // VLOG(10) << out;
+    // VLOG(10) << grd.transpose();
+    // VLOG(10) << hes;
+
+    // EXPECT_EQ(cpy.sz_gradient().first, 1);
+    // EXPECT_EQ(cpy.sz_gradient().second, 2);
+
+    // EXPECT_EQ(cpy.sz_hessian().first, 2);
+    // EXPECT_EQ(cpy.sz_hessian().second, 2);
+}
+
 // TEST(Casadi, QuadraticExpression) {
 //     sym x = sym::sym("x", 5);
 //     sym p = sym::sym("p", 1);
