@@ -8,9 +8,9 @@
 namespace bopt {
 
 template <typename ValueType>
-class cost_tpl : public differentiable_scalar_evaluator_tpl<ValueType> {
+class cost_tpl : public evaluator::differentiable::scalar_tpl<ValueType> {
    public:
-    using base = differentiable_scalar_evaluator_tpl<ValueType>;
+    using base = evaluator::differentiable::scalar_tpl<ValueType>;
     using typename base::dense_matrix_t;
     using typename base::dense_vector_t;
     using typename base::sparse_matrix_t;
@@ -20,9 +20,9 @@ class cost_tpl : public differentiable_scalar_evaluator_tpl<ValueType> {
     typedef std::string string_t;
 
     using vector_buffer_t =
-        dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
+        evaluator::dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
     using matrix_buffer_t =
-        dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
+        evaluator::dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
 
     cost_tpl() = default;
     ~cost_tpl() = default;
@@ -55,7 +55,7 @@ class cost_tpl : public differentiable_scalar_evaluator_tpl<ValueType> {
  */
 template <typename ValueType>
 class linear_cost_tpl : public cost_tpl<ValueType>,
-                        public linear_scalar_evaluator_tpl<ValueType> {
+                        public evaluator::linear::scalar_tpl<ValueType> {
    public:
     using typename cost_tpl<ValueType>::value_t;
     using typename cost_tpl<ValueType>::dense_vector_t;
@@ -68,7 +68,7 @@ class linear_cost_tpl : public cost_tpl<ValueType>,
 
     linear_cost_tpl(const bopt_index &sz_in, const bopt_index &sz_p = 0)
         : cost_tpl<ValueType>(sz_in, sz_p),
-          linear_scalar_evaluator_tpl<ValueType>(sz_in, sz_p) {}
+          evaluator::linear::scalar_tpl<ValueType>(sz_in, sz_p) {}
 
     const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
 
@@ -121,7 +121,7 @@ class linear_cost_tpl : public cost_tpl<ValueType>,
  */
 template <typename ValueType>
 class quadratic_cost_tpl : public cost_tpl<ValueType>,
-                           public quadratic_scalar_evaluator_tpl<ValueType> {
+                           public evaluator::quadratic::scalar_tpl<ValueType> {
    public:
     using typename cost_tpl<ValueType>::value_t;
     using typename cost_tpl<ValueType>::dense_vector_t;
@@ -134,7 +134,7 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
 
     quadratic_cost_tpl(const bopt_index &sz_in, const bopt_index &sz_p = 0)
         : cost_tpl<ValueType>(sz_in, sz_p),
-          quadratic_scalar_evaluator_tpl<ValueType>(sz_in, sz_p) {}
+          evaluator::quadratic::scalar_tpl<ValueType>(sz_in, sz_p) {}
 
     const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
     const bopt_index &sz_out() const { return cost_tpl<ValueType>::sz_out(); }
@@ -203,7 +203,8 @@ class least_squares_cost_tpl : public quadratic_cost_tpl<ValueType> {
     using typename quadratic_cost_tpl<ValueType>::sparse_matrix_t;
 
     least_squares_cost_tpl(
-        std::shared_ptr<linear_scalar_evaluator_tpl<ValueType>> &expression)
+        typename evaluator::linear::scalar_tpl<ValueType>::shared_ptr_t
+            &expression)
         : expression_(nullptr) {
         expression_ = expression;
     }
@@ -222,7 +223,7 @@ class least_squares_cost_tpl : public quadratic_cost_tpl<ValueType> {
     }
 
    private:
-    std::shared_ptr<linear_scalar_evaluator_tpl<ValueType>> expression_;
+    std::shared_ptr<evaluator::linear::scalar_tpl<ValueType>> expression_;
 };
 
 }  // namespace bopt

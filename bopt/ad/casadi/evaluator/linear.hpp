@@ -60,9 +60,7 @@ class vector : public bopt::evaluator::linear::vector {
     return_status eval_impl(const Eigen::Ref<const dense_vector_t> &x,
                             Eigen::Ref<dense_vector_t> out) override;
 
-    return_status eval_A_impl(Eigen::Ref<dense_matrix_t> out) override {
-        return return_status::NotImplemented;
-    }
+    return_status eval_A_impl(Eigen::Ref<dense_matrix_t> out) override;
 
     return_status eval_A_impl(sparse_matrix_t &out) override;
 

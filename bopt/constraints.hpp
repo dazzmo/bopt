@@ -6,9 +6,9 @@
 namespace bopt {
 
 template <typename ValueType>
-class constraint_tpl : public differentiable_vector_evaluator_tpl<ValueType> {
+class constraint_tpl : public evaluator::differentiable::vector_tpl<ValueType> {
    public:
-    using base_t = differentiable_vector_evaluator_tpl<ValueType>;
+    using base_t = evaluator::differentiable::vector_tpl<ValueType>;
     using typename base_t::dense_matrix_t;
     using typename base_t::dense_vector_t;
     using typename base_t::sparse_matrix_t;
@@ -16,7 +16,7 @@ class constraint_tpl : public differentiable_vector_evaluator_tpl<ValueType> {
     using typename base_t::value_t;
 
     using matrix_buffer_t =
-        dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
+        evaluator::dense_sparse_buffer_tpl<dense_matrix_t, sparse_matrix_t>;
 
     typedef std::string string_t;
 
@@ -139,23 +139,26 @@ std::ostream &operator<<(std::ostream &out,
 
 template <typename ValueType>
 class linear_constraint_tpl : public constraint_tpl<ValueType>,
-                              public linear_vector_evaluator_tpl<ValueType> {
+                              public evaluator::linear::vector_tpl<ValueType> {
    public:
-    using typename constraint_tpl<ValueType>::value_t;
-    using typename constraint_tpl<ValueType>::dense_vector_t;
-    using typename constraint_tpl<ValueType>::sparse_vector_t;
-    using typename constraint_tpl<ValueType>::dense_matrix_t;
-    using typename constraint_tpl<ValueType>::sparse_matrix_t;
+    using base_t = constraint_tpl<ValueType>;
 
-    using typename constraint_tpl<ValueType>::matrix_buffer_t;
+    using typename base_t::dense_matrix_t;
+    using typename base_t::dense_vector_t;
+    using typename base_t::sparse_matrix_t;
+    using typename base_t::sparse_vector_t;
+    using typename base_t::value_t;
+
+    using typename base_t::matrix_buffer_t;
+
     using vector_buffer_t =
-        dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
+        evaluator::dense_sparse_buffer_tpl<dense_vector_t, sparse_vector_t>;
 
     linear_constraint_tpl(const bopt_index &sz_in, const bopt_index &sz_out,
                           const bopt_index &sz_p,
                           const bounds::type &type = bounds::type::Unbounded)
         : constraint_tpl<ValueType>(sz_in, sz_out, sz_p, type),
-          linear_vector_evaluator_tpl<ValueType>(sz_in, sz_out, sz_p) {}
+          evaluator::linear::vector_tpl<ValueType>(sz_in, sz_out, sz_p) {}
 
     // /**
     //  * @brief Construct a new constraint tpl object via a linear expression

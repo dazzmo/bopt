@@ -9,7 +9,6 @@
 #include <Eigen/Core>
 
 #include "bopt/ad/casadi.hpp"
-#include "bopt/constraints.hpp"
 
 using sym = ::casadi::SX;
 using dm = ::casadi::DM;
@@ -46,7 +45,7 @@ TEST(Casadi, ScalarEvaluator) {
     sym ex = sym::dot(x, p) + sin(dot(x, x));
 
     auto expr =
-        std::make_shared<bopt::casadi::scalar_evaluator>(ex, x, p, true);
+        std::make_shared<bopt::casadi::evaluator::scalar>(ex, x, p, true);
 
     EXPECT_EQ(expr->sz_in(), n);
     EXPECT_EQ(expr->sz_out().first, 1);
@@ -68,7 +67,7 @@ TEST(Casadi, ScalarEvaluator) {
         expr->eval(xv, out);
     }
 
-    auto cpy = bopt::scalar_evaluator(expr);
+    auto cpy = bopt::evaluator::scalar(expr);
 
     EXPECT_EQ(cpy.sz_in(), n);
     EXPECT_EQ(cpy.sz_out().first, 1);
@@ -95,7 +94,7 @@ TEST(Casadi, VectorEvaluator) {
     }
 
     auto expr =
-        std::make_shared<bopt::casadi::vector_evaluator>(ex, x, p, false);
+        std::make_shared<bopt::casadi::evaluator::vector>(ex, x, p, false);
 
     EXPECT_EQ(expr->sz_in(), n);
     EXPECT_EQ(expr->sz_out().first, n);
@@ -108,7 +107,7 @@ TEST(Casadi, VectorEvaluator) {
     xv.setRandom();
     pv.setRandom();
 
-    auto cpy = bopt::vector_evaluator(expr);
+    auto cpy = bopt::evaluator::vector(expr);
 
     EXPECT_EQ(cpy.sz_in(), n);
     EXPECT_EQ(cpy.sz_out().first, n);
@@ -133,8 +132,8 @@ TEST(Casadi, DifferentiableScalarEvaluator) {
     lv << 1.0;
 
     // Map to bopt
-    auto cpy = bopt::differentiable_scalar_evaluator(
-        std::make_shared<bopt::casadi::differentiable_scalar_evaluator>(
+    auto cpy = bopt::evaluator::differentiable::scalar(
+        std::make_shared<bopt::casadi::evaluator::differentiable::scalar>(
             ex, x, p, true, false));
 
     cpy.parameters().setConstant(1.0);
@@ -182,8 +181,8 @@ TEST(Casadi, DifferentiableVectorEvaluator) {
     ex(7) = p(1) * x(7);
 
     // Map to bopt
-    auto cpy = bopt::differentiable_vector_evaluator(
-        std::make_shared<bopt::casadi::differentiable_vector_evaluator>(
+    auto cpy = bopt::evaluator::differentiable::vector(
+        std::make_shared<bopt::casadi::evaluator::differentiable::vector>(
             ex, x, p, true, false));
 
     Eigen::VectorXd out(cpy.sz_out().first);
@@ -241,8 +240,8 @@ TEST(Casadi, LinearVectorEvaluator) {
     ex(9) = 10.0;
 
     // Map to bopt
-    auto cpy = bopt::linear_vector_evaluator(
-        std::make_shared<bopt::casadi::linear_vector_evaluator>(ex, x, p, true,
+    auto cpy = bopt::evaluator::linear::vector(
+        std::make_shared<bopt::casadi::evaluator::linear::vector>(ex, x, p, true,
                                                                 false));
 
     Eigen::VectorXd out(cpy.sz_out().first);

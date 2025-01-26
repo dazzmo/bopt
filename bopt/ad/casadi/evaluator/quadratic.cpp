@@ -1,6 +1,3 @@
-
-#pragma once
-
 #include "bopt/ad/casadi/evaluator/quadratic.hpp"
 
 namespace bopt {
