@@ -40,15 +40,14 @@ class scalar_tpl : public evaluator::scalar_tpl<ValueType> {
         return out_size_t(1, this->sz_in());
     }
 
-    return_status eval_gradient(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) {
+    return_status eval_gradient(const Eigen::Ref<const dense_vector_t> &x,
+                                Eigen::Ref<dense_vector_t> out) {
         if (ptr_) return ptr_->eval_gradient(x, out);
         return eval_gradient_impl(x, out);
     }
 
-    return_status eval_gradient(
-        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
+    return_status eval_gradient(const Eigen::Ref<const dense_vector_t> &x,
+                                sparse_vector_t &out) {
         if (ptr_) return ptr_->eval_gradient(x, out);
         return eval_gradient_impl(x, out);
     }
@@ -65,19 +64,16 @@ class scalar_tpl : public evaluator::scalar_tpl<ValueType> {
         return out_size_t(this->sz_in(), this->sz_in());
     }
 
-    return_status eval_hessian(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        Eigen::Ref<dense_matrix_t> out) {
-        if (ptr_) return ptr_->eval_hessian(x, lambda, out);
-        return eval_hessian_impl(x, lambda, out);
+    return_status eval_hessian(const Eigen::Ref<const dense_vector_t> &x,
+                               Eigen::Ref<dense_matrix_t> out) {
+        if (ptr_) return ptr_->eval_hessian(x, out);
+        return eval_hessian_impl(x, out);
     }
 
-    return_status eval_hessian(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
-        if (ptr_) return ptr_->eval_hessian(x, lambda, out);
-        return eval_hessian_impl(x, lambda, out);
+    return_status eval_hessian(const Eigen::Ref<const dense_vector_t> &x,
+                               sparse_matrix_t &out) {
+        if (ptr_) return ptr_->eval_hessian(x, out);
+        return eval_hessian_impl(x, out);
     }
 
     void get_hessian_sparsity(sparse_matrix_t &out) const {
@@ -103,14 +99,12 @@ class scalar_tpl : public evaluator::scalar_tpl<ValueType> {
 
     virtual return_status eval_hessian_impl(
         const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
         Eigen::Ref<dense_matrix_t> out) {
         return return_status::NotImplemented;
     }
 
     virtual return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
+        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
         return return_status::NotImplemented;
     }
 
@@ -157,15 +151,14 @@ class vector_tpl : public evaluator::vector_tpl<ValueType> {
         return out_size_t(this->sz_out().first, this->sz_in());
     }
 
-    return_status eval_jacobian(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) {
+    return_status eval_jacobian(const Eigen::Ref<const dense_vector_t> &x,
+                                Eigen::Ref<dense_matrix_t> out) {
         if (ptr_) return ptr_->eval_jacobian(x, out);
         return eval_jacobian_impl(x, out);
     }
 
-    return_status eval_jacobian(
-        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+    return_status eval_jacobian(const Eigen::Ref<const dense_vector_t> &x,
+                                sparse_matrix_t &out) {
         if (ptr_) return ptr_->eval_jacobian(x, out);
         return eval_jacobian_impl(x, out);
     }
@@ -182,17 +175,16 @@ class vector_tpl : public evaluator::vector_tpl<ValueType> {
         return out_size_t(this->sz_in(), this->sz_in());
     }
 
-    return_status eval_hessian(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        Eigen::Ref<dense_matrix_t> out) {
+    return_status eval_hessian(const Eigen::Ref<const dense_vector_t> &x,
+                               const Eigen::Ref<const dense_vector_t> &lambda,
+                               Eigen::Ref<dense_matrix_t> out) {
         if (ptr_) return ptr_->eval_hessian(x, lambda, out);
         return eval_hessian_impl(x, lambda, out);
     }
 
-    return_status eval_hessian(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
+    return_status eval_hessian(const Eigen::Ref<const dense_vector_t> &x,
+                               const Eigen::Ref<const dense_vector_t> &lambda,
+                               sparse_matrix_t &out) {
         if (ptr_) return ptr_->eval_hessian(x, lambda, out);
         return eval_hessian_impl(x, lambda, out);
     }

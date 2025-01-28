@@ -28,7 +28,20 @@ class cost_tpl : public evaluator::differentiable::scalar_tpl<ValueType> {
     ~cost_tpl() = default;
 
     cost_tpl(const bopt_index &sz_in, const bopt_index &sz_p = 0)
-        : base(sz_in, sz_p), name_("") {}
+        : base(sz_in, sz_p), name_("") {
+        buffer_gradient_.dense =
+            dense_vector_t::Zero(this->sz_gradient().second);
+        buffer_hessian_.dense = dense_matrix_t::Zero(this->sz_hessian().first,
+                                                     this->sz_hessian().first);
+    }
+
+    cost_tpl(const typename base::shared_ptr_t &ptr)
+        : base(ptr), name_("") {
+        buffer_gradient_.dense =
+            dense_vector_t::Zero(ptr->sz_gradient().second);
+        buffer_hessian_.dense = dense_matrix_t::Zero(ptr->sz_hessian().first,
+                                                     ptr->sz_hessian().first);
+    }
 
     const string_t &name() const { return name_; }
     void set_name(const string_t &name) { name_ = name; }
@@ -68,7 +81,10 @@ class linear_cost_tpl : public cost_tpl<ValueType>,
 
     linear_cost_tpl(const bopt_index &sz_in, const bopt_index &sz_p = 0)
         : cost_tpl<ValueType>(sz_in, sz_p),
-          evaluator::linear::scalar_tpl<ValueType>(sz_in, sz_p) {}
+          evaluator::linear::scalar_tpl<ValueType>(sz_in, sz_p) {
+        // Initialise buffers
+        this->buffer_a().dense = dense_vector_t::Zero(this->sz_a().first);
+    }
 
     const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
 
@@ -90,22 +106,21 @@ class linear_cost_tpl : public cost_tpl<ValueType>,
         return this->eval_a(out);
     }
 
-    // evaluator::return_status eval_hessian_impl(
-    //     const Eigen::Ref<const dense_vector_t> &x,
-    //     Eigen::Ref<dense_matrix_t> out) override {
-    //     out.setZero();
-    //     return evaluator::return_status::Success;
-    // }
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) override {
+        out.setZero();
+        return evaluator::return_status::Success;
+    }
 
-    // evaluator::return_status eval_hessian_impl(
-    //     const Eigen::Ref<const dense_vector_t> &x,
-    //     sparse_matrix_t &out) override {
-    //     for (int k = 0; k < out.outerSize(); ++k)
-    //         for (typename sparse_matrix_t::InnerIterator it(out, k); it;
-    //         ++it)
-    //             it.valueRef() = 0.0;
-    //     return evaluator::return_status::Success;
-    // }
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        sparse_matrix_t &out) override {
+        for (int k = 0; k < out.outerSize(); ++k)
+            for (typename sparse_matrix_t::InnerIterator it(out, k); it; ++it)
+                it.valueRef() = 0.0;
+        return evaluator::return_status::Success;
+    }
 
    private:
     vector_buffer_t buffer_a_;
@@ -134,7 +149,12 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
 
     quadratic_cost_tpl(const bopt_index &sz_in, const bopt_index &sz_p = 0)
         : cost_tpl<ValueType>(sz_in, sz_p),
-          evaluator::quadratic::scalar_tpl<ValueType>(sz_in, sz_p) {}
+          evaluator::quadratic::scalar_tpl<ValueType>(sz_in, sz_p) {
+        // Initialise buffers
+        this->buffer_A().dense =
+            dense_matrix_t::Zero(this->sz_A().first, this->sz_A().second);
+        this->buffer_b().dense = dense_vector_t::Zero(this->sz_b().first);
+    }
 
     const bopt_index &sz_in() const { return cost_tpl<ValueType>::sz_in(); }
     const bopt_index &sz_out() const { return cost_tpl<ValueType>::sz_out(); }
@@ -153,6 +173,10 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
         this->eval_A(A);
         this->eval_b(b);
 
+        VLOG(10) << "A: " << A;
+        VLOG(10) << "b: " << b;
+        VLOG(10) << "x: " << x;
+
         out = ValueType(2.0) * A * x + b;
         return evaluator::return_status::Success;
     }
@@ -166,25 +190,29 @@ class quadratic_cost_tpl : public cost_tpl<ValueType>,
         this->eval_A(A);
         this->eval_b(b);
 
+        VLOG(10) << "A: " << A;
+        VLOG(10) << "b: " << b;
+        VLOG(10) << "x: " << x;
+
         out = ValueType(2.0) * A * x + b;
         return evaluator::return_status::Success;
     }
 
     void get_hessian_sparsity_impl(sparse_matrix_t &out) const override {
-        this->sparsity_A(out);
+        this->get_A_sparsity(out);
     }
 
-    // evaluator::return_status eval_hessian_impl(
-    //     const Eigen::Ref<const dense_vector_t> &x,
-    //     Eigen::Ref<dense_matrix_t> out) override {
-    //     return this->eval_A(out);
-    // }
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        Eigen::Ref<dense_matrix_t> out) override {
+        return this->eval_A(out);
+    }
 
-    // evaluator::return_status eval_hessian_impl(
-    //     const Eigen::Ref<const dense_vector_t> &x,
-    //     sparse_matrix_t &out) override {
-    //     return this->eval_A(out);
-    // }
+    evaluator::return_status eval_hessian_impl(
+        const Eigen::Ref<const dense_vector_t> &x,
+        sparse_matrix_t &out) override {
+        return this->eval_A(out);
+    }
 
    private:
     matrix_buffer_t buffer_A_;

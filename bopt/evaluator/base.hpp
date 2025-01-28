@@ -129,6 +129,17 @@ class base_tpl : public input_output_traits {
     }
 
     /**
+     * @brief Number of parameters within the evaluator
+     * 
+     * @return bopt_index 
+     */
+    bopt_index sz_p() const {
+        if (ptr_) return ptr_->sz_p();
+        if (parameter_data_) return parameter_data_->size();
+        return 0;
+    }
+
+    /**
      * @brief Parameters used by the evaluator
      *
      * @return const std::shared_ptr<parameter_data_t>&
@@ -205,14 +216,14 @@ class scalar_tpl : public base_tpl<ValueType> {
     ~scalar_tpl() = default;
 
     return_status eval(const Eigen::Ref<const dense_vector_t> &x,
-                                  value_t &out) {
+                       value_t &out) {
         if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
 
    protected:
-    virtual return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x, value_t &out) {
+    virtual return_status eval_impl(const Eigen::Ref<const dense_vector_t> &x,
+                                    value_t &out) {
         return return_status::NotImplemented;
     }
 
@@ -259,14 +270,16 @@ class vector_tpl : public base_tpl<ValueType> {
 
     ~vector_tpl() = default;
 
+    bopt_index rows() const { return this->sz_out().first; }
+
     return_status eval(const Eigen::Ref<const dense_vector_t> &x,
-                                  Eigen::Ref<dense_vector_t> out) {
+                       Eigen::Ref<dense_vector_t> out) {
         if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
 
     return_status eval(const Eigen::Ref<const dense_vector_t> &x,
-                                  sparse_vector_t &out) {
+                       sparse_vector_t &out) {
         if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
@@ -279,14 +292,13 @@ class vector_tpl : public base_tpl<ValueType> {
     }
 
    protected:
-    virtual return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) {
+    virtual return_status eval_impl(const Eigen::Ref<const dense_vector_t> &x,
+                                    Eigen::Ref<dense_vector_t> out) {
         return return_status::NotImplemented;
     }
 
-    virtual return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
+    virtual return_status eval_impl(const Eigen::Ref<const dense_vector_t> &x,
+                                    sparse_vector_t &out) {
         return return_status::NotImplemented;
     }
 
@@ -335,14 +347,17 @@ class matrix_tpl : public base_tpl<ValueType> {
 
     ~matrix_tpl() = default;
 
+    bopt_index rows() const { return this->sz_out().first; }
+    bopt_index cols() const { return this->sz_out().second; }
+
     return_status eval(const Eigen::Ref<const dense_vector_t> &x,
-                                  Eigen::Ref<dense_matrix_t> out) {
+                       Eigen::Ref<dense_matrix_t> out) {
         if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
 
     return_status eval(const Eigen::Ref<const dense_vector_t> &x,
-                                  sparse_matrix_t &out) {
+                       sparse_matrix_t &out) {
         if (ptr_) return ptr_->eval(x, out);
         return eval_impl(x, out);
     }
@@ -355,14 +370,13 @@ class matrix_tpl : public base_tpl<ValueType> {
     }
 
    protected:
-    virtual return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) {
+    virtual return_status eval_impl(const Eigen::Ref<const dense_vector_t> &x,
+                                    Eigen::Ref<dense_matrix_t> out) {
         return return_status::NotImplemented;
     }
 
-    virtual return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+    virtual return_status eval_impl(const Eigen::Ref<const dense_vector_t> &x,
+                                    sparse_matrix_t &out) {
         return return_status::NotImplemented;
     }
 

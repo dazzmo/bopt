@@ -41,8 +41,8 @@ class GenericLinearConstraint : public bopt::linear_constraint {
         this->set_name("linear_constraint");
     }
 
-    void sparsity_jacobian(sparse_matrix_t &jac) const override {
-        jac.resize(rows_jacobian(), cols_jacobian());
+    void get_jacobian_sparsity_impl(sparse_matrix_t &jac) const override {
+        jac.resize(sz_jacobian().first, sz_jacobian().second);
         jac.coeffRef(0, 1) = 0.0;
         jac.coeffRef(1, 0) = 0.0;
         jac.coeffRef(1, 1) = 0.0;

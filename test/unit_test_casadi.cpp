@@ -1,6 +1,7 @@
 #include <gflags/gflags.h>
 #include <gtest/gtest.h>
 
+#include "bopt/constraints.hpp"
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
 
@@ -125,11 +126,7 @@ TEST(Casadi, DifferentiableScalarEvaluator) {
     double out;
 
     Eigen::Vector2d xv, grd;
-    Eigen::VectorXd lv(1);
     Eigen::Matrix2d hes;
-
-    xv.setOnes();
-    lv << 1.0;
 
     // Map to bopt
     auto cpy = bopt::evaluator::differentiable::scalar(
@@ -139,7 +136,7 @@ TEST(Casadi, DifferentiableScalarEvaluator) {
     cpy.parameters().setConstant(1.0);
     cpy.eval(xv, out);
     cpy.eval_gradient(xv, grd);
-    cpy.eval_hessian(xv, lv, hes);
+    cpy.eval_hessian(xv, hes);
 
     VLOG(10) << out;
     VLOG(10) << grd.transpose();
@@ -157,7 +154,7 @@ TEST(Casadi, DifferentiableScalarEvaluator) {
         }
         {
             bopt::profiler("test hes");
-            cpy.eval_hessian(xv, lv, hes);
+            cpy.eval_hessian(xv, hes);
         }
     }
 
@@ -241,8 +238,8 @@ TEST(Casadi, LinearVectorEvaluator) {
 
     // Map to bopt
     auto cpy = bopt::evaluator::linear::vector(
-        std::make_shared<bopt::casadi::evaluator::linear::vector>(ex, x, p, true,
-                                                                false));
+        std::make_shared<bopt::casadi::evaluator::linear::vector>(ex, x, p,
+                                                                  true, false));
 
     Eigen::VectorXd out(cpy.sz_out().first);
     Eigen::VectorXd xv(cpy.sz_in());
@@ -287,32 +284,17 @@ TEST(Casadi, LinearVectorEvaluator) {
     // EXPECT_EQ(cpy.sz_hessian().second, 2);
 }
 
-// TEST(Casadi, QuadraticExpression) {
-//     sym x = sym::sym("x", 5);
-//     sym p = sym::sym("p", 1);
-//     // Create symbolic constraint
-//     sym ex = p * sym::dot(x, x);
+TEST(Casadi, LinearConstraint) {
+    sym x = sym::sym("x", 5);
+    sym p = sym::sym("p", 1);
+    // Create symbolic constraint
+    sym ex = p * x + sym::ones(5, 1);
 
-//     auto expr = bopt::casadi::quadratic_scalar_evaluator(ex, x, p, true,
-//     false);
-
-//     Eigen::MatrixXd A(expr.rows_A(), expr.cols_A());
-//     Eigen::VectorXd pv(1);
-//     pv << 1.0;
-//     expr.set_parameters(pv);
-//     expr.eval_A(A);
-
-//     LOG(INFO) << "A: " << A;
-
-//     expr = bopt::casadi::quadratic_scalar_evaluator(ex, x, p, false, false);
-
-//     Eigen::SparseMatrix<double> As(expr.rows_A(), expr.cols_A());
-//     expr.set_parameters(pv);
-//     expr.sparsity_A(As);
-//     expr.eval_A(As);
-
-//     LOG(INFO) << "A: " << As;
-// }
+    auto expr = bopt::linear_constraint(
+        std::make_shared<bopt::casadi::evaluator::linear::vector>(ex, x, p,
+                                                                  false, false),
+        bopt::bounds::type::Equality);
+}
 
 // TEST(Casadi, ExpressionWithParameter) {
 //     std::size_t n = 10;

@@ -14,20 +14,13 @@ scalar::scalar(const sym_t &expression, const sym_vector_t &x,
     in.push_back(p);
 
     fun_ = create_function("f", in, {expression}, true, codegen);
-    grd_ = create_function("grd", in, {sym_t::gradient(expression, x)}, densify,
+    grd_ = create_function("grd", in, {sym_t::gradient(expression, x)}, true,
                            codegen);
 
     // Create hessian
-    sym_vector_t l = sym_vector_t::sym("l", expression.size1());
-    // Create input list
-    in = {};
-    in.push_back(x);
-    in.push_back(l);
-    in.push_back(p);
-
-    hes_ = create_function(
-        "hes", in, {sym_t::tril(sym_t::hessian(sym_t::dot(l, expression), x))},
-        densify, codegen);
+    hes_ =
+        create_function("hes", in, {sym_t::tril(sym_t::hessian(expression, x))},
+                        densify, codegen);
 }
 
 return_status scalar::eval_impl(const Eigen::Ref<const dense_vector_t> &x,
@@ -53,18 +46,14 @@ void scalar::get_gradient_sparsity_impl(sparse_vector_t &out) const {
 }
 
 return_status scalar::eval_hessian_impl(
-    const Eigen::Ref<const dense_vector_t> &x,
-    const Eigen::Ref<const dense_vector_t> &lambda,
-    Eigen::Ref<dense_matrix_t> out) {
-    hes_({x.data(), lambda.data(), this->parameters().data()}, {out.data()});
+    const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_matrix_t> out) {
+    hes_({x.data(), this->parameters().data()}, {out.data()});
     return return_status::Success;
 }
 
 return_status scalar::eval_hessian_impl(
-    const Eigen::Ref<const dense_vector_t> &x,
-    const Eigen::Ref<const dense_vector_t> &lambda, sparse_matrix_t &out) {
-    hes_({x.data(), lambda.data(), this->parameters().data()},
-         {out.valuePtr()});
+    const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+    hes_({x.data(), this->parameters().data()}, {out.valuePtr()});
     return return_status::Success;
 }
 

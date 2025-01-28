@@ -234,6 +234,7 @@ bool ipopt_program_instance::get_starting_point(Index n, bool init_x, Number* x,
                                                 bool init_lambda,
                                                 Number* lambda) {
     VLOG(10) << "get_starting_point()";
+    VLOG(10) << "x0: " << program().variables_initial_value().transpose();
 
     assert(init_z == false);
     assert(init_lambda == false);

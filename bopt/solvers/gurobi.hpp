@@ -1,5 +1,6 @@
 #pragma once
 
+#define BOPT_WITH_GUROBI
 #ifdef BOPT_WITH_GUROBI
 
 #include <gurobi_c++.h>
@@ -22,36 +23,42 @@ class gurobi_solver_instance : public solver<double> {
     gurobi_solver_instance(mathematical_program<double> &program)
         : solver<double>(program) {
         // Create gurobi environment
-        GRBEnv env = GRBEnv(true);
-        env.set("LogFile", program.name() + ".log");
-        env.start();
+
+        try {
+            GRBEnv env = GRBEnv(true);
+            env.set("LogFile", program.name() + ".log");
+            env.start();
+        } catch (GRBException e) {
+            LOG(ERROR) << "Error code = " << e.getErrorCode();
+            LOG(ERROR) << e.getMessage();
+        }
 
         // Create an empty model
-        model_ = std::make_unique<GRBModel>(env);
+        // model_ = std::make_unique<GRBModel>(env);
 
         // Create variables
         // for (const auto &x : program.variables()) {
         //     // model.addVar()
         // }
 
-        GRBLinExpr lin_costs;
-        GRBQuadExpr qdr_costs;
+        // GRBLinExpr lin_costs;
+        // GRBQuadExpr qdr_costs;
 
-        // Linear costs
-        for (auto &binding : program.linear_costs()) {
-            auto &a = binding.get()->buffer_a().dense;
-            binding.get()->eval_a(a);
-            for (int i = 0; i < a.rows(); ++i) {
-                if (a[i] != 0) lin_costs += a[i];
-            }
-        }
+        // // Linear costs
+        // for (auto &binding : program.linear_costs()) {
+        //     auto &a = binding.get()->buffer_a().dense;
+        //     binding.get()->eval_a(a);
+        //     for (int i = 0; i < a.rows(); ++i) {
+        //         if (a[i] != 0) lin_costs += a[i];
+        //     }
+        // }
 
-        VLOG(10) << lin_costs;
+        // VLOG(10) << lin_costs;
 
-        qdr_costs += lin_costs;
+        // qdr_costs += lin_costs;
 
-        // Quadratic costs
-        model_->setObjective(qdr_costs);
+        // // Quadratic costs
+        // model_->setObjective(qdr_costs);
         // Other costs
 
         // Matrix constraint

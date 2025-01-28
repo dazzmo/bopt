@@ -39,12 +39,10 @@ class scalar : public bopt::evaluator::differentiable::scalar {
 
     return_status eval_hessian_impl(
         const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
         Eigen::Ref<dense_matrix_t> out) override;
 
     return_status eval_hessian_impl(
         const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
         sparse_matrix_t &out) override;
 
     void get_hessian_sparsity_impl(sparse_matrix_t &out) const override;

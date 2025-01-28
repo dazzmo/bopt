@@ -3,6 +3,7 @@
 
 #include <Eigen/Core>
 
+#include "bopt/ad/casadi.hpp"
 #include "bopt/logging.hpp"
 #include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
@@ -12,12 +13,6 @@ class GenericQuadraticCost : public bopt::quadratic_cost {
    public:
     GenericQuadraticCost() : bopt::quadratic_cost(2) {
         this->set_name("quadratic cost");
-    }
-
-    void sparsity_A(sparse_matrix_t &out) const override {
-        out.resize(2, 2);
-        out.coeffRef(0, 0) = 0.0;
-        out.coeffRef(1, 1) = 0.0;
     }
 
    protected:
@@ -39,6 +34,12 @@ class GenericQuadraticCost : public bopt::quadratic_cost {
         return bopt::evaluator::return_status::Success;
     }
 
+    void get_A_sparsity_impl(sparse_matrix_t &out) const override {
+        out.resize(2, 2);
+        out.coeffRef(0, 0) = 0.0;
+        out.coeffRef(1, 1) = 0.0;
+    }
+
     bopt::evaluator::return_status eval_b_impl(
         Eigen::Ref<dense_vector_t> out) override {
         out.setZero();
@@ -53,13 +54,6 @@ class GenericLinearConstraint : public bopt::linear_constraint {
         this->set_name("linear_constraint");
     }
 
-    void sparsity_jacobian(sparse_matrix_t &jac) const override {
-        jac.resize(rows_jacobian(), cols_jacobian());
-        jac.coeffRef(0, 1) = 0.0;
-        jac.coeffRef(1, 0) = 0.0;
-        jac.coeffRef(1, 1) = 0.0;
-    }
-
    protected:
     bopt::evaluator::return_status eval_impl(
         const Eigen::Ref<const dense_vector_t> &x,
@@ -67,6 +61,13 @@ class GenericLinearConstraint : public bopt::linear_constraint {
         out[0] = x[1];
         out[1] = x[0] + x[1];
         return bopt::evaluator::return_status::Success;
+    }
+
+    void get_jacobian_sparsity_impl(sparse_matrix_t &jac) const override {
+        jac.resize(2, 2);
+        jac.coeffRef(0, 1) = 0.0;
+        jac.coeffRef(1, 0) = 0.0;
+        jac.coeffRef(1, 1) = 0.0;
     }
 
     bopt::evaluator::return_status eval_A_impl(
@@ -99,6 +100,36 @@ TEST(Program, SimpleProgram) {
     p.add_linear_constraint(g0, x);
 
     auto nlp = bopt::solvers::ipopt_solver(p);
+    nlp.options()->SetNumericValue("tol", 1e-3);
+    nlp.options()->SetStringValue("mu_strategy", "adaptive");
+    nlp.solve();
+}
+
+TEST(Program, Rosenbrock) {
+    int N = 2;
+    using bopt::casadi::sym_t;
+    sym_t x = sym_t::sym("x", 2 * N);
+    sym_t p = sym_t::sym("p", 1);
+    sym_t f = 0.0;
+
+    for (int i = 0; i < N; ++i) {
+        f += 100.0 * pow(pow(x(2 * i - 1), 2) - x(2 * i), 2) +
+             pow(x(2 * i - 1) - 1, 2);
+    }
+
+    auto c = std::make_shared<bopt::cost_tpl<double>>(
+        std::make_shared<bopt::casadi::evaluator::differentiable::scalar>(
+            f, x, p, false, false));
+
+    bopt::mathematical_program<double> pg("rosenbrock");
+    bopt::variable_vector v = bopt::create_variable_vector("x", 2 * N);
+    for (int i = 0; i < 2 * N; ++i) {
+        pg.add_variable(v[i], 0.2, -10, 10.0);
+    }
+
+    pg.add_cost(c, v);
+
+    auto nlp = bopt::solvers::ipopt_solver(pg);
     nlp.options()->SetNumericValue("tol", 1e-3);
     nlp.options()->SetStringValue("mu_strategy", "adaptive");
     nlp.solve();

@@ -59,7 +59,7 @@ class scalar_tpl : public evaluator::scalar_tpl<ValueType> {
      */
     virtual out_size_t sz_A() const {
         if (ptr_) return ptr_->sz_A();
-        return out_size_t(this->sz_out().first, this->sz_in());
+        return out_size_t(this->sz_in(), this->sz_in());
     }
 
     /**
