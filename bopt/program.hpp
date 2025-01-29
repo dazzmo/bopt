@@ -171,6 +171,7 @@ void eval_lagrangian_hessian(
 
         if (b.get()->eval_hessian(xi, hes) ==
             evaluator::return_status::NotImplemented) {
+            // Perform dense approximation
         }
 
         // Iterate over non-zeros

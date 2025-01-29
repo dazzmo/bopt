@@ -106,6 +106,8 @@ class constraint_tpl : public evaluator::differentiable::vector_tpl<ValueType> {
                (upper_bound_ - this->buffer()).minCoeff() >= epsilon;
     }
 
+    // todo - margins
+
     dense_vector_t &buffer() { return buffer_; }
     matrix_buffer_t &buffer_jacobian() { return buffer_jacobian_; }
     matrix_buffer_t &buffer_hessian() { return buffer_hessian_; }

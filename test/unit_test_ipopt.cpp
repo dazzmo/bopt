@@ -85,46 +85,49 @@ class GenericLinearConstraint : public bopt::linear_constraint {
     }
 };
 
-TEST(Program, SimpleProgram) {
-    auto c = std::make_shared<GenericQuadraticCost>();
-    auto g0 = std::make_shared<GenericLinearConstraint>();
-    g0->set_lower_bound(Eigen::Vector2d(1.0, 2.0));
-    g0->set_upper_bound(Eigen::Vector2d(10.0, 5.0));
+// TEST(Program, SimpleProgram) {
+//     auto c = std::make_shared<GenericQuadraticCost>();
+//     auto g0 = std::make_shared<GenericLinearConstraint>();
+//     g0->set_lower_bound(Eigen::Vector2d(1.0, 2.0));
+//     g0->set_upper_bound(Eigen::Vector2d(10.0, 5.0));
 
-    auto x = bopt::create_variable_vector("x", 2);
+//     auto x = bopt::create_variable_vector("x", 2);
 
-    bopt::mathematical_program<double> p("program");
-    p.add_variables(x);
+//     bopt::mathematical_program<double> p("program");
+//     p.add_variables(x);
 
-    p.add_cost(c, x);
-    p.add_linear_constraint(g0, x);
+//     p.add_cost(c, x);
+//     p.add_linear_constraint(g0, x);
 
-    auto nlp = bopt::solvers::ipopt_solver(p);
-    nlp.options()->SetNumericValue("tol", 1e-3);
-    nlp.options()->SetStringValue("mu_strategy", "adaptive");
-    nlp.solve();
-}
+//     auto nlp = bopt::solvers::ipopt_solver(p);
+//     nlp.options()->SetNumericValue("tol", 1e-3);
+//     nlp.options()->SetStringValue("mu_strategy", "adaptive");
+//     nlp.solve();
+// }
 
 TEST(Program, Rosenbrock) {
-    int N = 2;
+    int N = 5000;
     using bopt::casadi::sym_t;
-    sym_t x = sym_t::sym("x", 2 * N);
+    sym_t x = sym_t::sym("x", N);
     sym_t p = sym_t::sym("p", 1);
     sym_t f = 0.0;
 
-    for (int i = 0; i < N; ++i) {
-        f += 100.0 * pow(pow(x(2 * i - 1), 2) - x(2 * i), 2) +
-             pow(x(2 * i - 1) - 1, 2);
+    for (int i = 0; i < N - 1; ++i) {
+        f += 100.0 * pow(x(i + 1) - pow(x(i), 2), 2) + pow(1.0 - x(i), 2);
     }
+
+    auto opt = bopt::casadi::evaluator::differentiable::scalar::options();
+    opt.dense_gradient = true;
+    opt.dense_hessian = false;
 
     auto c = std::make_shared<bopt::cost_tpl<double>>(
         std::make_shared<bopt::casadi::evaluator::differentiable::scalar>(
-            f, x, p, false, false));
+            f, x, p, opt));
 
     bopt::mathematical_program<double> pg("rosenbrock");
-    bopt::variable_vector v = bopt::create_variable_vector("x", 2 * N);
-    for (int i = 0; i < 2 * N; ++i) {
-        pg.add_variable(v[i], 0.2, -10, 10.0);
+    bopt::variable_vector v = bopt::create_variable_vector("x", N);
+    for (int i = 0; i < N; ++i) {
+        pg.add_variable(v[i], 0.5, -10, 10.0);
     }
 
     pg.add_cost(c, v);
@@ -132,12 +135,19 @@ TEST(Program, Rosenbrock) {
     auto nlp = bopt::solvers::ipopt_solver(pg);
     nlp.options()->SetNumericValue("tol", 1e-3);
     nlp.options()->SetStringValue("mu_strategy", "adaptive");
-    nlp.solve();
+    // nlp.options()->SetStringValue("hessian_approximation", "limited-memory");
+    try {
+        nlp.solve();
+    } catch (std::exception &e) {
+        LOG(ERROR) << e.what();
+    }
+
+    // Try with qpoases
 }
 
 int main(int argc, char **argv) {
     FLAGS_logtostderr = true;
-    FLAGS_v = 10;
+    // FLAGS_v = 10;
 
     google::InitGoogleLogging(argv[0]);
     google::ParseCommandLineFlags(&argc, &argv, true);

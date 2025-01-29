@@ -22,8 +22,25 @@ class scalar : public bopt::evaluator::differentiable::scalar {
     using typename base_t::sparse_vector_t;
     using typename base_t::value_t;
 
+    struct options {
+        options()
+            : dense_gradient(true),
+              dense_hessian(true),
+              codegen_function(false),
+              codegen_gradient(false),
+              codegen_hessian(false) {}
+
+        bool codegen_function;
+
+        bool dense_gradient;
+        bool dense_hessian;
+
+        bool codegen_gradient;
+        bool codegen_hessian;
+    };
+
     scalar(const sym_t &expression, const sym_vector_t &x,
-           const sym_vector_t &p, bool densify = false, bool codegen = false);
+           const sym_vector_t &p, const options &opt = options());
 
    protected:
     return_status eval_impl(const Eigen::Ref<const dense_vector_t> &x,
@@ -37,13 +54,11 @@ class scalar : public bopt::evaluator::differentiable::scalar {
 
     void get_gradient_sparsity_impl(sparse_vector_t &out) const override;
 
-    return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override;
+    return_status eval_hessian_impl(const Eigen::Ref<const dense_vector_t> &x,
+                                    Eigen::Ref<dense_matrix_t> out) override;
 
-    return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        sparse_matrix_t &out) override;
+    return_status eval_hessian_impl(const Eigen::Ref<const dense_vector_t> &x,
+                                    sparse_matrix_t &out) override;
 
     void get_hessian_sparsity_impl(sparse_matrix_t &out) const override;
 
@@ -51,10 +66,12 @@ class scalar : public bopt::evaluator::differentiable::scalar {
     function_t fun_;
     function_t grd_;
     function_t hes_;
+
+    // Evaluator options
+    options opt_;
 };
 
-class vector
-    : public bopt::evaluator::differentiable::vector {
+class vector : public bopt::evaluator::differentiable::vector {
    public:
     using base_t = bopt::evaluator::differentiable::vector;
 
@@ -64,10 +81,8 @@ class vector
     using typename base_t::sparse_vector_t;
     using typename base_t::value_t;
 
-    vector(const sym_t &expression,
-                                    const sym_vector_t &x,
-                                    const sym_vector_t &p, bool densify = false,
-                                    bool codegen = false);
+    vector(const sym_t &expression, const sym_vector_t &x,
+           const sym_vector_t &p, bool densify = false, bool codegen = false);
 
    protected:
     return_status eval_impl(const Eigen::Ref<const dense_vector_t> &x,

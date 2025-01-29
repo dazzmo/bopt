@@ -45,8 +45,7 @@ TEST(Casadi, ScalarEvaluator) {
     // Create symbolic constraint
     sym ex = sym::dot(x, p) + sin(dot(x, x));
 
-    auto expr =
-        std::make_shared<bopt::casadi::evaluator::scalar>(ex, x, p, true);
+    auto expr = std::make_shared<bopt::casadi::evaluator::scalar>(ex, x, p);
 
     EXPECT_EQ(expr->sz_in(), n);
     EXPECT_EQ(expr->sz_out().first, 1);
@@ -118,28 +117,38 @@ TEST(Casadi, VectorEvaluator) {
 }
 
 TEST(Casadi, DifferentiableScalarEvaluator) {
-    sym x = sym::sym("x", 2);
+    sym x = sym::sym("x", 25);
     sym p = sym::sym("p", 1);
     // Create symbolic expression
-    sym ex = p * sym::dot(x, x);
+    sym ex = p * x(1) * x(1) + x(10) * x(10);
 
     double out;
 
-    Eigen::Vector2d xv, grd;
-    Eigen::Matrix2d hes;
+    Eigen::VectorXd xv(25), grd;
+    Eigen::MatrixXd hes(25, 25);
+
+    auto opt = bopt::casadi::evaluator::differentiable::scalar::options();
+    opt.dense_gradient = false;
+    opt.dense_hessian = true;
+    opt.codegen_hessian = true;
 
     // Map to bopt
     auto cpy = bopt::evaluator::differentiable::scalar(
         std::make_shared<bopt::casadi::evaluator::differentiable::scalar>(
-            ex, x, p, true, false));
+            ex, x, p, opt));
 
+    Eigen::SparseVector<double> grd_sparse;
+    cpy.get_gradient_sparsity(grd_sparse);
+
+    xv.setRandom();
     cpy.parameters().setConstant(1.0);
     cpy.eval(xv, out);
-    cpy.eval_gradient(xv, grd);
+    cpy.eval_gradient(xv, grd_sparse);
     cpy.eval_hessian(xv, hes);
 
+    VLOG(10) << xv.transpose();
     VLOG(10) << out;
-    VLOG(10) << grd.transpose();
+    VLOG(10) << grd_sparse.transpose();
     VLOG(10) << hes;
 
     cpy.parameters().setConstant(5.0);
@@ -148,10 +157,10 @@ TEST(Casadi, DifferentiableScalarEvaluator) {
             bopt::profiler("test eval");
             cpy.eval(xv, out);
         }
-        {
-            bopt::profiler("test grd");
-            cpy.eval_gradient(xv, grd);
-        }
+        // {
+        //     bopt::profiler("test grd");
+        //     cpy.eval_gradient(xv, grd);
+        // }
         {
             bopt::profiler("test hes");
             cpy.eval_hessian(xv, hes);

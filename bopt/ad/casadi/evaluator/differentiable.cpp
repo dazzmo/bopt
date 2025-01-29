@@ -6,21 +6,22 @@ namespace evaluator {
 namespace differentiable {
 
 scalar::scalar(const sym_t &expression, const sym_vector_t &x,
-               const sym_vector_t &p, bool densify, bool codegen)
-    : base_t(x.size1(), p.size1()) {
+               const sym_vector_t &p, const options &opt)
+    : base_t(x.size1(), p.size1()), opt_(opt) {
     DBGASSERT(expression.is_scalar() && "Expression is not scalar!");
     std::vector<sym_vector_t> in = {};
     in.push_back(x);
     in.push_back(p);
 
-    fun_ = create_function("f", in, {expression}, true, codegen);
-    grd_ = create_function("grd", in, {sym_t::gradient(expression, x)}, true,
-                           codegen);
+    fun_ = create_function("f", in, {expression}, true, opt.codegen_function);
+
+    grd_ = create_function("grd", in, {sym_t::gradient(expression, x)},
+                           opt.dense_gradient, opt.codegen_gradient);
 
     // Create hessian
     hes_ =
         create_function("hes", in, {sym_t::tril(sym_t::hessian(expression, x))},
-                        densify, codegen);
+                        opt.dense_hessian, opt.codegen_hessian);
 }
 
 return_status scalar::eval_impl(const Eigen::Ref<const dense_vector_t> &x,
@@ -31,12 +32,14 @@ return_status scalar::eval_impl(const Eigen::Ref<const dense_vector_t> &x,
 
 return_status scalar::eval_gradient_impl(
     const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_vector_t> out) {
+    if (!opt_.dense_gradient) return return_status::NotImplemented;
     grd_({x.data(), this->parameters().data()}, {out.data()});
     return return_status::Success;
 }
 
 return_status scalar::eval_gradient_impl(
     const Eigen::Ref<const dense_vector_t> &x, sparse_vector_t &out) {
+    if (opt_.dense_gradient) return return_status::NotImplemented;
     grd_({x.data(), this->parameters().data()}, {out.valuePtr()});
     return return_status::Success;
 }
@@ -47,12 +50,14 @@ void scalar::get_gradient_sparsity_impl(sparse_vector_t &out) const {
 
 return_status scalar::eval_hessian_impl(
     const Eigen::Ref<const dense_vector_t> &x, Eigen::Ref<dense_matrix_t> out) {
+    if (!opt_.dense_hessian) return return_status::NotImplemented;
     hes_({x.data(), this->parameters().data()}, {out.data()});
     return return_status::Success;
 }
 
 return_status scalar::eval_hessian_impl(
     const Eigen::Ref<const dense_vector_t> &x, sparse_matrix_t &out) {
+    if (opt_.dense_hessian) return return_status::NotImplemented;
     hes_({x.data(), this->parameters().data()}, {out.valuePtr()});
     return return_status::Success;
 }

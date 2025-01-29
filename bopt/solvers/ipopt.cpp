@@ -28,6 +28,9 @@ bool ipopt_program_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
     n = program().n_variables();
     m = program().n_constraints();
 
+    VLOG(10) << "n = " << n;
+    VLOG(10) << "m = " << m;
+
     nnz_jac_g = cache_.constraint_jacobian.nonZeros();
     nnz_h_lag = cache_.lagrangian_hessian.nonZeros();
 
@@ -54,6 +57,7 @@ bool ipopt_program_instance::eval_f(Index n, const Number* x, bool new_x,
     }
 
     // Set objective to most recently cached value
+    VLOG(10) << "f: " << cache_.objective;
     obj_value = cache_.objective;
     return true;
 }
@@ -70,11 +74,28 @@ bool ipopt_program_instance::eval_grad_f(Index n, const Number* x, bool new_x,
     // Update caches
     cache_.objective_gradient.setZero();
     for (auto& binding : costs_) {
+        Eigen::Ref<const Eigen::VectorXd> xi =
+            cache_.primal_vector(binding.indices().indices());
         cost_tpl<Number>::dense_vector_t& grd =
             binding.get()->buffer_gradient().dense;
-
-        binding.get()->eval_gradient(
-            cache_.primal_vector(binding.indices().indices()), grd);
+        if (binding.get()->eval_gradient(xi, grd) ==
+            evaluator::return_status::NotImplemented) {
+            // Check if sparse method is available
+            if (binding.get()->buffer_gradient().sparse.size() == 0) {
+                binding.get()->get_gradient_sparsity(
+                    binding.get()->buffer_gradient().sparse);
+                VLOG(10) << "Created sparse gradient equivalent";
+                VLOG(10) << binding.get()->buffer_gradient().sparse;
+            }
+            // Evaluate sparse gradient
+            if (binding.get()->eval_gradient(
+                    xi, binding.get()->buffer_gradient().sparse) !=
+                evaluator::return_status::NotImplemented) {
+                grd = binding.get()->buffer_gradient().sparse;
+            } else {
+                throw std::runtime_error("BAD!");
+            }
+        }
 
         VLOG(10) << "grd : " << grd.transpose();
         cache_.objective_gradient(binding.indices().indices()) += grd;
@@ -160,6 +181,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
                                     Index nele_hess, Index* iRow, Index* jCol,
                                     Number* values) {
     bopt::profiler profiler("ipopt_program_instance::eval_h");
+    VLOG(10) << "eval_h()";
     if (values == NULL) {
         // Return the sparsity of the constraint Jacobian
         int cnt = 0;
@@ -184,11 +206,20 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             std::copy_n(lambda, m, cache_.dual_vector.data());
         }
 
+        VLOG(10) << cache_.lagrangian_hessian;
         // Reset cache for hessian
         eval_lagrangian_hessian(cache_.primal_vector, cache_.dual_vector,
                                 cache_.lagrangian_hessian, costs_, constraints_,
                                 obj_factor);
+
         std::copy_n(cache_.lagrangian_hessian.valuePtr(), nele_hess, values);
+
+        VLOG(10) << "L nnz " << cache_.lagrangian_hessian.nonZeros();
+        VLOG(10) << "n " << n;
+        VLOG(10) << "m " << m;
+        VLOG(10) << "nele_hess " << nele_hess;
+
+        VLOG(10) << "Finished";
     }
     return true;
 }
@@ -200,10 +231,13 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
 
     auto bb = program().bounding_box_constraints();
 
+    cache_.variables_lower_bound = program().variables_lower_bound();
+    cache_.variables_upper_bound = program().variables_upper_bound();
+
     VLOG(10) << cache_.variables_lower_bound.transpose();
     VLOG(10) << cache_.variables_upper_bound.transpose();
 
-    std::copy_n(cache_.variables_lower_bound.data(), n, x_u);
+    std::copy_n(cache_.variables_lower_bound.data(), n, x_l);
     std::copy_n(cache_.variables_upper_bound.data(), n, x_u);
 
     // Constraint bounds
