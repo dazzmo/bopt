@@ -31,7 +31,7 @@ profiler::profiler(const char* name) : name_(name) {
 
 profiler::~profiler() {
 #if defined(BOPT_USE_PROFILING)
-  auto dur = clock::now() - start_;
+  const std::chrono::duration<double> dur = clock::now() - start_;
   std::map<std::string, acc_t>::iterator p = map_.find(name_);
   if (p == map_.end()) {
     // Create new accumulator
@@ -40,7 +40,7 @@ profiler::~profiler() {
     p = map_.insert(pr).first;
   }
   // TODO Check what the real time is (make it in seconds)
-  (p->second)(dur.count() * 1e-9);
+  (p->second)(dur.count());
 #endif
 }
 

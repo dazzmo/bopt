@@ -281,10 +281,10 @@ bool ipopt_program_instance::get_starting_point(Index n, bool init_x, Number* x,
 }
 
 void ipopt_program_instance::finalize_solution(
-    SolverReturn status, Index n, const Number* x, const Number* z_L,
+    Ipopt::SolverReturn status, Index n, const Number* x, const Number* z_L,
     const Number* z_U, Index m, const Number* g, const Number* lambda,
-    Number obj_value, const IpoptData* ip_data,
-    IpoptCalculatedQuantities* ip_cq) {
+    Number obj_value, const Ipopt::IpoptData* ip_data,
+    Ipopt::IpoptCalculatedQuantities* ip_cq) {
     VLOG(10) << "finalize_solution()";
     for (Index i = 0; i < n; ++i) {
         VLOG(10) << x[i];

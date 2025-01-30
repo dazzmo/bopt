@@ -105,8 +105,65 @@ class GenericLinearConstraint : public bopt::linear_constraint {
 //     nlp.solve();
 // }
 
+class TestEvaluator : public bopt::EvaluatorBase {
+   public:
+    TestEvaluator()
+        : bopt::EvaluatorBase(2, 2, "TestEvaluator: Basic Implementation") {
+        setJacobianFlag(true);
+        setHessianFlag(false);
+
+        setNumberOutputs(2);
+        setNumberOutputs(2);
+    }
+
+   private:
+    void evalImpl(const Eigen::Ref<const Eigen::VectorXd> &x,
+                  Eigen::Ref<Eigen::VectorXd> y) {
+        y = x;
+    }
+
+    void jacobianImpl(const Eigen::Ref<const Eigen::VectorXd> &x,
+                      Eigen::Ref<Eigen::MatrixXd> jac) {
+        jac.setIdentity();
+    }
+};
+
+class TestAutoDiff : public bopt::TestAutodiffModule {
+   public:
+    TestAutoDiff() { z_ = VectorADD(20); }
+
+    void eval(const Eigen::Ref<const VectorADD> &x,
+              Eigen::Ref<VectorADD> y) override {
+        evalImpl(x, y);
+    }
+
+    void eval(const Eigen::Ref<const VectorAD> &x, Eigen::Ref<VectorAD> y) {
+        evalImpl(x, y);
+    }
+
+    void eval(const Eigen::Ref<const VectorADD> &x,
+              const Eigen::Ref<const Eigen::VectorXd> &lambda, ADD &y) {
+        evalImpl<ADD>(x, z_);
+        y = lambda.cast<ADD>().dot(z_);
+    }
+
+    template <typename T>
+    void evalImpl(const Eigen::Ref<const Eigen::VectorX<T>> &x,
+                  Eigen::Ref<Eigen::VectorX<T>> y) {
+        y = x;
+        for (int i = 1; i < x.size(); ++i) {
+            y[i] *= x[i - 1];
+            y[i] *= y[i];
+        }
+    }
+
+   private:
+    VectorADD z_;
+};
+
 TEST(Program, Rosenbrock) {
-    int N = 5000;
+    bopt::profiler profile("total");
+    int N = 50;
     using bopt::casadi::sym_t;
     sym_t x = sym_t::sym("x", N);
     sym_t p = sym_t::sym("p", 1);
@@ -137,12 +194,72 @@ TEST(Program, Rosenbrock) {
     nlp.options()->SetStringValue("mu_strategy", "adaptive");
     // nlp.options()->SetStringValue("hessian_approximation", "limited-memory");
     try {
-        nlp.solve();
+        {
+            bopt::profiler profile("ipopt");
+            nlp.solve();
+        }
     } catch (std::exception &e) {
         LOG(ERROR) << e.what();
     }
 
-    // Try with qpoases
+    TestEvaluator e;
+    e.setDescription("This is an evaluator base object, it is pretty cool!");
+    VLOG(10) << e;
+
+    TestAutoDiff ad;
+    int n = 20;
+    TestAutoDiff::VectorADD xad(n);
+    TestAutoDiff::VectorADD yad(n);
+
+    TestAutoDiff::VectorAD wad(n);
+    TestAutoDiff::VectorAD zad(n);
+
+    // Create autodiff for jacobian evaluation
+    // Create autodiff for hessian evaluation
+
+    {
+        bopt::profiler profile("create");
+        for (int i = 0; i < n; ++i) {
+            xad(i).value() = 1.0;
+            wad(i).value() = 1.0;
+            xad(i).derivatives() = Eigen::VectorXd::Unit(n, i);
+            xad(i).value().derivatives() = Eigen::VectorXd::Unit(n, i);
+            wad(i).derivatives() = Eigen::VectorXd::Unit(n, i);
+        }
+
+        // Hessian
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                xad(i).derivatives()(j).derivatives() =
+                    Eigen::VectorXd::Zero(n);
+            }
+        }
+    }
+
+    // Remove auto diff row to avoid computation?
+    TestAutoDiff::ADD ly;
+    Eigen::VectorXd lambda(n);
+    lambda.setConstant(5.0);
+    for (int k = 0; k < 10000; ++k) {
+        {
+            bopt::profiler profile("ad eval");
+            ad.eval(wad, zad);
+        }
+        {
+            bopt::profiler profile("ad hessian");
+            ad.eval(xad, lambda, ly);
+        }
+    }
+
+    LOG(INFO) << yad;
+    LOG(INFO) << "Jacobian";
+    for (int i = 0; i < n; ++i) {
+        LOG(INFO) << zad(i).derivatives().transpose();
+    }
+    LOG(INFO) << "Hessian";
+    for (int i = 0; i < n; ++i) {
+        LOG(INFO) << ly.derivatives()(i).derivatives().transpose();
+    }
 }
 
 int main(int argc, char **argv) {

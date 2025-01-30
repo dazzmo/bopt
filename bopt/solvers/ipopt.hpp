@@ -12,16 +12,14 @@
 namespace bopt {
 namespace solvers {
 
-using namespace Ipopt;
-
 struct ipopt_data {
     ipopt_data(const bopt_index& n, const bopt_index& m) {
         primal_vector = Eigen::VectorXd::Zero(n);
         dual_vector = Eigen::VectorXd::Zero(m);
         variables_lower_bound =
-            Eigen::VectorXd::Constant(n, -std::numeric_limits<Number>::max());
+            Eigen::VectorXd::Constant(n, -std::numeric_limits<double>::max());
         variables_upper_bound =
-            Eigen::VectorXd::Constant(n, std::numeric_limits<Number>::max());
+            Eigen::VectorXd::Constant(n, std::numeric_limits<double>::max());
 
         objective_gradient = Eigen::VectorXd::Zero(n);
 
@@ -52,6 +50,9 @@ struct ipopt_data {
 };
 
 class ipopt_program_instance : public Ipopt::TNLP {
+    using Index = Ipopt::Index;
+    using Number = Ipopt::Number;
+
    public:
     ipopt_program_instance(mathematical_program<double>& program);
 
@@ -81,11 +82,11 @@ class ipopt_program_instance : public Ipopt::TNLP {
                 Index m, const Number* lambda, bool new_lambda, Index nele_hess,
                 Index* iRow, Index* jCol, Number* values);
 
-    void finalize_solution(SolverReturn status, Index n, const Number* x,
+    void finalize_solution(Ipopt::SolverReturn status, Index n, const Number* x,
                            const Number* z_L, const Number* z_U, Index m,
                            const Number* g, const Number* lambda,
-                           Number obj_value, const IpoptData* ip_data,
-                           IpoptCalculatedQuantities* ip_cq);
+                           Number obj_value, const Ipopt::IpoptData* ip_data,
+                           Ipopt::IpoptCalculatedQuantities* ip_cq);
 
    private:
     ipopt_data cache_;
@@ -106,7 +107,7 @@ class ipopt_solver : public solver<double> {
 
    private:
     Ipopt::SmartPtr<Ipopt::TNLP> nlp_;
-    Ipopt::SmartPtr<IpoptApplication> app_;
+    Ipopt::SmartPtr<Ipopt::IpoptApplication> app_;
 };
 
 }  // namespace solvers

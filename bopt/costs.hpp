@@ -7,6 +7,79 @@
 
 namespace bopt {
 
+class Cost : public EvaluatorBase {
+   public:
+    Cost(const Index &n_inputs, const std::string &name = "")
+        : EvaluatorBase(n_inputs, 1), name_(name), scaling_factor_(1.0) {
+        setDescription("Default Cost");
+    }
+
+    const std::string &name() const { return name_; }
+    void setName(const std::string &name) { name_ = name; }
+
+    const double &scaling_factor() const { return scaling_factor_; }
+    void setScalingFactor(const double &factor) { scaling_factor_ = factor; }
+
+   protected:
+   private:
+    std::string name_;
+    double scaling_factor_;
+};
+
+std::ostream &operator<<(std::ostream &os, const Cost &c);
+
+class LinearCost : public Cost {
+   public:
+    const VectorXd &a() const { return a_; }
+    const double &b() const { return b_; }
+
+    void seta(const Eigen::Ref<const VectorXd> &a) { a_ = a; }
+    void setb(const double &b) { b_ = b; }
+
+   protected:
+   private:
+    VectorXd a_;
+    double b_;
+};
+
+class QuadraticCost : public Cost {
+   public:
+    const MatrixXd &A() const { return A_; }
+    const VectorXd &b() const { return b_; }
+
+    // const SparseMatrix<double> &A_sparse() {}
+
+    void setA(const Eigen::Ref<const MatrixXd> &A) { A_ = A; }
+    void setA(const SparseMatrix<double> &A) { A_sparse_ = A; }
+    void setb(const VectorXd &b) { b_ = b; }
+
+   protected:
+    void gradientImpl(const Eigen::Ref<const VectorXd> &x,
+                      Eigen::Ref<VectorXd> out) {
+        out = 2.0 * A() * x + b();
+    }
+
+   private:
+    MatrixXd A_;
+    SparseMatrix<double> A_sparse_;
+
+    VectorXd b_;
+    double c_;
+};
+
+// class LeastSquaresCost : public QuadraticCost {
+//    public:
+//     LeastSquaresCost(const std::shared_ptr<LinearCost> &linear_cost) {}
+
+//    protected:
+//     void evalImpl(const Eigen::Ref<const VectorXd> &x, double &out) {
+//         // linear_cost_->eval(x, out);
+//         // setA(linear_cost_->a().transpose() * linear_cost_->a());
+//     }
+
+//    private:
+// };
+
 template <typename ValueType>
 class cost_tpl : public evaluator::differentiable::scalar_tpl<ValueType> {
    public:
@@ -35,8 +108,7 @@ class cost_tpl : public evaluator::differentiable::scalar_tpl<ValueType> {
                                                      this->sz_hessian().first);
     }
 
-    cost_tpl(const typename base::shared_ptr_t &ptr)
-        : base(ptr), name_("") {
+    cost_tpl(const typename base::shared_ptr_t &ptr) : base(ptr), name_("") {
         buffer_gradient_.dense =
             dense_vector_t::Zero(ptr->sz_gradient().second);
         buffer_hessian_.dense = dense_matrix_t::Zero(ptr->sz_hessian().first,
