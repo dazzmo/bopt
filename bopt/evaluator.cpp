@@ -5,8 +5,8 @@ namespace bopt {
 std::ostream& operator<<(std::ostream& os, const EvaluatorBase& e) {
     os << "EvaluatorBase\n";
     os << "description: " << e.description() << '\n';
-    os << "n_inputs: " << e.n_inputs() << '\n';
-    os << "n_outputs: " << e.n_outputs();
+    os << "input dim: " << e.dim_input() << '\n';
+    os << "output dim: " << e.dim_output();
     return os;
 }
 

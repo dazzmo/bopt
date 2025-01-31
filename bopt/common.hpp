@@ -1,36 +1,28 @@
 #pragma once
 
-#include <cassert>
-
-// #if DEBUG
-#define DBGASSERT(assertion) assert(assertion);
-// #else
-// #define DBGASSERT(assertion)
-// #endif
+#include <Eigen/Core>
 
 namespace bopt {
 
-// Boost-style setters and getters
+/**
+ * @brief Performs a series of checks on a given vector, such as ensuring all
+ * values are finite and no NaN are present.
+ *
+ * @param x
+ * @return true Vector is valid
+ * @return false Vector is invalid
+ */
+bool checkVector(const Eigen::Ref<const Eigen::VectorXd> &x);
 
-// Boost-style setters and getters
-template <typename T, typename V>
-void set(T& p, const V& v) {
-    p = v;
-}
-
-template <typename T, typename I, typename V>
-void set(T& p, const I& i, const V& v) {
-    p[i] = v;
-}
-
-template <typename T, typename I, typename V>
-T& get(const T& p, const I& i) {
-    return p[i];
-}
-
-template <typename T, typename I, typename V>
-const T& get(const T& p, const I& i) {
-    return p[i];
-}
+/**
+ * @brief Performs a series of checks on a given matrix, such as ensuring all
+ * values are finite and no NaN are present. Also ensures the matrix is not
+ * empty.
+ *
+ * @param x
+ * @return true Matrix is valid
+ * @return false Matrix is invalid
+ */
+bool checkMatrix(const Eigen::Ref<const Eigen::MatrixXd> &M);
 
 }  // namespace bopt

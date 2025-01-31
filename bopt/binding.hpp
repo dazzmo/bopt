@@ -35,7 +35,7 @@ class binding {
     binding(const std::shared_ptr<EvaluatorType> &ptr,
             const std::vector<Eigen::Index> &indices)
         : evaluator_(ptr), indices_(nullptr) {
-        DBGASSERT(ptr->sz_in() == indices.size());
+        // DBGASSERT(ptr->sz_in() == indices.size());
         this->indices_ = std::make_shared<variable_indices>(indices);
     }
 
@@ -56,12 +56,12 @@ class binding {
                   b.indices().indices()) {}
 
     evaluator_shared_ptr get() const {
-        DBGASSERT(evaluator_ && "Empty binding has no object bound to it");
+        // DBGASSERT(evaluator_ && "Empty binding has no object bound to it");
         return evaluator_;
     }
 
     const variable_indices &indices() const {
-        DBGASSERT(indices_ && "Empty binding has no indices");
+        // DBGASSERT(indices_ && "Empty binding has no indices");
         return *indices_;
     }
 

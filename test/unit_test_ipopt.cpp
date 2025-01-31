@@ -109,11 +109,14 @@ class TestEvaluator : public bopt::EvaluatorBase {
    public:
     TestEvaluator()
         : bopt::EvaluatorBase(2, 2, "TestEvaluator: Basic Implementation") {
-        setJacobianFlag(true);
-        setHessianFlag(false);
+        setOutputDimension(2);
 
-        setNumberOutputs(2);
-        setNumberOutputs(2);
+        // Create a sparsity pattern for the jacobian
+        SparsityPattern pattern;
+        pattern.push_back({0, 0});
+        pattern.push_back({1, 1});
+
+        setJacobianSparsityPattern(pattern);
     }
 
    private:
@@ -124,7 +127,7 @@ class TestEvaluator : public bopt::EvaluatorBase {
 
     void jacobianImpl(const Eigen::Ref<const Eigen::VectorXd> &x,
                       Eigen::Ref<Eigen::MatrixXd> jac) {
-        jac.setIdentity();
+        jac.setOnes();
     }
 };
 
@@ -150,11 +153,7 @@ class TestAutoDiff : public bopt::TestAutodiffModule {
     template <typename T>
     void evalImpl(const Eigen::Ref<const Eigen::VectorX<T>> &x,
                   Eigen::Ref<Eigen::VectorX<T>> y) {
-        y = x;
-        for (int i = 1; i < x.size(); ++i) {
-            y[i] *= x[i - 1];
-            y[i] *= y[i];
-        }
+        y = x.cwiseProduct(x);
     }
 
    private:
@@ -206,60 +205,17 @@ TEST(Program, Rosenbrock) {
     e.setDescription("This is an evaluator base object, it is pretty cool!");
     VLOG(10) << e;
 
-    TestAutoDiff ad;
-    int n = 20;
-    TestAutoDiff::VectorADD xad(n);
-    TestAutoDiff::VectorADD yad(n);
+    // Evaluate jacobian 
+    Eigen::VectorXd vals(2);
+    vals.setRandom();
+    if(e.jacobian_x_sparsity_pattern().has_value()) {
+        Eigen::VectorXd nnz(e.jacobian_x_sparsity_pattern()->size());
+        e.jacobian(vals, nnz);
+        LOG(INFO) << "jacobian nnz " << nnz.transpose(); 
+    } else {
 
-    TestAutoDiff::VectorAD wad(n);
-    TestAutoDiff::VectorAD zad(n);
-
-    // Create autodiff for jacobian evaluation
-    // Create autodiff for hessian evaluation
-
-    {
-        bopt::profiler profile("create");
-        for (int i = 0; i < n; ++i) {
-            xad(i).value() = 1.0;
-            wad(i).value() = 1.0;
-            xad(i).derivatives() = Eigen::VectorXd::Unit(n, i);
-            xad(i).value().derivatives() = Eigen::VectorXd::Unit(n, i);
-            wad(i).derivatives() = Eigen::VectorXd::Unit(n, i);
-        }
-
-        // Hessian
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                xad(i).derivatives()(j).derivatives() =
-                    Eigen::VectorXd::Zero(n);
-            }
-        }
     }
 
-    // Remove auto diff row to avoid computation?
-    TestAutoDiff::ADD ly;
-    Eigen::VectorXd lambda(n);
-    lambda.setConstant(5.0);
-    for (int k = 0; k < 10000; ++k) {
-        {
-            bopt::profiler profile("ad eval");
-            ad.eval(wad, zad);
-        }
-        {
-            bopt::profiler profile("ad hessian");
-            ad.eval(xad, lambda, ly);
-        }
-    }
-
-    LOG(INFO) << yad;
-    LOG(INFO) << "Jacobian";
-    for (int i = 0; i < n; ++i) {
-        LOG(INFO) << zad(i).derivatives().transpose();
-    }
-    LOG(INFO) << "Hessian";
-    for (int i = 0; i < n; ++i) {
-        LOG(INFO) << ly.derivatives()(i).derivatives().transpose();
-    }
 }
 
 int main(int argc, char **argv) {

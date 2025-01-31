@@ -7,8 +7,8 @@ namespace evaluator {
 scalar::scalar(const sym_t &expression, const sym_vector_t &x,
                const sym_vector_t &p, bool codegen)
     : base_t(x.size1(), p.size1()) {
-    DBGASSERT(expression.size1() == 1 && expression.size2() == 1 &&
-              "Expression is not scalar!");
+    // DBGASSERT(expression.size1() == 1 && expression.size2() == 1 &&
+            //   "Expression is not scalar!");
     std::vector<sym_vector_t> in = {};
     in.push_back(x);
     in.push_back(p);

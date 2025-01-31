@@ -81,13 +81,15 @@ class constraint_tpl : public evaluator::differentiable::vector_tpl<ValueType> {
 
     const dense_vector_t &lower_bound() const { return lower_bound_; }
     void set_lower_bound(const Eigen::Ref<const dense_vector_t> &lower_bound) {
-        DBGASSERT(lower_bound.size() == this->rows() && "Incorrect bound size");
+        // DBGASSERT(lower_bound.size() == this->rows() && "Incorrect bound
+        // size");
         lower_bound_ = lower_bound;
     }
 
     const dense_vector_t &upper_bound() const { return upper_bound_; }
     void set_upper_bound(const Eigen::Ref<const dense_vector_t> &upper_bound) {
-        DBGASSERT(upper_bound.size() == this->rows() && "Incorrect bound size");
+        // DBGASSERT(upper_bound.size() == this->rows() && "Incorrect bound
+        // size");
         upper_bound_ = upper_bound;
     }
 
@@ -261,8 +263,9 @@ class bounding_box_constraint_tpl : public constraint_tpl<ValueType> {
           x_lower_bound_(lower_bound),
           x_upper_bound_(upper_bound),
           converted_(false) {
-        DBGASSERT(lower_bound.size() == sz_in && upper_bound.size() == sz_in &&
-                  "Bound vector size mismatch");
+        // DBGASSERT(lower_bound.size() == sz_in && upper_bound.size() == sz_in
+        // &&
+        //   "Bound vector size mismatch");
     }
 
    protected:

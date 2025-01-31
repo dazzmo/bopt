@@ -1,5 +1,6 @@
 find_package(Boost REQUIRED)
 find_package(Eigen3 3.3 REQUIRED)
+find_package(CppAD REQUIRED)
 find_package(glog REQUIRED)
 
 option(WITH_QPOASES "Build with qpOASES functionality" OFF)
@@ -19,6 +20,7 @@ SET(${PROJECT_NAME}_INCLUDE_DIRS
 
 SET(${PROJECT_NAME}_LIBRARIES
 Eigen3::Eigen
+${CPPAD_LIBRARIES}
 glog
 )
 

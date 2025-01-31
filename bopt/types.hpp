@@ -3,6 +3,8 @@
 #include <Eigen/Sparse>
 #include <iostream>
 #include <unsupported/Eigen/AutoDiff>
+// Include later?
+#include <cppad/example/cppad_eigen.hpp>
 
 namespace bopt {
 
@@ -35,5 +37,7 @@ using AD = Eigen::AutoDiffScalar<VectorXd>;
 using VectorXAD = Eigen::VectorX<AD>;
 using ADD = Eigen::AutoDiffScalar<VectorXAD>;
 using VectorXADD = VectorX<ADD>;
+
+using VectorXCPPAD = Eigen::VectorX<CppAD::AD<double>>;
 
 }  // namespace bopt

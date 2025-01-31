@@ -8,7 +8,7 @@ namespace differentiable {
 scalar::scalar(const sym_t &expression, const sym_vector_t &x,
                const sym_vector_t &p, const options &opt)
     : base_t(x.size1(), p.size1()), opt_(opt) {
-    DBGASSERT(expression.is_scalar() && "Expression is not scalar!");
+    // DBGASSERT(expression.is_scalar() && "Expression is not scalar!");
     std::vector<sym_vector_t> in = {};
     in.push_back(x);
     in.push_back(p);
