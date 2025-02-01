@@ -36,7 +36,14 @@ class LinearCost : public Cost {
     void seta(const Eigen::Ref<const VectorXd> &a) { a_ = a; }
     void setb(const double &b) { b_ = b; }
 
+    // void setSparsityPattern();
+
    protected:
+    void jacobianImpl(const Eigen::Ref<const VectorXd> &x,
+                      Eigen::Ref<Eigen::MatrixXd> jacobian) override {
+        jacobian = a();
+    }
+
    private:
     VectorXd a_;
     double b_;

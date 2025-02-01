@@ -2,7 +2,7 @@
 
 #include <ostream>
 
-#include "bopt/bounds.hpp"
+
 #include "bopt/logging.hpp"
 #include "bopt/types.hpp"
 

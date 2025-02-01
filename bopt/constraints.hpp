@@ -1,10 +1,126 @@
 #pragma once
 
-#include "bopt/bounds.hpp"
 #include "bopt/evaluator.hpp"
 #include "bopt/logging.hpp"
 
 namespace bopt {
+
+class Constraint : public EvaluatorBase {
+   public:
+    enum class Type {
+        // Constraint of the form lower_bound() = c(x) = upper_bound()
+        Equality,
+        // Constraint of the form lower_bound() ≤ c(x) ≤ upper_bound()
+        Inequality
+    };
+
+    // Constraint() : EvaluatorBase(), type_(Type::Equality), name_("") {}
+
+    const Type &type() const { return type_; }
+
+    /**
+     * @brief Set the constraint to a particular type
+     *
+     * @return const Type&
+     */
+    const Type &setType() const { return type_; }
+
+    /**
+     * @brief Name of the constraint
+     *
+     * @return const std::string&
+     */
+    const std::string &name() const { return name_; }
+    void setName(const std::string &name) { name_ = name; }
+
+    const VectorXd &lowerBound() const { return lower_bound_; }
+    void setLowerBound(const Eigen::Ref<const VectorXd> &bound) {
+        BOPT_ASSERT(bound.size() == dim_output());
+        lower_bound_ = bound;
+    }
+
+    const VectorXd &upperBound() const { return upper_bound_; }
+    void setUpperBound(const Eigen::Ref<const VectorXd> &bound) {
+        BOPT_ASSERT(bound.size() == dim_output());
+        upper_bound_ = bound;
+    }
+
+    /**
+     * @brief Whether the constraints of the system are satisfied.
+     *
+     * @param x
+     * @param epsilon Tolerance to consider satisfied
+     * @return true
+     * @return false
+     */
+    bool isSatisfied(const Eigen::Ref<const VectorXd> &x,
+                     const double &epsilon = kEpsilon) const {
+        BOPT_ASSERT(x.size() == dim_input());
+        for (int i = 0; i < dim_output(); ++i) {
+            if (lowerBound()[i] - x[i] > epsilon ||
+                upperBound()[i] - x[i] < -epsilon)
+                return false;
+        }
+        return true;
+    }
+
+   protected:
+    // Constraint(const Index &dim_input, const Index &dim_output,
+    //            const Index &dim_parameters) {}
+
+   private:
+    std::string name_;
+    Type type_;
+
+    VectorXd lower_bound_;
+    VectorXd upper_bound_;
+};
+
+/**
+ * @brief Constraint of the form lower_bound() ≤ Ax ≤ upper_bound()
+ *
+ */
+class LinearConstraint : public Constraint {
+   public:
+    void A(Eigen::Ref<MatrixXd> A);
+
+    // void setA(const Eigen::Ref<const MatrixXd> &A);
+
+    void A_sparsity_pattern() {}
+    void setASparsityPattern() {}
+
+   protected:
+    void jacobianImpl(const Eigen::Ref<const VectorXd> &x,
+                      Eigen::Ref<MatrixXd> jacobian) override {
+        // jacobian = A();
+    }
+
+    void jacobianImpl(const Eigen::Ref<const VectorXd> &x,
+                      const Eigen::Ref<const VectorXd> &p,
+                      Eigen::Ref<MatrixXd> jacobian) override {
+        // jacobian << A();
+    }
+
+   private:
+    SparsityPattern A_sparsity_pattern_;
+};
+
+/**
+ * @brief Constraint of the form lower_bound() <= x <= upper_bound()
+ *
+ */
+class BoundingBoxConstraint : public LinearConstraint {
+   public:
+    BoundingBoxConstraint() : LinearConstraint() {
+        SparsityPattern pattern;
+        int size = 10;
+        for (int i = 0; i < size; ++i) pattern.push_back({i, i});
+        // setASparsityPattern(pattern);
+    }
+
+   protected:
+   private:
+};
 
 template <typename ValueType>
 class constraint_tpl : public evaluator::differentiable::vector_tpl<ValueType> {

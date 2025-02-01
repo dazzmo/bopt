@@ -5,6 +5,18 @@
 namespace bopt {
 
 /**
+ * @brief Infinity
+ * 
+ */
+constexpr double kInf = std::numeric_limits<double>::infinity();
+
+/**
+ * @brief Machine precision epsilon
+ * 
+ */
+constexpr double kEpsilon = std::numeric_limits<double>::epsilon();
+
+/**
  * @brief Performs a series of checks on a given vector, such as ensuring all
  * values are finite and no NaN are present.
  *

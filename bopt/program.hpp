@@ -9,21 +9,16 @@
 
 namespace bopt {
 
-template <class ValueType>
-void get_constraint_jacobian(
-    Eigen::SparseMatrix<ValueType> &jacobian, const bopt_index &cols,
-    const std::vector<binding<constraint_tpl<ValueType>>> &bindings) {
-    bopt_index cnt = bopt_index(0);
-    std::vector<Eigen::Triplet<ValueType>> triplets;
+void get_constraint_jacobian(SparseMatrix<double> &jacobian, const Index &cols,
+                             const std::vector<binding<Constraint>> &bindings) {
+    Index cnt = Index(0);
+    std::vector<Eigen::Triplet<double>> triplets;
     for (auto &b : bindings) {
         // todo - check if there is a sparse implementation, if not, assume it
         // todo - is dense
 
         // For each non-zero element of the jacobian, get their variable
         // coordinates and convert to their vector locations based on x
-        typename constraint_tpl<ValueType>::sparse_matrix_t &jac =
-            b.get()->buffer_jacobian().sparse;
-        b.get()->get_jacobian_sparsity(jac);
 
         // Iterate over non-zeros
         for (int k = 0; k < jac.outerSize(); ++k) {
@@ -223,7 +218,7 @@ void eval_lagrangian_hessian(
  * @tparam ValueType Type of values in the program (e.g., double).
  */
 template <typename ValueType>
-class mathematical_program {
+class MathematicalProgram {
    public:
     typedef ValueType value_type;
     typedef std::string string_t;
@@ -242,14 +237,14 @@ class mathematical_program {
     /**
      * @brief Default constructor for the mathematical program.
      */
-    mathematical_program() : name_("mathematical_program") {}
+    MathematicalProgram() : name_("MathematicalProgram") {}
 
     /**
      * @brief Constructs a mathematical program with a specified name.
      *
      * @param name Name of the mathematical program.
      */
-    mathematical_program(const string_t &name) : name_(name) {}
+    MathematicalProgram(const string_t &name) : name_(name) {}
 
     /**
      * @brief Gets the name of the mathematical program.
@@ -303,6 +298,13 @@ class mathematical_program {
     const dense_vector_t &variables_lower_bound() const { return x_lb_; }
 
     const dense_vector_t &variables_upper_bound() const { return x_ub_; }
+
+    variable addVariable(const std::string &name,
+                         const double &initial_value = 0.0,
+                         const double &lower_bound = -kInf,
+                         const double &lower_bound = kInf) {
+        return variable(name);
+    }
 
     /**
      * @brief Adds a decision variable to the program.
