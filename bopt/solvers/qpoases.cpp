@@ -3,7 +3,7 @@
 namespace bopt {
 namespace solvers {
 
-qpoases_solver::qpoases_solver(mathematical_program<double>& program)
+qpoases_solver::qpoases_solver(MathematicalProgram<double>& program)
     : solver(program) {
     LOG(INFO) << "qpoases_solver::qpoases_solver";
 
@@ -40,7 +40,7 @@ qpoases_solver::qpoases_solver(mathematical_program<double>& program)
 
 qpoases_solver::~qpoases_solver() = default;
 
-void qpoases_solver::solve(mathematical_program<double>& program) {
+void qpoases_solver::solve(MathematicalProgram<double>& program) {
     Eigen::MatrixXd tmp;
 
     /** Linear costs **/
@@ -100,40 +100,36 @@ void qpoases_solver::solve(mathematical_program<double>& program) {
 
     /** Linear constraints **/
     VLOG(10) << "qpoases:linear constraints";
+    int cnt = 0;
     for (auto& binding : program.linear_constraints()) {
+        const auto& c = *binding.get();
         const auto& x_indices = binding.indices().indices();
-        // References to matrix data
-        Eigen::MatrixXd& A = binding.get()->buffer_A().dense;
-        Eigen::VectorXd& b = binding.get()->buffer_b().dense;
 
-        if (binding.get()->eval_A(A) ==
-            evaluator::return_status::NotImplemented) {
-            if (binding.get()->eval_A(binding.get()->buffer_A().sparse) ==
-                evaluator::return_status::NotImplemented) {
-                throw std::runtime_error("no method implemented for eval_A");
+        MatrixXd A;
+        // c.A(A);
+
+        if (c.jacobian_x_sparsity_pattern().has_value()) {
+            for (const auto& xy : *c.jacobian_x_sparsity_pattern()) {
+                double& entry =
+                    data.A(cnt + x_indices[xy.first], x_indices[xy.second]);
+                if (c.jacobian_x_nz_only()) {
+                    entry += A(0, 0);
+                } else {
+                    entry += A(xy.first, xy.second);
+                }
             }
-            // Compute through sparse view
-            A = binding.get()->buffer_A().sparse;
-        }
-        // Perform block insert
-        if (binding.indices().is_block()) {
-            data.A.block(x_indices[0], x_indices[0], x_indices.size(),
-                         x_indices.size()) += A;
         } else {
-            data.A(x_indices, x_indices) += A;
+            // Perform block insert
+            if (binding.indices().is_block()) {
+                data.A.block(x_indices[0], x_indices[0], x_indices.size(),
+                             x_indices.size()) += A;
+            } else {
+                data.A(x_indices, x_indices) += A;
+            }
         }
 
-        if (binding.get()->eval_b(b) ==
-            evaluator::return_status::NotImplemented) {
-            if (binding.get()->eval_b(binding.get()->buffer_b().sparse) ==
-                evaluator::return_status::NotImplemented) {
-                throw std::runtime_error("no method implemented for eval_b");
-            }
-            // Compute through sparse view
-            b = binding.get()->buffer_b().sparse;
-        }
-        data.lbA(x_indices) = binding.get()->lower_bound() - b;
-        data.ubA(x_indices) = binding.get()->upper_bound() - b;
+        data.lbA.middleRows(cnt, c.dim_output()) << c.lowerBound();
+        data.ubA.middleRows(cnt, c.dim_output()) << c.upperBound();
     }
 
     int nWSR = options_.nWSR;

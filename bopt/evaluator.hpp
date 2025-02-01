@@ -50,10 +50,10 @@ class EvaluatorBase {
      * @param jacobian Either a dense matrix of size (n_output() x n_tangent())
      * or a vector of size jacobian_x_sparsity_pattern()->size()
      */
-    void jacobian(const Eigen::Ref<const VectorXd> &x,
-                  Eigen::Ref<MatrixXd> jacobian) {
+    void evalJacobian(const Eigen::Ref<const VectorXd> &x,
+                      Eigen::Ref<MatrixXd> jacobian) {
         BOPT_ASSERT(x.rows() == dim_input());
-        jacobianImpl(x, jacobian);
+        evalJacobianImpl(x, jacobian);
     }
 
     /**
@@ -66,10 +66,10 @@ class EvaluatorBase {
      * @param p
      * @param jacobian
      */
-    void jacobian(const Eigen::Ref<const VectorXd> &x,
-                  const Eigen::Ref<const VectorXd> &p,
-                  Eigen::Ref<MatrixXd> jacobian) {
-        jacobianImpl(x, p, jacobian);
+    void evalJacobian(const Eigen::Ref<const VectorXd> &x,
+                      const Eigen::Ref<const VectorXd> &p,
+                      Eigen::Ref<MatrixXd> jacobian) {
+        evalJacobianImpl(x, p, jacobian);
     }
 
     /**
@@ -85,10 +85,10 @@ class EvaluatorBase {
      * @param lambda Multipliers for the vector product
      * @param jacobian
      */
-    void hessian(const Eigen::Ref<const VectorXd> &x,
-                 const Eigen::Ref<const VectorXd> &lambda,
-                 Eigen::Ref<MatrixXd> out) {
-        hessianImpl(x, lambda, out);
+    void evalHessian(const Eigen::Ref<const VectorXd> &x,
+                     const Eigen::Ref<const VectorXd> &lambda,
+                     Eigen::Ref<MatrixXd> out) {
+        evalHessianImpl(x, lambda, out);
     }
 
     /**
@@ -105,11 +105,11 @@ class EvaluatorBase {
      * @param p
      * @param jacobian
      */
-    void hessian(const Eigen::Ref<const VectorXd> &x,
-                 const Eigen::Ref<const VectorXd> &p,
-                 const Eigen::Ref<const VectorXd> &lambda,
-                 Eigen::Ref<MatrixXd> out) {
-        hessianImpl(x, p, lambda, out);
+    void evalHessian(const Eigen::Ref<const VectorXd> &x,
+                     const Eigen::Ref<const VectorXd> &p,
+                     const Eigen::Ref<const VectorXd> &lambda,
+                     Eigen::Ref<MatrixXd> out) {
+        evalHessianImpl(x, p, lambda, out);
     }
 
     /**
@@ -166,7 +166,7 @@ class EvaluatorBase {
      * @return true
      * @return false
      */
-    bool jacobian_x_nz_only() const { return jacobian_x_nz_only; }
+    bool jacobian_x_nz_only() const { return jacobian_x_nz_only_; }
 
     /**
      * @brief Whether the evalution of the jacobian ∂f/∂p returns only the
@@ -175,7 +175,7 @@ class EvaluatorBase {
      * @return true
      * @return false
      */
-    bool jacobian_p_nz_only() const { return jacobian_p_nz_only; }
+    bool jacobian_p_nz_only() const { return jacobian_p_nz_only_; }
 
     /**
      * @brief Whether the evalution of the hessian ∂²(λᵀf)/∂x² returns only the
@@ -184,7 +184,7 @@ class EvaluatorBase {
      * @return true
      * @return false
      */
-    bool hessian_xx_nz_only() const { return hessian_xx_nz_only; }
+    bool hessian_xx_nz_only() const { return hessian_xx_nz_only_; }
 
     /**
      * @brief Whether the evalution of the hessian ∂²(λᵀf)/∂p∂x returns only the
@@ -193,7 +193,7 @@ class EvaluatorBase {
      * @return true
      * @return false
      */
-    bool hessian_px_nz_only() const { return hessian_px_nz_only; }
+    bool hessian_px_nz_only() const { return hessian_px_nz_only_; }
 
     /**
      * @brief Whether the evalution of the hessian ∂²(λᵀf)/∂p² returns only the
@@ -202,7 +202,7 @@ class EvaluatorBase {
      * @return true
      * @return false
      */
-    bool hessian_pp_nz_only() const { return hessian_pp_nz_only; }
+    bool hessian_pp_nz_only() const { return hessian_pp_nz_only_; }
 
     /**
      * @brief Set the sparsity patterns for the Jacobian ∂f/∂x of the evaluator
@@ -338,36 +338,36 @@ class EvaluatorBase {
      * Eigen::Ref<MatrixXd>)
      *
      */
-    virtual void jacobianImpl(const Eigen::Ref<const VectorXd> &x,
-                              Eigen::Ref<MatrixXd> out) {}
+    virtual void evalJacobianImpl(const Eigen::Ref<const VectorXd> &x,
+                                  Eigen::Ref<MatrixXd> out) {}
 
     /**
      * \copydoc EvaluatorBase::jacobian(const Eigen::Ref<const VectorXd>, const
      * Eigen::Ref<const VectorXd>, Eigen::Ref<MatrixXd>)
      *
      */
-    virtual void jacobianImpl(const Eigen::Ref<const VectorXd> &x,
-                              const Eigen::Ref<const VectorXd> &p,
-                              Eigen::Ref<MatrixXd> out) {}
+    virtual void evalJacobianImpl(const Eigen::Ref<const VectorXd> &x,
+                                  const Eigen::Ref<const VectorXd> &p,
+                                  Eigen::Ref<MatrixXd> out) {}
     /**
-     * \copydoc EvaluatorBase::hessian(const Eigen::Ref<const VectorXd>, const
-     * Eigen::Ref<const VectorXd>, Eigen::Ref<MatrixXd>)
+     * \copydoc EvaluatorBase::evalHessian(const Eigen::Ref<const VectorXd>,
+     * const Eigen::Ref<const VectorXd>, Eigen::Ref<MatrixXd>)
      *
      */
-    virtual void hessianImpl(const Eigen::Ref<const VectorXd> &x,
-                             const Eigen::Ref<const VectorXd> &lambda,
-                             Eigen::Ref<MatrixXd> hessian) {}
+    virtual void evalHessianImpl(const Eigen::Ref<const VectorXd> &x,
+                                 const Eigen::Ref<const VectorXd> &lambda,
+                                 Eigen::Ref<MatrixXd> hessian) {}
 
     /**
-     * \copydoc EvaluatorBase::hessian(const Eigen::Ref<const VectorXd>, const
-     * Eigen::Ref<const VectorXd>, Eigen::Ref<const VectorXd>,
+     * \copydoc EvaluatorBase::evalHessian(const Eigen::Ref<const VectorXd>,
+     * const Eigen::Ref<const VectorXd>, Eigen::Ref<const VectorXd>,
      * Eigen::Ref<MatrixXd>)
      *
      */
-    virtual void hessianImpl(const Eigen::Ref<const VectorXd> &x,
-                             const Eigen::Ref<const VectorXd> &p,
-                             const Eigen::Ref<const VectorXd> &lambda,
-                             Eigen::Ref<MatrixXd> hessian) {}
+    virtual void evalHessianImpl(const Eigen::Ref<const VectorXd> &x,
+                                 const Eigen::Ref<const VectorXd> &p,
+                                 const Eigen::Ref<const VectorXd> &lambda,
+                                 Eigen::Ref<MatrixXd> hessian) {}
 
     /**
      * @brief Indicate whether the evaluation of the jacobians will return only

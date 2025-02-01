@@ -14,9 +14,19 @@ class Cost : public EvaluatorBase {
         setDescription("Default Cost");
     }
 
+    /**
+     * @brief Sets the name of the cost.
+     *
+     * @return const std::string&
+     */
     const std::string &name() const { return name_; }
     void setName(const std::string &name) { name_ = name; }
 
+    /**
+     * @brief Scaling factor for the objective.
+     *
+     * @return const double&
+     */
     const double &scaling_factor() const { return scaling_factor_; }
     void setScalingFactor(const double &factor) { scaling_factor_ = factor; }
 
@@ -39,8 +49,8 @@ class LinearCost : public Cost {
     // void setSparsityPattern();
 
    protected:
-    void jacobianImpl(const Eigen::Ref<const VectorXd> &x,
-                      Eigen::Ref<Eigen::MatrixXd> jacobian) override {
+    void evalJacobianImpl(const Eigen::Ref<const VectorXd> &x,
+                          Eigen::Ref<Eigen::MatrixXd> jacobian) override {
         jacobian = a();
     }
 

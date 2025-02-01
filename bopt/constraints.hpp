@@ -31,14 +31,32 @@ class Constraint : public EvaluatorBase {
      * @return const std::string&
      */
     const std::string &name() const { return name_; }
+
+    /**
+     * @brief Sets the name of the constraint.
+     *
+     * @param name
+     */
     void setName(const std::string &name) { name_ = name; }
 
+    /**
+     * @brief The lower bound vector of the constraint of size (\ref
+     * dim_output() x 1).
+     *
+     * @return const VectorXd&
+     */
     const VectorXd &lowerBound() const { return lower_bound_; }
     void setLowerBound(const Eigen::Ref<const VectorXd> &bound) {
         BOPT_ASSERT(bound.size() == dim_output());
         lower_bound_ = bound;
     }
 
+    /**
+     * @brief The upper bound vector of the constraint of size (\ref
+     * dim_output() x 1).
+     *
+     * @return const VectorXd&
+     */
     const VectorXd &upperBound() const { return upper_bound_; }
     void setUpperBound(const Eigen::Ref<const VectorXd> &bound) {
         BOPT_ASSERT(bound.size() == dim_output());
@@ -46,27 +64,32 @@ class Constraint : public EvaluatorBase {
     }
 
     /**
-     * @brief Whether the constraints of the system are satisfied.
+     * @brief Whether the constraints of the system are satisfied to a given
+     * tolerance.
      *
-     * @param x
-     * @param epsilon Tolerance to consider satisfied
+     * @param value The current value of the constraint
+     * @param epsilon Tolerance
      * @return true
      * @return false
      */
-    bool isSatisfied(const Eigen::Ref<const VectorXd> &x,
+    bool isSatisfied(const Eigen::Ref<const VectorXd> &value,
                      const double &epsilon = kEpsilon) const {
-        BOPT_ASSERT(x.size() == dim_input());
+        BOPT_ASSERT(value.size() == dim_output());
         for (int i = 0; i < dim_output(); ++i) {
-            if (lowerBound()[i] - x[i] > epsilon ||
-                upperBound()[i] - x[i] < -epsilon)
+            if (lowerBound()[i] - value[i] > epsilon ||
+                upperBound()[i] - value[i] < -epsilon)
                 return false;
         }
         return true;
     }
 
    protected:
-    // Constraint(const Index &dim_input, const Index &dim_output,
-    //            const Index &dim_parameters) {}
+    Constraint(const Index &dim_input, const Index &dim_output)
+        : EvaluatorBase(dim_input, dim_output),
+          name_(""),
+          type_(Type::Equality),
+          lower_bound_(VectorXd::Zero(dim_output)),
+          upper_bound_(VectorXd::Zero(dim_output)) {}
 
    private:
     std::string name_;
@@ -77,32 +100,51 @@ class Constraint : public EvaluatorBase {
 };
 
 /**
- * @brief Constraint of the form lower_bound() ≤ Ax ≤ upper_bound()
+ * @brief Constraint of the form lb ≤ Ax ≤ ub
  *
  */
 class LinearConstraint : public Constraint {
    public:
-    void A(Eigen::Ref<MatrixXd> A);
+    void evalA(Eigen::Ref<MatrixXd> A) { evalAImpl(A); }
 
-    // void setA(const Eigen::Ref<const MatrixXd> &A);
-
-    void A_sparsity_pattern() {}
-    void setASparsityPattern() {}
-
-   protected:
-    void jacobianImpl(const Eigen::Ref<const VectorXd> &x,
-                      Eigen::Ref<MatrixXd> jacobian) override {
-        // jacobian = A();
+    const std::optional<SparsityPattern> &A_sparsity_pattern() const {
+        return A_sparsity_pattern_;
+    }
+    void setASparsityPattern(const SparsityPattern &pattern) {
+        A_sparsity_pattern_ = pattern;
+        setJacobianSparsityPattern(pattern);
     }
 
-    void jacobianImpl(const Eigen::Ref<const VectorXd> &x,
-                      const Eigen::Ref<const VectorXd> &p,
-                      Eigen::Ref<MatrixXd> jacobian) override {
-        // jacobian << A();
+   protected:
+    LinearConstraint(const Index &dim_input, const Index &dim_output)
+        : Constraint(dim_input, dim_output),
+          A_has_nz_only_(false),
+          A_sparsity_pattern_(std::nullopt) {
+        setName("linear_constraint");
+    }
+
+    virtual void evalAImpl(Eigen::Ref<MatrixXd> A) {}
+
+    /**
+     * @brief Indicate whether the evaluation of the jacobians will return only
+     * the non-zero elements. If false, evaluation expects the full jacobian to
+     * be computed.
+     *
+     * @param flag
+     */
+    void setANonZeroOnly(bool flag) {
+        A_has_nz_only_ = flag;
+        setJacobianNonZeroOnly(flag);
+    }
+
+    void evalJacobianImpl(const Eigen::Ref<const VectorXd> &x,
+                          Eigen::Ref<MatrixXd> jacobian) override {
+        evalA(jacobian);
     }
 
    private:
-    SparsityPattern A_sparsity_pattern_;
+    bool A_has_nz_only_;
+    std::optional<SparsityPattern> A_sparsity_pattern_;
 };
 
 /**
@@ -111,11 +153,28 @@ class LinearConstraint : public Constraint {
  */
 class BoundingBoxConstraint : public LinearConstraint {
    public:
-    BoundingBoxConstraint() : LinearConstraint() {
-        SparsityPattern pattern;
-        int size = 10;
-        for (int i = 0; i < size; ++i) pattern.push_back({i, i});
-        // setASparsityPattern(pattern);
+    BoundingBoxConstraint(const Index &dim_input,
+                          const Eigen::Ref<const VectorXd> &lower_bound,
+                          const Eigen::Ref<const VectorXd> &upper_bound)
+        : LinearConstraint(dim_input, dim_input) {
+        SparsityPattern pattern = {};
+        for (Index i = 0; i < this->dim_input(); ++i) pattern.push_back({i, i});
+        this->setASparsityPattern(pattern);
+    }
+
+    BoundingBoxConstraint(const Index &dim_input, const double &lower_bound,
+                          const double &upper_bound)
+        : LinearConstraint(dim_input, dim_input) {
+        SparsityPattern pattern = {};
+        for (Index i = 0; i < this->dim_input(); ++i) pattern.push_back({i, i});
+        this->setASparsityPattern(pattern);
+    }
+
+    static std::shared_ptr<BoundingBoxConstraint> create(
+        const Index &dim_input, const Eigen::Ref<const VectorXd> &lower_bound,
+        const Eigen::Ref<const VectorXd> &upper_bound) {
+        return std::make_shared<BoundingBoxConstraint>(dim_input, lower_bound,
+                                                       upper_bound);
     }
 
    protected:

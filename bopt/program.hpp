@@ -224,7 +224,6 @@ class MathematicalProgram {
     typedef std::string string_t;
 
     typedef constraint_tpl<ValueType> constraint_t;
-    typedef linear_constraint_tpl<ValueType> linear_constraint_t;
     typedef bounding_box_constraint_tpl<ValueType> bounding_box_constraint_t;
 
     typedef cost_tpl<ValueType> cost_t;
@@ -421,11 +420,11 @@ class MathematicalProgram {
     }
 
     void add_linear_constraint(
-        const std::shared_ptr<linear_constraint_t> &constraint,
+        const std::shared_ptr<LinearConstraint> &constraint,
         const Eigen::Ref<const variable_vector> &x) {
         // Create binding
         constraints_linear_.push_back(
-            binding<linear_constraint_t>(constraint, variable_indices(x)));
+            binding<LinearConstraint>(constraint, variable_indices(x)));
     }
 
     void add_bounding_box_constraint(
@@ -440,7 +439,7 @@ class MathematicalProgram {
         return constraints_generic_;
     }
 
-    std::vector<binding<linear_constraint_t>> &linear_constraints() {
+    std::vector<binding<LinearConstraint>> &linear_constraints() {
         return constraints_linear_;
     }
 
@@ -476,7 +475,7 @@ class MathematicalProgram {
 
     // constraint bindings
     std::vector<binding<constraint_t>> constraints_generic_ = {};
-    std::vector<binding<linear_constraint_t>> constraints_linear_ = {};
+    std::vector<binding<LinearConstraint>> constraints_linear_ = {};
     std::vector<binding<bounding_box_constraint_t>> constraints_bounding_box_ =
         {};
 
