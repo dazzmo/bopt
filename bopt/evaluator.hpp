@@ -434,6 +434,7 @@ class EvaluatorBase {
 
 std::ostream &operator<<(std::ostream &os, const EvaluatorBase &e);
 
+
 class TestAutodiffModule {
    public:
     typedef Eigen::AutoDiffScalar<VectorXd> AD;

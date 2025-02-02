@@ -17,13 +17,13 @@ namespace bopt {
  * @tparam T
  */
 template <class EvaluatorType>
-class binding {
+class Binding {
    public:
     typedef typename std::shared_ptr<EvaluatorType> evaluator_shared_ptr;
 
-    binding() : evaluator_(nullptr), indices_(nullptr) {}
+    Binding() : evaluator_(nullptr), indices_(nullptr) {}
 
-    ~binding() = default;
+    ~Binding() = default;
 
     /**
      * @brief Bind an evaluator object to a set of input variables, with
@@ -32,10 +32,10 @@ class binding {
      * @param ptr
      * @param indices Indices of the variables bound to the evaluator
      */
-    binding(const std::shared_ptr<EvaluatorType> &ptr,
+    Binding(const std::shared_ptr<EvaluatorType> &ptr,
             const std::vector<Eigen::Index> &indices)
         : evaluator_(ptr), indices_(nullptr) {
-        // DBGASSERT(ptr->sz_in() == indices.size());
+        BOPT_ASSERT(ptr->dim_input() == indices.size());
         this->indices_ = std::make_shared<variable_indices>(indices);
     }
 
@@ -47,12 +47,12 @@ class binding {
      * @param b
      */
     template <typename Other>
-    binding(
-        const binding<Other> &b,
+    Binding(
+        const Binding<Other> &b,
         typename std::enable_if_t<std::is_convertible_v<
-            typename binding<Other>::evaluator_shared_ptr,
-            typename binding<EvaluatorType>::evaluator_shared_ptr>> * = nullptr)
-        : binding(static_cast<evaluator_shared_ptr>(b.get()),
+            typename Binding<Other>::evaluator_shared_ptr,
+            typename Binding<EvaluatorType>::evaluator_shared_ptr>> * = nullptr)
+        : Binding(static_cast<evaluator_shared_ptr>(b.get()),
                   b.indices().indices()) {}
 
     evaluator_shared_ptr get() const {

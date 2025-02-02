@@ -4,6 +4,7 @@ namespace bopt {
 std::ostream& operator<<(std::ostream& os, const Cost& c) {
     os << "cost:\n";
     os << "name: " << c.name() << '\n';
+    os << "scaling factor: " << c.scaling_factor() << '\n';
     os << "description: " << c.description();
     return os;
 }

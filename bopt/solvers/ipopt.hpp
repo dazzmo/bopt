@@ -54,7 +54,7 @@ class ipopt_program_instance : public Ipopt::TNLP {
     using Number = Ipopt::Number;
 
    public:
-    ipopt_program_instance(mathematical_program<double>& program);
+    ipopt_program_instance(MathematicalProgram& program);
 
     ~ipopt_program_instance() { VLOG(10) << "Destructing!"; }
 
@@ -91,16 +91,16 @@ class ipopt_program_instance : public Ipopt::TNLP {
    private:
     ipopt_data cache_;
 
-    std::vector<binding<cost_tpl<Number>>> costs_;
-    std::vector<binding<constraint_tpl<Number>>> constraints_;
+    std::vector<Binding<Cost>> costs_;
+    std::vector<Binding<Constraint>> constraints_;
 
-    mathematical_program<Number>& program_;
-    mathematical_program<Number>& program() { return program_; }
+    MathematicalProgram& program_;
+    MathematicalProgram& program() { return program_; }
 };
 
 class ipopt_solver : public solver<double> {
    public:
-    ipopt_solver(mathematical_program<double>& program);
+    ipopt_solver(MathematicalProgram& program);
     int solve();
 
     Ipopt::SmartPtr<Ipopt::OptionsList> options() { return app_->Options(); }

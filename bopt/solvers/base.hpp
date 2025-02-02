@@ -42,7 +42,7 @@ template <class ValueType>
 class solver {
    public:
     // todo - make this const?
-    solver(const mathematical_program<ValueType>& program) {
+    solver(const MathematicalProgram& program) {
         primal_solution_ = Eigen::VectorXd::Zero(program.n_variables());
     }
     ~solver() {}
