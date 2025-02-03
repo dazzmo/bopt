@@ -60,6 +60,8 @@ class LinearCost : public Cost {
      */
     void evalb(double &b) { return evalbImpl(b); }
 
+    bool a_has_nz_only() const { return a_has_nz_only_; }
+
     const std::optional<SparsityPattern> &a_sparsity_pattern() const {
         return a_sparsity_pattern_;
     }
@@ -69,7 +71,10 @@ class LinearCost : public Cost {
     }
 
    protected:
-    LinearCost(const Index &dim_input) : Cost(dim_input) {
+    LinearCost(const Index &dim_input)
+        : Cost(dim_input),
+          a_has_nz_only_(false),
+          a_sparsity_pattern_(std::nullopt) {
         setName("linear_cost");
     }
 
@@ -100,7 +105,6 @@ class LinearCost : public Cost {
  */
 class QuadraticCost : public Cost {
    public:
-   protected:
     /**
      * @brief Hessian type Aₚ for the quadratic cost.
      *
@@ -135,6 +139,9 @@ class QuadraticCost : public Cost {
      */
     void evalc(double &c) { return evalcImpl(c); }
 
+    bool A_has_nz_only() const { return A_has_nz_only_; }
+    bool b_has_nz_only() const { return b_has_nz_only_; }
+
     const std::optional<SparsityPattern> &A_sparsity_pattern() const {
         return A_sparsity_pattern_;
     }
@@ -151,7 +158,12 @@ class QuadraticCost : public Cost {
     }
 
    protected:
-    QuadraticCost(const Index &dim_input) : Cost(dim_input) {
+    QuadraticCost(const Index &dim_input)
+        : Cost(dim_input),
+          A_has_nz_only_(false),
+          A_sparsity_pattern_(std::nullopt),
+          b_has_nz_only_(false),
+          b_sparsity_pattern_(std::nullopt) {
         setName("quadratic_cost");
     }
 

@@ -8,82 +8,68 @@
 #include "bopt/program.hpp"
 #include "bopt/solvers/qpoases.hpp"
 
-class GenericQuadraticCost : public bopt::quadratic_cost {
+class GenericQuadraticCost : public bopt::QuadraticCost {
    public:
-    GenericQuadraticCost() : bopt::quadratic_cost(2) {
-        this->set_name("quadratic cost");
+    GenericQuadraticCost(const int n) : bopt::QuadraticCost(n) {
+        this->setName("quadratic cost");
+
+        bopt::EvaluatorBase::SparsityPattern A_pattern;
+        for (int i = 0; i < n; ++i) {
+            A_pattern.push_back({i, i});
+        }
+        setASparsityPattern(A_pattern);
+        setANonZeroOnly(true);
     }
 
    protected:
-    bopt::evaluator::return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x, double &out) override {
-        out = x.squaredNorm();
-        return bopt::evaluator::return_status::Success;
+    void evalImpl(const Eigen::Ref<const bopt::VectorXd> &x,
+                  Eigen::Ref<bopt::VectorXd> out) override {
+        out[0] = x.squaredNorm();
     }
 
-    bopt::evaluator::return_status eval_A_impl(
-        Eigen::Ref<dense_matrix_t> out) override {
-        out.setIdentity();
-        return bopt::evaluator::return_status::Success;
-    }
+    void evalAImpl(Eigen::Ref<bopt::MatrixXd> out) override { 
+        VLOG(10) << "evalAImpl";
+        out.setOnes(); }
 
-    bopt::evaluator::return_status eval_b_impl(
-        Eigen::Ref<dense_vector_t> out) override {
-        out.setZero();
-        return bopt::evaluator::return_status::Success;
-    }
+    void evalbImpl(Eigen::Ref<bopt::VectorXd> out) override { out.setZero(); }
 };
 
-class GenericLinearConstraint : public bopt::linear_constraint {
+class GenericLinearConstraint : public bopt::LinearConstraint {
    public:
-    GenericLinearConstraint()
-        : bopt::linear_constraint(2, 2, 0, bopt::bounds::type::Equality) {
-        this->set_name("linear_constraint");
-    }
-
-    void get_jacobian_sparsity_impl(sparse_matrix_t &jac) const override {
-        jac.resize(sz_jacobian().first, sz_jacobian().second);
-        jac.coeffRef(0, 1) = 0.0;
-        jac.coeffRef(1, 0) = 0.0;
-        jac.coeffRef(1, 1) = 0.0;
+    GenericLinearConstraint() : bopt::LinearConstraint(2, 2) {
+        this->setName("linear_constraint");
+        setLowerBound(Eigen::Vector2d(-1.0, 2.0));
+        setUpperBound(Eigen::Vector2d(3.0, 2.0));
+        this->setType(bopt::Constraint::Type::Inequality);
     }
 
    protected:
-    bopt::evaluator::return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        out[0] = x[1];
-        out[0] = x[0] - x[1];
-        return bopt::evaluator::return_status::Success;
+    void evalImpl(const Eigen::Ref<const bopt::VectorXd> &x,
+                  Eigen::Ref<bopt::VectorXd> out) override {
+        out[0] = 2 * x[1];
+        out[1] = x[0] - x[1];
     }
 
-    bopt::evaluator::return_status eval_A_impl(
-        Eigen::Ref<dense_matrix_t> out) override {
-        out(0, 1) = 1.0;
+    void evalAImpl(Eigen::Ref<bopt::MatrixXd> out) override {
+        out(0, 1) = 2.0;
         out(1, 0) = 1.0;
         out(1, 1) = -1.0;
-        return bopt::evaluator::return_status::Success;
-    }
-
-    bopt::evaluator::return_status eval_b_impl(
-        Eigen::Ref<dense_vector_t> out) override {
-        out << 1.0, 2.0;
-        return bopt::evaluator::return_status::Success;
     }
 };
 
 TEST(Program, SimpleProgram) {
-    auto c = std::make_shared<GenericQuadraticCost>();
+    auto c = std::make_shared<GenericQuadraticCost>(2);
     auto g0 = std::make_shared<GenericLinearConstraint>();
 
-    auto x = bopt::create_variable_vector("x", 2);
+    bopt::MathematicalProgram p("program");
+    auto x = p.addVariable("x", 0.0);
+    auto y = p.addVariable("y", 0.0);
 
-    bopt::mathematical_program<double> p("program");
-    p.add_variables(x);
+    bopt::variable_vector v(2);
+    v << x, y;
 
-    p.add_cost(c, x);
-    p.add_linear_constraint(g0, x);
-
+    p.add_quadratic_cost(c, v);
+    p.add_linear_constraint(g0, v);
 
     auto qp = bopt::solvers::qpoases_solver(p);
     qp.options().printLevel = qpOASES::PrintLevel::PL_LOW;

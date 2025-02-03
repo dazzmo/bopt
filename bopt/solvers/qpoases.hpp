@@ -55,14 +55,14 @@ class qpoases_solver : public solver<double> {
     qpoases_data data;
 
     qpoases_solver() = default;
-    qpoases_solver(MathematicalProgram<double>& program);
+    qpoases_solver(MathematicalProgram& program);
 
     ~qpoases_solver();
 
     qpoases_options& options() { return options_; }
 
     void reset();
-    void solve(MathematicalProgram<double>& program);
+    void solve(MathematicalProgram& program);
 
    private:
     bool first_solve_ = true;

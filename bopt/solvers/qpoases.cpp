@@ -3,8 +3,7 @@
 namespace bopt {
 namespace solvers {
 
-qpoases_solver::qpoases_solver(MathematicalProgram<double>& program)
-    : solver(program) {
+qpoases_solver::qpoases_solver(MathematicalProgram& program) : solver(program) {
     LOG(INFO) << "qpoases_solver::qpoases_solver";
 
     // Create problem
@@ -15,10 +14,13 @@ qpoases_solver::qpoases_solver(MathematicalProgram<double>& program)
 
     // Create matrix data
     data.H.resize(nx, nx);
+    data.H.setZero();
 
     data.g.resize(nx);
+    data.g.setZero();
 
     data.A.resize(ng, nx);
+    data.A.setZero();
 
     data.lbA.resize(ng);
     data.ubA.resize(ng);
@@ -29,9 +31,9 @@ qpoases_solver::qpoases_solver(MathematicalProgram<double>& program)
     data.lbx = program.variables_lower_bound();
     data.ubx = program.variables_upper_bound();
 
-    for (auto& binding : program.bounding_box_constraints()) {
-        data.lbx(binding.indices().indices()) << binding.get()->lower_bound();
-        data.ubx(binding.indices().indices()) << binding.get()->upper_bound();
+    for (auto& binding : program.BoundingBoxConstraints()) {
+        data.lbx(binding.indices().indices()) << binding.get()->lowerBound();
+        data.ubx(binding.indices().indices()) << binding.get()->upperBound();
     }
 
     VLOG(10) << "lbx: " << data.lbx.transpose();
@@ -40,96 +42,140 @@ qpoases_solver::qpoases_solver(MathematicalProgram<double>& program)
 
 qpoases_solver::~qpoases_solver() = default;
 
-void qpoases_solver::solve(MathematicalProgram<double>& program) {
+void qpoases_solver::solve(MathematicalProgram& program) {
     Eigen::MatrixXd tmp;
 
     /** Linear costs **/
     VLOG(10) << "qpoases:linear costs";
     for (auto& binding : program.linear_costs()) {
-        const auto& x_indices = binding.indices().indices();
-        if (binding.get()->eval_a(binding.get()->buffer_a().dense) ==
-            evaluator::return_status::NotImplemented) {
-            if (binding.get()->eval_a(binding.get()->buffer_a().sparse) ==
-                evaluator::return_status::NotImplemented) {
-                throw std::runtime_error("no method implemented for eval_a");
-            }
-            // Compute through sparse view
-            binding.get()->buffer_a().dense = binding.get()->buffer_a().sparse;
-        }
-        data.g(x_indices) += binding.get()->buffer_a().dense;
-    }
-
-    /** Quadratic costs **/
-    VLOG(10) << "qpoases:quadratic costs";
-    for (auto& binding : program.quadratic_costs()) {
-        const auto& x_indices = binding.indices().indices();
-        // References to matrix data
-        Eigen::MatrixXd& A = binding.get()->buffer_A().dense;
-        Eigen::VectorXd& b = binding.get()->buffer_b().dense;
-
-        if (binding.get()->eval_A(A) ==
-            evaluator::return_status::NotImplemented) {
-            if (binding.get()->eval_A(binding.get()->buffer_A().sparse) ==
-                evaluator::return_status::NotImplemented) {
-                throw std::runtime_error("no method implemented for eval_A");
-            }
-            // Compute through sparse view
-            A = binding.get()->buffer_A().sparse;
-        }
-
-        // Perform block insert for lower-triangular hessian
-        // todo - use lower triangular
-        if (binding.indices().is_block()) {
-            data.H.block(x_indices[0], x_indices[0], x_indices.size(),
-                         x_indices.size()) += A;
-        } else {
-            data.H(x_indices, x_indices) += A;
-        }
-
-        if (binding.get()->eval_b(b) ==
-            evaluator::return_status::NotImplemented) {
-            if (binding.get()->eval_b(binding.get()->buffer_b().sparse) ==
-                evaluator::return_status::NotImplemented) {
-                throw std::runtime_error("no method implemented for eval_b");
-            }
-            // Compute through sparse view
-            b = binding.get()->buffer_b().sparse;
-        }
-        data.g(x_indices) += A * b;
-    }
-
-    /** Linear constraints **/
-    VLOG(10) << "qpoases:linear constraints";
-    int cnt = 0;
-    for (auto& binding : program.linear_constraints()) {
         const auto& c = *binding.get();
-        const auto& x_indices = binding.indices().indices();
+        const auto& indices = binding.indices().indices();
 
-        MatrixXd A;
-        // c.A(A);
-
-        if (c.jacobian_x_sparsity_pattern().has_value()) {
-            for (const auto& xy : *c.jacobian_x_sparsity_pattern()) {
-                double& entry =
-                    data.A(cnt + x_indices[xy.first], x_indices[xy.second]);
-                if (c.jacobian_x_nz_only()) {
-                    entry += A(0, 0);
+        // Create vector
+        VectorXd a(c.dim_input());
+        if (c.a_has_nz_only()) a.resize(c.a_sparsity_pattern()->size());
+        int cnt = 0;
+        if (c.a_sparsity_pattern().has_value()) {
+            // Sparse insert
+            for (const auto& xy : *c.a_sparsity_pattern()) {
+                double& entry = data.g(indices[xy.first]);
+                if (c.a_has_nz_only()) {
+                    entry += a[cnt++];
                 } else {
-                    entry += A(xy.first, xy.second);
+                    entry += a(xy.first);
                 }
             }
         } else {
             // Perform block insert
             if (binding.indices().is_block()) {
-                data.A.block(x_indices[0], x_indices[0], x_indices.size(),
-                             x_indices.size()) += A;
+                data.g.middleRows(indices[0], indices.size()) += a;
             } else {
-                data.A(x_indices, x_indices) += A;
+                data.g(indices, indices) += a;
             }
         }
 
-        data.lbA.middleRows(cnt, c.dim_output()) << c.lowerBound();
-        data.ubA.middleRows(cnt, c.dim_output()) << c.upperBound();
+        // Whether to also include the constant value
+        double b;
+    }
+
+    /** Quadratic costs **/
+    VLOG(10) << "qpoases:quadratic costs";
+    for (auto& binding : program.quadratic_costs()) {
+        auto& c = *binding.get();
+        const auto& indices = binding.indices().indices();
+
+        // A
+        VLOG(10) << "A";
+        MatrixXd A(c.dim_input(), c.dim_input());
+        if (c.A_has_nz_only()) A.resize(c.A_sparsity_pattern()->size(), 1);
+        // Evaluate A matrix
+        c.evalA(A);
+
+        if (c.A_sparsity_pattern().has_value()) {
+            int cnt = 0;
+            for (const auto& xy : *c.A_sparsity_pattern()) {
+                double& Hij = data.H(indices[xy.first], indices[xy.second]);
+                // todo - ensure this is lower triangular
+                if (c.A_has_nz_only()) {
+                    Hij += A(cnt++);
+                } else {
+                    Hij += A(xy.first, xy.second);
+                }
+            }
+        } else {
+            // Perform block insert
+            if (binding.indices().is_block()) {
+                data.H.block(indices[0], indices[0], indices.size(),
+                             indices.size()) += A;
+            } else {
+                data.H(indices, indices) += A;
+            }
+        }
+
+        // b
+        VLOG(10) << "b";
+        VectorXd b(c.dim_input());
+        if (c.b_has_nz_only()) b.resize(c.b_sparsity_pattern()->size());
+        VLOG(10) << b;
+        c.evalb(b);
+
+        if (c.b_sparsity_pattern().has_value()) {
+            int cnt = 0;
+            for (const auto& xy : *c.b_sparsity_pattern()) {
+                double& gi = data.g(indices[xy.first]);
+                if (c.b_has_nz_only()) {
+                    gi += b[cnt++];
+                } else {
+                    gi += b(xy.first);
+                }
+            }
+        } else {
+            // Perform block insert
+            if (binding.indices().is_block()) {
+                data.g.middleRows(indices[0], indices.size()) += b;
+            } else {
+                data.g(indices) += b;
+            }
+        }
+    }
+
+    /** Linear constraints **/
+    VLOG(10) << "qpoases:linear constraints";
+    int row = 0;
+    for (auto& binding : program.linear_constraints()) {
+        auto& c = *binding.get();
+        const auto& indices = binding.indices().indices();
+
+        MatrixXd A(c.dim_output(), c.dim_input());
+        if (c.A_has_nz_only()) A.resize(c.A_sparsity_pattern()->size(), 1);
+        // Evaluate A matrix
+        c.evalA(A);
+
+        if (c.A_sparsity_pattern().has_value()) {
+            int cnt = 0;
+            for (const auto& xy : *c.A_sparsity_pattern()) {
+                double& Aij =
+                    data.A(row + indices[xy.first], indices[xy.second]);
+                if (c.A_has_nz_only()) {
+                    Aij = A(cnt++);
+                } else {
+                    Aij = A(xy.first, xy.second);
+                }
+            }
+        } else {
+            // Perform block insert
+            if (binding.indices().is_block()) {
+                data.A.block(indices[0], indices[0], indices.size(),
+                             indices.size()) += A;
+            } else {
+                data.A(indices, indices) += A;
+            }
+        }
+
+        data.lbA.middleRows(row, c.dim_output()) << c.lowerBound();
+        data.ubA.middleRows(row, c.dim_output()) << c.upperBound();
+
+        row += c.dim_output();
     }
 
     int nWSR = options_.nWSR;
@@ -137,6 +183,12 @@ void qpoases_solver::solve(MathematicalProgram<double>& program) {
     qp_->setHessianType(qpOASES::HessianType::HST_POSDEF);
     // todo - set this only once?
     qp_->setOptions(options_);
+
+    VLOG(10) << "H: " << data.H;
+    VLOG(10) << "g: " << data.g;
+    VLOG(10) << "A: " << data.A;
+    VLOG(10) << "lbA: " << data.lbA;
+    VLOG(10) << "ubA: " << data.ubA;
 
     // Solve
     if (info_.number_of_solves > 0 && options_.perform_hotstart) {

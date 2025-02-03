@@ -87,6 +87,40 @@ class Constraint : public EvaluatorBase {
         return true;
     }
 
+    // Derivatives with respect to parameters
+
+    const std::optional<SparsityPattern> &
+    lower_bound_jacobian_sparsity_pattern() const {
+        return lb_jacobian_sparsity_pattern_;
+    }
+    const std::optional<SparsityPattern> &
+    upper_bound_jacobian_sparsity_pattern() const {
+        return ub_jacobian_sparsity_pattern_;
+    }
+
+    const std::optional<SparsityPattern> &lower_bound_hessian_sparsity_pattern()
+        const {
+        return lb_hessian_sparsity_pattern_;
+    }
+    const std::optional<SparsityPattern> &upper_bound_hessian_sparsity_pattern()
+        const {
+        return ub_hessian_sparsity_pattern_;
+    }
+
+    void setBoundJacobianSparsityPattern(
+        const std::optional<SparsityPattern> &lower_bound_pattern,
+        const std::optional<SparsityPattern> &upper_bound_pattern) {
+        lb_jacobian_sparsity_pattern_ = lower_bound_pattern;
+        ub_jacobian_sparsity_pattern_ = upper_bound_pattern;
+    }
+
+    void setLowerBoundHessianSparsityPattern(
+        const std::optional<SparsityPattern> &lower_bound_pattern,
+        const std::optional<SparsityPattern> &upper_bound_pattern) {
+        lb_hessian_sparsity_pattern_ = lower_bound_pattern;
+        ub_hessian_sparsity_pattern_ = upper_bound_pattern;
+    }
+
    protected:
     Constraint(const Index &dim_input, const Index &dim_output)
         : EvaluatorBase(dim_input, dim_output),
@@ -95,12 +129,28 @@ class Constraint : public EvaluatorBase {
           lower_bound_(VectorXd::Zero(dim_output)),
           upper_bound_(VectorXd::Zero(dim_output)) {}
 
+    void setBoundsJacobianNonZeroOnly(bool lower_bound_p, bool upper_bound_p) {}
+    void setBoundsHessianNonZeroOnly(bool lower_bound_p, bool upper_bound_p);
+
    private:
     std::string name_;
     Type type_;
 
     VectorXd lower_bound_;
     VectorXd upper_bound_;
+
+    // Behaviour of constraint with respect to parameters
+    bool ub_jacobian_p_nz_only_;
+    bool lb_jacobian_p_nz_only_;
+
+    bool ub_hessian_pp_nz_only_;
+    bool lb_hessian_pp_nz_only_;
+
+    std::optional<SparsityPattern> lb_jacobian_sparsity_pattern_;
+    std::optional<SparsityPattern> ub_jacobian_sparsity_pattern_;
+
+    std::optional<SparsityPattern> lb_hessian_sparsity_pattern_;
+    std::optional<SparsityPattern> ub_hessian_sparsity_pattern_;
 };
 
 /**
@@ -118,6 +168,8 @@ class LinearConstraint : public Constraint {
         A_sparsity_pattern_ = pattern;
         setJacobianSparsityPattern(pattern);
     }
+
+    bool A_has_nz_only() const { return A_has_nz_only_; }
 
    protected:
     LinearConstraint(const Index &dim_input, const Index &dim_output)
