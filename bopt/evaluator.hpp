@@ -117,7 +117,7 @@ class EvaluatorBase {
      *
      * @return const std::optional<SparsityPattern>
      */
-    const std::optional<SparsityPattern> jacobian_x_sparsity_pattern() const {
+    const std::optional<SparsityPattern> &jacobian_x_sparsity_pattern() const {
         return jacobian_x_sparsity_pattern_;
     }
     /**
@@ -125,7 +125,7 @@ class EvaluatorBase {
      *
      * @return const std::optional<SparsityPattern>
      */
-    const std::optional<SparsityPattern> jacobian_p_sparsity_pattern() const {
+    const std::optional<SparsityPattern> &jacobian_p_sparsity_pattern() const {
         return jacobian_p_sparsity_pattern_;
     }
 
@@ -135,7 +135,7 @@ class EvaluatorBase {
      *
      * @return const std::optional<SparsityPattern>
      */
-    const std::optional<SparsityPattern> hessian_xx_sparsity_pattern() const {
+    const std::optional<SparsityPattern> &hessian_xx_sparsity_pattern() const {
         return hessian_xx_sparsity_pattern_;
     }
 
@@ -145,7 +145,7 @@ class EvaluatorBase {
      *
      * @return const std::optional<SparsityPattern>
      */
-    const std::optional<SparsityPattern> hessian_px_sparsity_pattern() const {
+    const std::optional<SparsityPattern> &hessian_px_sparsity_pattern() const {
         return hessian_px_sparsity_pattern_;
     }
 
@@ -155,7 +155,7 @@ class EvaluatorBase {
      *
      * @return const std::optional<SparsityPattern>
      */
-    const std::optional<SparsityPattern> hessian_pp_sparsity_pattern() const {
+    const std::optional<SparsityPattern> &hessian_pp_sparsity_pattern() const {
         return hessian_pp_sparsity_pattern_;
     }
 
@@ -433,7 +433,6 @@ class EvaluatorBase {
 };
 
 std::ostream &operator<<(std::ostream &os, const EvaluatorBase &e);
-
 
 class TestAutodiffModule {
    public:

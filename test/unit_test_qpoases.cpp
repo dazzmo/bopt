@@ -27,9 +27,10 @@ class GenericQuadraticCost : public bopt::QuadraticCost {
         out[0] = x.squaredNorm();
     }
 
-    void evalAImpl(Eigen::Ref<bopt::MatrixXd> out) override { 
+    void evalAImpl(Eigen::Ref<bopt::MatrixXd> out) override {
         VLOG(10) << "evalAImpl";
-        out.setOnes(); }
+        out.setOnes();
+    }
 
     void evalbImpl(Eigen::Ref<bopt::VectorXd> out) override { out.setZero(); }
 };
@@ -51,6 +52,7 @@ class GenericLinearConstraint : public bopt::LinearConstraint {
     }
 
     void evalAImpl(Eigen::Ref<bopt::MatrixXd> out) override {
+        out(0, 0) = 0.0;
         out(0, 1) = 2.0;
         out(1, 0) = 1.0;
         out(1, 1) = -1.0;
@@ -64,24 +66,27 @@ TEST(Program, SimpleProgram) {
     bopt::MathematicalProgram p("program");
     auto x = p.addVariable("x", 0.0);
     auto y = p.addVariable("y", 0.0);
+    auto z = p.addVariable("z", 0.0);
 
-    bopt::variable_vector v(2);
-    v << x, y;
+    bopt::variable_vector v(3);
+    v << x, y, z;
 
-    p.add_quadratic_cost(c, v);
-    p.add_linear_constraint(g0, v);
+    p.add_quadratic_cost(c, v({0, 2}));
+    p.add_linear_constraint(g0, v({0, 2}));
 
     auto qp = bopt::solvers::qpoases_solver(p);
     qp.options().printLevel = qpOASES::PrintLevel::PL_LOW;
     qp.options().nWSR = 100;
     qp.options().perform_hotstart = false;
 
-    qp.solve(p);
+    for (int i = 0; i < 200; ++i) {
+        qp.solve(p);
+    }
 }
 
 int main(int argc, char **argv) {
     FLAGS_logtostderr = true;
-    FLAGS_v = 10;
+    // FLAGS_v = 10;
 
     google::InitGoogleLogging(argv[0]);
     google::ParseCommandLineFlags(&argc, &argv, true);
