@@ -68,6 +68,10 @@ class qpoases_solver : public solver<double> {
     bool first_solve_ = true;
     int n_solves_ = 0;
 
+    std::vector<LinearConstraintData> linear_constraint_data_;
+    std::vector<QuadraticCostData> quadratic_cost_data_;
+    std::vector<LinearCostData> linear_cost_data_;
+
     std::unique_ptr<qpOASES::SQProblem> qp_;
 
     qpoases_options options_;

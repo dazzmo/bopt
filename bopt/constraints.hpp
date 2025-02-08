@@ -5,29 +5,33 @@
 
 namespace bopt {
 
+enum class ConstraintType {
+    /// Constraint of the form lower_bound() = c(x) = upper_bound()
+    Equality,
+    /// Constraint of the form lower_bound() ≤ c(x) ≤ upper_bound()
+    Inequality
+};
+
+template <typename Scalar>
+struct ConstraintDataTpl;
+
 /**
  * @brief Constraint of the form y = fₚ(x) ∈ ℝᵐ
  *
  */
-class Constraint : public EvaluatorBase {
+template <typename Scalar>
+class ConstraintTpl : public EvaluatorBaseTpl<Scalar> {
+    using ConstraintData = ConstraintDataTpl<Scalar>;
+
    public:
-    enum class Type {
-        // Constraint of the form lower_bound() = c(x) = upper_bound()
-        Equality,
-        // Constraint of the form lower_bound() ≤ c(x) ≤ upper_bound()
-        Inequality
-    };
-
-    // Constraint() : EvaluatorBase(), type_(Type::Equality), name_("") {}
-
-    const Type &type() const { return type_; }
+    const ConstraintType &type() const { return type_; }
 
     /**
      * @brief Set the constraint to a particular type
      *
      * @return const Type&
      */
-    void setType(const Type &type) { type_ = type; }
+    void setType(const ConstraintType &type) { type_ = type; }
 
     /**
      * @brief Name of the constraint
@@ -43,28 +47,15 @@ class Constraint : public EvaluatorBase {
      */
     void setName(const std::string &name) { name_ = name; }
 
-    /**
-     * @brief The lower bound vector of the constraint of size (\ref
-     * dim_output() x 1).
-     *
-     * @return const VectorXd&
-     */
-    const VectorXd &lowerBound() const { return lower_bound_; }
-    void setLowerBound(const Eigen::Ref<const VectorXd> &bound) {
-        BOPT_ASSERT(bound.size() == dim_output());
-        lower_bound_ = bound;
+    // Derivatives with respect to parameters
+    void evalBounds(ConstraintData &data) { evalBoundsImpl(data); }
+
+    void evalBoundJacobians(ConstraintData &data) {
+        evalBoundJacobiansImpl(data);
     }
 
-    /**
-     * @brief The upper bound vector of the constraint of size (\ref
-     * dim_output() x 1).
-     *
-     * @return const VectorXd&
-     */
-    const VectorXd &upperBound() const { return upper_bound_; }
-    void setUpperBound(const Eigen::Ref<const VectorXd> &bound) {
-        BOPT_ASSERT(bound.size() == dim_output());
-        upper_bound_ = bound;
+    void evalBoundHessians(ConstraintData &data) {
+        evalBoundHessiansImpl(data);
     }
 
     /**
@@ -76,170 +67,175 @@ class Constraint : public EvaluatorBase {
      * @return true
      * @return false
      */
-    bool isSatisfied(const Eigen::Ref<const VectorXd> &value,
+    bool isSatisfied(ConstraintData &data,
                      const double &epsilon = kEpsilon) const {
-        BOPT_ASSERT(value.size() == dim_output());
-        for (int i = 0; i < dim_output(); ++i) {
-            if (lowerBound()[i] - value[i] > epsilon ||
-                upperBound()[i] - value[i] < -epsilon)
+        for (int i = 0; i < this->dim_output(); ++i) {
+            if (data.lb[i] - data.y[i] > epsilon ||
+                data.ub[i] - data.y[i] < -epsilon)
                 return false;
         }
         return true;
     }
 
-    // Derivatives with respect to parameters
-
-    const std::optional<SparsityPattern> &
-    lower_bound_jacobian_sparsity_pattern() const {
-        return lb_jacobian_sparsity_pattern_;
-    }
-    const std::optional<SparsityPattern> &
-    upper_bound_jacobian_sparsity_pattern() const {
-        return ub_jacobian_sparsity_pattern_;
-    }
-
-    const std::optional<SparsityPattern> &lower_bound_hessian_sparsity_pattern()
-        const {
-        return lb_hessian_sparsity_pattern_;
-    }
-    const std::optional<SparsityPattern> &upper_bound_hessian_sparsity_pattern()
-        const {
-        return ub_hessian_sparsity_pattern_;
-    }
-
-    void setBoundJacobianSparsityPattern(
-        const std::optional<SparsityPattern> &lower_bound_pattern,
-        const std::optional<SparsityPattern> &upper_bound_pattern) {
-        lb_jacobian_sparsity_pattern_ = lower_bound_pattern;
-        ub_jacobian_sparsity_pattern_ = upper_bound_pattern;
-    }
-
-    void setLowerBoundHessianSparsityPattern(
-        const std::optional<SparsityPattern> &lower_bound_pattern,
-        const std::optional<SparsityPattern> &upper_bound_pattern) {
-        lb_hessian_sparsity_pattern_ = lower_bound_pattern;
-        ub_hessian_sparsity_pattern_ = upper_bound_pattern;
-    }
-
    protected:
-    Constraint(const Index &dim_input, const Index &dim_output)
-        : EvaluatorBase(dim_input, dim_output),
+    ConstraintTpl(const Index &dim_input, const Index &dim_output)
+        : EvaluatorBaseTpl<Scalar>(dim_input, dim_output),
           name_(""),
-          type_(Type::Equality),
-          lower_bound_(VectorXd::Zero(dim_output)),
-          upper_bound_(VectorXd::Zero(dim_output)) {}
+          type_(ConstraintType::Equality) {}
 
-    void setBoundsJacobianNonZeroOnly(bool lower_bound_p, bool upper_bound_p) {}
-    void setBoundsHessianNonZeroOnly(bool lower_bound_p, bool upper_bound_p);
+    virtual void evalBoundsImpl(ConstraintData &data) {}
+
+    virtual void evalBoundJacobiansImpl(ConstraintData &data) {}
+
+    virtual void evalBoundHessiansImpl(ConstraintData &data) {}
 
    private:
     std::string name_;
-    Type type_;
-
-    VectorXd lower_bound_;
-    VectorXd upper_bound_;
-
-    // Behaviour of constraint with respect to parameters
-    bool ub_jacobian_p_nz_only_;
-    bool lb_jacobian_p_nz_only_;
-
-    bool ub_hessian_pp_nz_only_;
-    bool lb_hessian_pp_nz_only_;
-
-    std::optional<SparsityPattern> lb_jacobian_sparsity_pattern_;
-    std::optional<SparsityPattern> ub_jacobian_sparsity_pattern_;
-
-    std::optional<SparsityPattern> lb_hessian_sparsity_pattern_;
-    std::optional<SparsityPattern> ub_hessian_sparsity_pattern_;
+    ConstraintType type_;
 };
+
+typedef ConstraintTpl<double> Constraint;
+
+template <typename Scalar>
+struct ConstraintDataTpl : public EvaluatorBaseDataTpl<Scalar> {
+    ConstraintDataTpl(const ConstraintTpl<Scalar> &c)
+        : EvaluatorBaseDataTpl<Scalar>(c),
+          lb(VectorX<Scalar>::Zero(c.dim_output())),
+          ub(VectorX<Scalar>::Zero(c.dim_output())),
+          Jlb_p(MatrixX<Scalar>::Zero(c.dim_output(), c.dim_parameter())),
+          Jub_p(MatrixX<Scalar>::Zero(c.dim_output(), c.dim_parameter())),
+          Hlb_pp(MatrixX<Scalar>::Zero(c.dim_parameter(), c.dim_parameter())),
+          Hub_pp(MatrixX<Scalar>::Zero(c.dim_parameter(), c.dim_parameter())) {}
+
+    /// Lower bound of the constraint
+    VectorX<Scalar> lb;
+    /// Upper bound of the constraint
+    VectorX<Scalar> ub;
+
+    /// Jacobian of the lower bound with respect to the parameters
+    MatrixX<Scalar> Jlb_p;
+    /// Jacobian of the upper bound with respect to the parameters
+    MatrixX<Scalar> Jub_p;
+
+    /// Hessian of the lower bound vector product with respect to the parameters
+    MatrixX<Scalar> Hlb_pp;
+    /// Hessian of the upper bound vector product with respect to the parameters
+    MatrixX<Scalar> Hub_pp;
+
+    /// Sparse Jacobian of the lower bound with respect to the parameters
+    SparseMatrix<Scalar> Jlb_p_s;
+    /// Sparse Jacobian of the upper bound with respect to the parameters
+    SparseMatrix<Scalar> Jub_p_s;
+
+    /// Sparse Hessian of the lower bound vector product with respect to the
+    /// parameters
+    SparseMatrix<Scalar> Hlb_pp_s;
+    /// Sparse Hessian of the upper bound vector product with respect to the
+    /// parameters
+    SparseMatrix<Scalar> Hub_pp_s;
+};
+
+typedef ConstraintDataTpl<double> ConstraintData;
+
+template <typename Scalar>
+struct LinearConstraintDataTpl;
 
 /**
  * @brief Constraint of the form lb ≤ Ax ≤ ub
  *
  */
-class LinearConstraint : public Constraint {
+template <typename Scalar>
+class LinearConstraintTpl : public ConstraintTpl<Scalar> {
+    using LinearConstraintData = LinearConstraintDataTpl<Scalar>;
+
    public:
-    void evalA(Eigen::Ref<MatrixXd> A) { evalAImpl(A); }
-
-    const std::optional<SparsityPattern> &A_sparsity_pattern() const {
-        return A_sparsity_pattern_;
-    }
-    void setASparsityPattern(const SparsityPattern &pattern) {
-        A_sparsity_pattern_ = pattern;
-        setJacobianSparsityPattern(pattern);
+    void evalCoefficientMatrix(LinearConstraintData &data) {
+        evalCoefficientMatrixImpl(data);
     }
 
-    bool A_has_nz_only() const { return A_has_nz_only_; }
+    void evalSparseCoefficientMatrix(LinearConstraintData &data) {
+        evalSparseCoefficientMatrixImpl(data);
+    }
+
+    void evalConstantVector(LinearConstraintData &data) {
+        evalConstantVectorImpl(data);
+    }
+
+    void evalSparseConstantVector(LinearConstraintData &data) {
+        evalSparseConstantVectorImpl(data);
+    }
+
+    virtual void setCoefficientMatrixSparsityPatterns(
+        LinearConstraintData &data) {}
+    virtual void seConstantVectorSparsityPatterns(LinearConstraintData &data) {}
 
    protected:
-    LinearConstraint(const Index &dim_input, const Index &dim_output)
-        : Constraint(dim_input, dim_output),
-          A_has_nz_only_(false),
-          A_sparsity_pattern_(std::nullopt) {
-        setName("linear_constraint");
+    LinearConstraintTpl(const Index &dim_input, const Index &dim_output)
+        : ConstraintTpl<Scalar>(dim_input, dim_output) {
+        this->setName("linear_constraint");
     }
 
-    virtual void evalAImpl(Eigen::Ref<MatrixXd> A) {}
+    virtual void evalCoefficientMatrixImpl(LinearConstraintData &data) {}
+    virtual void evalSparseCoefficientMatrixImpl(LinearConstraintData &data) {}
 
-    /**
-     * @brief Indicate whether the evaluation of the jacobians will return only
-     * the non-zero elements. If false, evaluation expects the full jacobian to
-     * be computed.
-     *
-     * @param flag
-     */
-    void setANonZeroOnly(bool flag) {
-        A_has_nz_only_ = flag;
-        setJacobianNonZeroOnly(flag);
-    }
-
-    void evalJacobianImpl(const Eigen::Ref<const VectorXd> &x,
-                          Eigen::Ref<MatrixXd> jacobian) override {
-        evalA(jacobian);
-    }
+    virtual void evalConstantVectorImpl(LinearConstraintData &data) {}
+    virtual void evalSparseConstantVectorImpl(LinearConstraintData &data) {}
 
    private:
-    bool A_has_nz_only_;
-    std::optional<SparsityPattern> A_sparsity_pattern_;
 };
+
+typedef LinearConstraintTpl<double> LinearConstraint;
+
+template <typename Scalar>
+struct LinearConstraintDataTpl : public ConstraintDataTpl<Scalar> {
+    LinearConstraintDataTpl(const LinearConstraintTpl<Scalar> &c)
+        : ConstraintDataTpl<Scalar>(c),
+          A(MatrixX<Scalar>::Zero(c.dim_output(), c.dim_tangent_space())),
+          b(VectorX<Scalar>::Zero(c.dim_output())),
+          A_s(c.dim_output(), c.dim_tangent_space()),
+          b_s(c.dim_output()) {}
+
+    MatrixX<Scalar> A;
+    VectorX<Scalar> b;
+
+    SparseMatrix<Scalar> A_s;
+    SparseVector<Scalar> b_s;
+};
+
+typedef LinearConstraintDataTpl<double> LinearConstraintData;
 
 /**
  * @brief Constraint of the form lower_bound() <= x <= upper_bound()
  *
  */
-class BoundingBoxConstraint : public LinearConstraint {
+template <typename Scalar>
+class BoundingBoxConstraintTpl : public LinearConstraintTpl<Scalar> {
    public:
-    BoundingBoxConstraint(const Index &dim_input,
-                          const Eigen::Ref<const VectorXd> &lower_bound,
-                          const Eigen::Ref<const VectorXd> &upper_bound)
-        : LinearConstraint(dim_input, dim_input) {
-        SparsityPattern pattern = {};
-        for (Index i = 0; i < this->dim_input(); ++i) pattern.push_back({i, i});
-        this->setASparsityPattern(pattern);
-    }
+    BoundingBoxConstraintTpl(const Index &dim_input,
+                             const Eigen::Ref<const VectorXd> &lower_bound,
+                             const Eigen::Ref<const VectorXd> &upper_bound)
+        : LinearConstraintTpl<Scalar>(dim_input, dim_input) {}
 
-    BoundingBoxConstraint(const Index &dim_input, const double &lower_bound,
-                          const double &upper_bound)
-        : LinearConstraint(dim_input, dim_input) {
-        SparsityPattern pattern = {};
-        for (Index i = 0; i < this->dim_input(); ++i) pattern.push_back({i, i});
-        this->setASparsityPattern(pattern);
-    }
+    BoundingBoxConstraintTpl(const Index &dim_input, const double &lower_bound,
+                             const double &upper_bound)
+        : LinearConstraintTpl<Scalar>(dim_input, dim_input) {}
 
-    static std::shared_ptr<BoundingBoxConstraint> create(
+    static std::shared_ptr<BoundingBoxConstraintTpl> create(
         const Index &dim_input, const Eigen::Ref<const VectorXd> &lower_bound,
         const Eigen::Ref<const VectorXd> &upper_bound) {
-        return std::make_shared<BoundingBoxConstraint>(dim_input, lower_bound,
-                                                       upper_bound);
+        return std::make_shared<BoundingBoxConstraintTpl>(
+            dim_input, lower_bound, upper_bound);
     }
 
    protected:
     void evalImpl(const Eigen::Ref<const VectorXd> &x,
-                  Eigen::Ref<VectorXd> y) override {
-        y = x;
+                  EvaluatorBaseDataTpl<Scalar> &data) override {
+        data.y = x;
     }
 
    private:
 };
+
+typedef BoundingBoxConstraintTpl<double> BoundingBoxConstraint;
 
 }  // namespace bopt

@@ -13,237 +13,117 @@
 
 namespace bopt {
 
+// Forward declarations
+template <typename Scalar>
+struct EvaluatorBaseDataTpl;
+
 using Index = Eigen::Index;
 
 /**
- * @brief Evaluator class related the evaluation of a function \f( y = f_p(x)
- * \f)
+ * @brief Evaluator class related the evaluation of a function y = fₚ(x)
  *
+ * @tparam Scalar
  */
-class EvaluatorBase {
+template <typename Scalar>
+class EvaluatorBaseTpl {
    public:
-    using SparsityPattern = std::vector<std::pair<int, int>>;
+    using EvaluatorData = EvaluatorBaseDataTpl<Scalar>;
 
     /**
      * @brief Evaluates the expression y = fₚ(x) using variables x and
-     * parameters p (set through \ref EvaluatorBase::setParameters()).
+     * parameters p (set through \ref EvaluatorBaseTpl::setParameters()).
      *
-     * @param x The input vector, composed as \f( x = [v p] \f) of size (num_var
-     * + num_par x 1)
-     * @param out
+     * @param x The input vector (dim_input() x 1)
+     * @param data
      */
-    void eval(const Eigen::Ref<const VectorXd> &x, Eigen::Ref<VectorXd> y) {
+    void eval(const Eigen::Ref<const VectorXd> &x, EvaluatorData &data) {
         BOPT_ASSERT(x.rows() == dim_input());
-        BOPT_ASSERT(y.rows() == dim_output());
+        BOPT_ASSERT(data.y.rows() == dim_output());
         checkVector(x);
-        evalImpl(x, y);
-        checkVector(y);
+        evalImpl(x, data);
+        checkVector(data.y);
     }
 
     /**
-     * @brief Computes the jacobian of the epxression with respect to the vector
-     * x. That is J(x) = [∂f/∂x]. If jacobian_x_sparsity_pattern().has_value()
-     * == true, `jacobian` returns a vector of the nonzero elements of the
-     * matrix.
+     * @brief Computes the jacobians of the expression f.
      *
      * @param x
-     * @param jacobian Either a dense matrix of size (n_output() x n_tangent())
-     * or a vector of size jacobian_x_sparsity_pattern()->size()
+     * @param data
+     * @param compute_x Compute ∂y/∂x
+     * @param compute_p Compute ∂y/∂p
      */
-    void evalJacobian(const Eigen::Ref<const VectorXd> &x,
-                      Eigen::Ref<MatrixXd> jacobian) {
+    void evalJacobians(const Eigen::Ref<const VectorXd> &x, EvaluatorData &data,
+                       bool compute_x = true, bool compute_p = false) {
         BOPT_ASSERT(x.rows() == dim_input());
-        evalJacobianImpl(x, jacobian);
+        evalJacobiansImpl(x, data);
     }
 
     /**
-     * @brief Computes the jacobian of the epxression with respect to the vector
-     * [x p]. That is J = [∂f/∂x ∂f/∂p]. If jacobian_x_sparsity_pattern() and
-     * jacobian_p_sparsity_pattern() are not empty, `jacobian` returns a vector
-     * of the nonzero elements of the matrix.
+     * @brief Computes the sparse jacobians of the expression f.
      *
      * @param x
-     * @param p
-     * @param jacobian
+     * @param data
+     * @param compute_x Compute ∂f/∂x
+     * @param compute_p Compute ∂f/∂p
      */
-    void evalJacobian(const Eigen::Ref<const VectorXd> &x,
-                      const Eigen::Ref<const VectorXd> &p,
-                      Eigen::Ref<MatrixXd> jacobian) {
-        evalJacobianImpl(x, p, jacobian);
+    void evalSparseJacobians(const Eigen::Ref<const VectorXd> &x,
+                             EvaluatorData &data, bool compute_x = true,
+                             bool compute_p = false) {
+        BOPT_ASSERT(x.rows() == dim_input());
+        evalSparseJacobiansImpl(x, data);
     }
 
     /**
-     * @brief Computes the hessian of the epxression λᵀf with respect to the
-     * variables x
-     *
-     *  i.e.  ∂²(λᵀf)/∂x²
-     *
-     * @note If \ref hessian_xx_nz_only() == true, returns a vector of the
-     * the nonzero elements of the matrix.
+     * @brief Computes the lower-triangular hessians of the vector-product of
+     * the expression λᵀf.
      *
      * @param x
-     * @param lambda Multipliers for the vector product
-     * @param jacobian
+     * @param lambda
+     * @param data
+     * @param compute_xx Compute ∂²(λᵀf)/∂x²
+     * @param compute_xp Compute ∂²(λᵀf)/∂x∂p
+     * @param compute_pp Compute ∂²(λᵀf)/∂p²
      */
-    void evalHessian(const Eigen::Ref<const VectorXd> &x,
-                     const Eigen::Ref<const VectorXd> &lambda,
-                     Eigen::Ref<MatrixXd> out) {
-        evalHessianImpl(x, lambda, out);
+    void evalHessians(const Eigen::Ref<const VectorXd> &x,
+                      const Eigen::Ref<const VectorXd> &lambda,
+                      EvaluatorData &data, bool compute_xx = true,
+                      bool compute_xp = false, bool compute_pp = false) {
+        evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
     }
 
     /**
-     * @brief Computes the hessian of the epxression λᵀf with respect to the
-     * variables x and parameters p
-     *
-     * i.e.  [∂²(λᵀf)/∂x² ∂²(λᵀf)/∂x∂p;
-     *        ∂²(λᵀf)/∂p∂x ∂²(λᵀf)/∂p²]
-     *
-     * If hessian_xx_sparsity_pattern().has_value() == true, returns a vector of
-     * the nonzero elements of the matrix.
+     * @brief Computes the sparse lower-triangular hessians of the
+     * vector-product of the expression λᵀf.
      *
      * @param x
-     * @param p
-     * @param jacobian
+     * @param lambda
+     * @param data
+     * @param compute_xx Compute ∂²(λᵀf)/∂x²
+     * @param compute_xp Compute ∂²(λᵀf)/∂x∂p
+     * @param compute_pp Compute ∂²(λᵀf)/∂p²
      */
-    void evalHessian(const Eigen::Ref<const VectorXd> &x,
-                     const Eigen::Ref<const VectorXd> &p,
-                     const Eigen::Ref<const VectorXd> &lambda,
-                     Eigen::Ref<MatrixXd> out) {
-        evalHessianImpl(x, p, lambda, out);
+    void evalSparseHessians(const Eigen::Ref<const VectorXd> &x,
+                            const Eigen::Ref<const VectorXd> &lambda,
+                            EvaluatorData &data, bool compute_xx = true,
+                            bool compute_xp = false, bool compute_pp = false) {
+        evalSparseHessiansImpl(x, lambda, data, compute_xx, compute_xp,
+                               compute_pp);
     }
 
     /**
-     * @brief Optional sparsity pattern for the evaluator Jacobian ∂f/∂x.
+     * @brief Provides the sparsity patterns for the sparse
+     * Jacobians ∂f/∂x and ∂f/∂p (if applicable).
      *
-     * @return const std::optional<SparsityPattern>
      */
-    const std::optional<SparsityPattern> &jacobian_x_sparsity_pattern() const {
-        return jacobian_x_sparsity_pattern_;
-    }
-    /**
-     * @brief Optional sparsity pattern for the evaluator Jacobian ∂f/∂p.
-     *
-     * @return const std::optional<SparsityPattern>
-     */
-    const std::optional<SparsityPattern> &jacobian_p_sparsity_pattern() const {
-        return jacobian_p_sparsity_pattern_;
-    }
+    virtual void setJacobianSparsityPatterns(EvaluatorData &data) {}
 
     /**
-     * @brief Optional sparsity pattern for the lower-triangular Hessian
-     * ∂²(λᵀf)/∂x².
+     * @brief Provides the sparsity patterns for the lower-triangular Hessians
+     * ∂²(λᵀf)/∂x², ∂²(λᵀf)/∂x∂p,  ∂²(λᵀf)/∂p² ∀λ (if applicable)
      *
-     * @return const std::optional<SparsityPattern>
      */
-    const std::optional<SparsityPattern> &hessian_xx_sparsity_pattern() const {
-        return hessian_xx_sparsity_pattern_;
-    }
-
-    /**
-     * @brief Optional sparsity pattern for the lower-triangular Hessian
-     * ∂²(λᵀf)/∂p∂x.
-     *
-     * @return const std::optional<SparsityPattern>
-     */
-    const std::optional<SparsityPattern> &hessian_px_sparsity_pattern() const {
-        return hessian_px_sparsity_pattern_;
-    }
-
-    /**
-     * @brief Optional sparsity pattern for the lower-triangular Hessian
-     * ∂²(λᵀf)/∂p².
-     *
-     * @return const std::optional<SparsityPattern>
-     */
-    const std::optional<SparsityPattern> &hessian_pp_sparsity_pattern() const {
-        return hessian_pp_sparsity_pattern_;
-    }
-
-    /**
-     * @brief Whether the evalution of the jacobian ∂f/∂x returns only the
-     * non-zero components.
-     *
-     * @return true
-     * @return false
-     */
-    bool jacobian_x_nz_only() const { return jacobian_x_nz_only_; }
-
-    /**
-     * @brief Whether the evalution of the jacobian ∂f/∂p returns only the
-     * non-zero components.
-     *
-     * @return true
-     * @return false
-     */
-    bool jacobian_p_nz_only() const { return jacobian_p_nz_only_; }
-
-    /**
-     * @brief Whether the evalution of the hessian ∂²(λᵀf)/∂x² returns only the
-     * non-zero components.
-     *
-     * @return true
-     * @return false
-     */
-    bool hessian_xx_nz_only() const { return hessian_xx_nz_only_; }
-
-    /**
-     * @brief Whether the evalution of the hessian ∂²(λᵀf)/∂p∂x returns only the
-     * non-zero components.
-     *
-     * @return true
-     * @return false
-     */
-    bool hessian_px_nz_only() const { return hessian_px_nz_only_; }
-
-    /**
-     * @brief Whether the evalution of the hessian ∂²(λᵀf)/∂p² returns only the
-     * non-zero components.
-     *
-     * @return true
-     * @return false
-     */
-    bool hessian_pp_nz_only() const { return hessian_pp_nz_only_; }
-
-    /**
-     * @brief Set the sparsity patterns for the Jacobian ∂f/∂x of the evaluator
-     * with respect to the variables, and optionally with respect to the
-     * parameters (∂f/∂p).
-     *
-     * @param pattern_x Sparsity pattern of ∂f/∂x
-     * @param pattern_p Sparsity pattern of ∂f/∂p
-     */
-    void setJacobianSparsityPattern(
-        const SparsityPattern &pattern_x,
-        std::optional<const SparsityPattern> pattern_p = std::nullopt) {
-        jacobian_x_sparsity_pattern_ = pattern_x;
-        if (pattern_p.has_value()) {
-            jacobian_p_sparsity_pattern_ = pattern_p;
-        }
-    }
-
-    /**
-     * @brief Set the sparsity patterns for ∂²(λᵀf)/∂x²,∀λ, with respect to the
-     * variables x, and optionally with respect to the parameters p.
-     *
-     * @param pattern_xx Sparsity pattern of the lower triangular component of
-     * ∂²(λᵀf)/∂x²
-     * @param pattern_px Sparsity pattern of the lower triangular component of
-     * ∂²(λᵀf)/∂x∂p
-     * @param pattern_pp Sparsity pattern of the lower triangular component of
-     * ∂²(λᵀf)/∂p²
-     */
-    void setHessianSparsityPattern(
-        const SparsityPattern &pattern_xx,
-        std::optional<const SparsityPattern> pattern_px = std::nullopt,
-        std::optional<const SparsityPattern> pattern_pp = std::nullopt) {
-        hessian_xx_sparsity_pattern_ = pattern_xx;
-        if (pattern_px.has_value()) {
-            hessian_px_sparsity_pattern_ = pattern_px;
-        }
-        if (pattern_pp.has_value()) {
-            hessian_px_sparsity_pattern_ = pattern_pp;
-        }
-    }
+    virtual void setHessianSparsityPatterns(
+        EvaluatorBaseDataTpl<double> &data) {}
 
     /**
      * @brief Dimension of the input variable vector, commonly denoted as x.
@@ -260,8 +140,18 @@ class EvaluatorBase {
      */
     const Index &dim_tangent_space() const { return dim_tangent_space_; }
 
+    /**
+     * @brief Dimension of the output vector y.
+     *
+     * @return const Index&
+     */
     const Index &dim_output() const { return dim_output_; }
 
+    /**
+     * @brief Dimension of the parameter vector p.
+     *
+     * @return const Index&
+     */
     const Index &dim_parameter() const { return dim_parameter_; }
 
     const std::string &description() const { return description_; }
@@ -283,21 +173,11 @@ class EvaluatorBase {
     }
 
    protected:
-    EvaluatorBase(const Index &n_inputs, const Index &n_outputs,
-                  const std::string &description = "")
+    EvaluatorBaseTpl(const Index &n_inputs, const Index &n_outputs,
+                     const std::string &description = "")
         : dim_input_(n_inputs),
           dim_tangent_space_(n_inputs),
           dim_output_(n_outputs),
-          jacobian_p_nz_only_(false),
-          jacobian_x_nz_only_(false),
-          hessian_xx_nz_only_(false),
-          hessian_px_nz_only_(false),
-          hessian_pp_nz_only_(false),
-          jacobian_x_sparsity_pattern_(std::nullopt),
-          jacobian_p_sparsity_pattern_(std::nullopt),
-          hessian_xx_sparsity_pattern_(std::nullopt),
-          hessian_px_sparsity_pattern_(std::nullopt),
-          hessian_pp_sparsity_pattern_(std::nullopt),
           parameters_(VectorXd::Zero(0)),
           description_(description) {}
 
@@ -331,119 +211,108 @@ class EvaluatorBase {
      * @param out
      */
     virtual void evalImpl(const Eigen::Ref<const VectorXd> &x,
-                          Eigen::Ref<VectorXd> out) = 0;
+                          EvaluatorData &data) = 0;
 
     /**
-     * \copydoc EvaluatorBase::jacobian(const Eigen::Ref<const VectorXd>,
-     * Eigen::Ref<MatrixXd>)
+     * \copydoc EvaluatorBaseTpl::evalJacobians(const Eigen::Ref<const
+     * VectorXd>, EvaluatorData &)
      *
      */
-    virtual void evalJacobianImpl(const Eigen::Ref<const VectorXd> &x,
-                                  Eigen::Ref<MatrixXd> out) {}
+    virtual void evalJacobiansImpl(const Eigen::Ref<const VectorXd> &x,
+                                   EvaluatorData &data, bool compute_x,
+                                   bool compute_p) {}
 
     /**
-     * \copydoc EvaluatorBase::jacobian(const Eigen::Ref<const VectorXd>, const
-     * Eigen::Ref<const VectorXd>, Eigen::Ref<MatrixXd>)
+     * \copydoc EvaluatorBaseTpl::evalSparseJacobians(const Eigen::Ref<const
+     * VectorXd>, EvaluatorData &)
      *
      */
-    virtual void evalJacobianImpl(const Eigen::Ref<const VectorXd> &x,
-                                  const Eigen::Ref<const VectorXd> &p,
-                                  Eigen::Ref<MatrixXd> out) {}
+    virtual void evalSparseJacobiansImpl(const Eigen::Ref<const VectorXd> &x,
+                                         EvaluatorData &data, bool compute_x,
+                                         bool compute_p) {}
     /**
-     * \copydoc EvaluatorBase::evalHessian(const Eigen::Ref<const VectorXd>,
-     * const Eigen::Ref<const VectorXd>, Eigen::Ref<MatrixXd>)
+     * \copydoc EvaluatorBaseTpl::evalHessians(const Eigen::Ref<const VectorXd>,
+     * const Eigen::Ref<const VectorXd>, EvaluatorData &)
      *
      */
-    virtual void evalHessianImpl(const Eigen::Ref<const VectorXd> &x,
-                                 const Eigen::Ref<const VectorXd> &lambda,
-                                 Eigen::Ref<MatrixXd> hessian) {}
+    virtual void evalHessiansImpl(const Eigen::Ref<const VectorXd> &x,
+                                  const Eigen::Ref<const VectorXd> &lambda,
+                                  EvaluatorData &data, bool compute_xx,
+                                  bool compute_xp, bool compute_pp) {}
 
     /**
-     * \copydoc EvaluatorBase::evalHessian(const Eigen::Ref<const VectorXd>,
-     * const Eigen::Ref<const VectorXd>, Eigen::Ref<const VectorXd>,
-     * Eigen::Ref<MatrixXd>)
+     * \copydoc EvaluatorBaseTpl::evalSparseHessians(const Eigen::Ref<const
+     * VectorXd>, const Eigen::Ref<const VectorXd>, EvaluatorData &)
      *
      */
-    virtual void evalHessianImpl(const Eigen::Ref<const VectorXd> &x,
-                                 const Eigen::Ref<const VectorXd> &p,
-                                 const Eigen::Ref<const VectorXd> &lambda,
-                                 Eigen::Ref<MatrixXd> hessian) {}
-
-    /**
-     * @brief Indicate whether the evaluation of the jacobians will return only
-     * the non-zero elements. If false, evaluation expects the full jacobian to
-     * be computed.
-     *
-     * @param jacobian_x
-     * @param jacobian_p
-     */
-    void setJacobianNonZeroOnly(bool jacobian_x, bool jacobian_p = false) {
-        jacobian_x_nz_only_ = jacobian_x;
-        jacobian_p_nz_only_ = jacobian_p;
-    }
-
-    /**
-     * @brief Indicate whether the evaluation of the jacobians will return only
-     * the non-zero elements. If false, evaluation expects the full jacobian to
-     * be computed.
-     *
-     * @param hessian_xx
-     * @param hessian_px
-     * @param hessian_pp
-     */
-    void setHessianNonZeroOnly(bool hessian_xx, bool hessian_px = false,
-                               bool hessian_pp = false) {
-        hessian_xx_nz_only_ = hessian_xx;
-        hessian_px_nz_only_ = hessian_px;
-        hessian_pp_nz_only_ = hessian_pp;
-    }
+    virtual void evalSparseHessiansImpl(
+        const Eigen::Ref<const VectorXd> &x,
+        const Eigen::Ref<const VectorXd> &lambda, EvaluatorData &data,
+        bool compute_xx, bool compute_xp, bool compute_pp) {}
 
    private:
+    /// @brief Dimension of the input vector
     Index dim_input_;
     Index dim_tangent_space_;
     Index dim_parameter_;
     Index dim_output_;
 
-    // Flag to indicate whether the output from jacobian() is a dense matrix or
-    // a vector of non-zero entries
-    bool jacobian_x_nz_only_;
-    bool jacobian_p_nz_only_;
-
-    bool hessian_xx_nz_only_;
-    bool hessian_px_nz_only_;
-    bool hessian_pp_nz_only_;
-
-    // Sparsity pattern for the evaluator jacobian with respect to x
-    std::optional<SparsityPattern> jacobian_x_sparsity_pattern_;
-    // Sparsity pattern for the evaluator jacobian with respect to p
-    std::optional<SparsityPattern> jacobian_p_sparsity_pattern_;
-
-    // Sparsity pattern for the evaluator lower-triangular hessian with respect
-    // to x and x
-    std::optional<SparsityPattern> hessian_xx_sparsity_pattern_;
-    // Sparsity pattern for the evaluator lower-triangular hessian with respect
-    // to x and p
-    std::optional<SparsityPattern> hessian_px_sparsity_pattern_;
-    // Sparsity pattern for the evaluator lower-triangular hessian with respect
-    // to p and p
-    std::optional<SparsityPattern> hessian_pp_sparsity_pattern_;
-
     VectorXd parameters_;
     std::string description_;
 };
 
-std::ostream &operator<<(std::ostream &os, const EvaluatorBase &e);
+typedef EvaluatorBaseTpl<double> EvaluatorBase;
 
-class TestAutodiffModule {
-   public:
-    typedef Eigen::AutoDiffScalar<VectorXd> AD;
-    typedef Eigen::VectorX<AD> VectorAD;
-    typedef Eigen::AutoDiffScalar<VectorAD> ADD;
-    // Vector with the ability to compute the hessian as well?
-    typedef Eigen::VectorX<ADD> VectorADD;
+template <typename Scalar>
+std::ostream &operator<<(std::ostream &os, const EvaluatorBaseTpl<Scalar> &e) {
+    os << "EvaluatorBase\n";
+    os << "description: " << e.description() << '\n';
+    os << "input dim: " << e.dim_input() << '\n';
+    os << "output dim: " << e.dim_output();
+    return os;
+}
 
-    virtual void eval(const Eigen::Ref<const VectorADD> &x,
-                      Eigen::Ref<VectorADD> y) = 0;
+template <typename Scalar>
+struct EvaluatorBaseDataTpl {
+    EvaluatorBaseDataTpl(const EvaluatorBaseTpl<Scalar> &e)
+        : y(VectorX<Scalar>::Zero(e.dim_output())),
+          Jx(MatrixX<Scalar>::Zero(e.dim_output(), e.dim_tangent_space())),
+          Jp(MatrixX<Scalar>::Zero(e.dim_output(), e.dim_parameter())),
+          Hxx(MatrixX<Scalar>::Zero(e.dim_tangent_space(),
+                                    e.dim_tangent_space())),
+          Hxp(MatrixX<Scalar>::Zero(e.dim_tangent_space(), e.dim_parameter())),
+          Hpp(MatrixX<Scalar>::Zero(e.dim_parameter(), e.dim_parameter())),
+          Jx_s(e.dim_output(), e.dim_tangent_space()) {
+        e.setJacobianSparsityPatterns(*this);
+        e.setHessianSparsityPatterns(*this);
+    }
+
+    /// Evaluator output vector y
+    VectorX<Scalar> y;
+
+    /// Dense matrix for ∂y/∂x
+    MatrixX<Scalar> Jx;
+    /// Dense matrix for ∂y/∂p
+    MatrixX<Scalar> Jp;
+
+    /// Sparse matrix for ∂y/∂x
+    SparseMatrix<Scalar> Jx_s;
+    /// Sparse matrix for ∂y/∂p
+    SparseMatrix<Scalar> Jp_s;
+
+    /// Dense matrix for lower-triangular matrix ∂²(λᵀy)/∂x²
+    MatrixX<Scalar> Hxx;
+    /// Dense matrix for lower-triangular matrix ∂²(λᵀy)/∂x∂p
+    MatrixX<Scalar> Hxp;
+    /// Dense matrix for lower-triangular matrix ∂²(λᵀy)/∂p²
+    MatrixX<Scalar> Hpp;
+
+    /// Sparse matrix for lower-triangular matrix ∂²(λᵀy)/∂x²
+    SparseMatrix<Scalar> Hxx_s;
+    /// Sparse matrix for lower-triangular matrix ∂²(λᵀy)/∂x∂p
+    SparseMatrix<Scalar> Hxp_s;
+    /// Sparse matrix for lower-triangular matrix ∂²(λᵀy)/∂p²
+    SparseMatrix<Scalar> Hpp_s;
 };
 
 }  // namespace bopt

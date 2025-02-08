@@ -2,64 +2,45 @@
 
 #include <ostream>
 
-
 #include "bopt/logging.hpp"
 #include "bopt/types.hpp"
 
 namespace bopt {
 
-template <typename T>
-struct variable_traits {
-    typedef typename T::id_type id_type;
-    typedef typename T::name_type name_type;
-    typedef typename T::type type;
-};
-
-struct variable_type {
-    enum type { Continuous, Discrete, Binary };
-};
-
-template <typename T>
-struct variable_attributes {
-    typedef typename variable_traits<T>::variable_type type_t;
-
-    const type_t &type(const T &variable) const { return variable.type(); }
-};
-
 /**
  * @brief Class representation of a single variable.
  *
  */
-class variable {
+class Variable {
    public:
-    typedef std::size_t id_type;
-    typedef std::string name_type;
-    typedef variable_type::type type;
+    using Id = std::size_t;
 
-    variable() : name_("") { id_ = next_id(); }
-    variable(const name_type &name) : name_(name) { id_ = next_id(); }
+    enum class Type { Continuous, Discrete, Binary };
 
-    ~variable() = default;
+    Variable() : name_("") { id_ = next_id(); }
+    Variable(const std::string &name) : name_(name) { id_ = next_id(); }
 
-    const id_type &id() const { return id_; }
+    ~Variable() = default;
 
-    const name_type &name() const { return name_; }
+    const Id &id() const { return id_; }
 
-    bool operator<(const variable &v) const { return id() < v.id(); }
-    bool operator==(const variable &v) const { return id() == v.id(); }
+    const std::string &name() const { return name_; }
+
+    bool operator<(const Variable &v) const { return id() < v.id(); }
+    bool operator==(const Variable &v) const { return id() == v.id(); }
 
    private:
-    id_type id_;
-    name_type name_;
-    type type_ = type::Continuous;
+    Id id_;
+    std::string name_;
+    Type type_ = Type::Continuous;
 
-    id_type next_id() {
-        static int next_id_ = id_type(0);
+    Id next_id() {
+        static int next_id_ = Id(0);
         return next_id_++;
     }
 };
 
-typedef Eigen::VectorX<variable> variable_vector;
+typedef VectorX<Variable> VariableVector;
 
 /**
  * @brief Create a vector of variables, all with the same name and indexed with
@@ -69,11 +50,11 @@ typedef Eigen::VectorX<variable> variable_vector;
  * @param sz Size of the vector to create.
  * @return variable_vector
  */
-variable_vector create_variable_vector(const std::string &name,
-                                       const Eigen::Index &sz);
+VariableVector createVariableVector(const std::string &name,
+                                    const Eigen::Index &sz);
 
 // Operator overloading
-std::ostream &operator<<(std::ostream &os, const variable &var);
+std::ostream &operator<<(std::ostream &os, const Variable &var);
 
 /**
  * @brief Class which contains indices for variables. Also provides indication

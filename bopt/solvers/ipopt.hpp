@@ -1,6 +1,7 @@
 #ifndef SOLVERS_IPOPT_H
 #define SOLVERS_IPOPT_H
 
+#include <boost/functional/hash.hpp>
 #include <coin-or/IpIpoptApplication.hpp>
 #include <coin-or/IpTNLP.hpp>
 
@@ -93,6 +94,21 @@ class ipopt_program_instance : public Ipopt::TNLP {
 
     std::vector<Binding<Cost>> costs_;
     std::vector<Binding<Constraint>> constraints_;
+
+    std::vector<CostData> cost_data_;
+    std::vector<ConstraintData> constraint_data_;
+
+    struct hash_pair {
+        std::size_t operator()(const std::pair<int, int>& p) const {
+            std::size_t seed = 0;
+            boost::hash_combine(seed, p.first);
+            boost::hash_combine(seed, p.second);
+            return seed;
+        }
+    };
+
+    std::unordered_map<std::pair<int, int>, int, hash_pair> jac_nnz_map_;
+    std::unordered_map<std::pair<int, int>, int, hash_pair> lag_hes_nnz_map_;
 
     MathematicalProgram& program_;
     MathematicalProgram& program() { return program_; }

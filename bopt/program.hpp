@@ -58,13 +58,7 @@ class MathematicalProgram {
      *
      * @return bopt_index Number of constraints.
      */
-    bopt_index n_constraints() const {
-        bopt_index n = 0;
-        for (const auto &c : get_all_constraints()) {
-            n += c.get()->dim_output();
-        }
-        return n;
-    }
+    bopt_index n_constraints() const { return n_constraints_; }
 
     /**
      * @brief Gets the initial values of the decision variables.
@@ -85,12 +79,12 @@ class MathematicalProgram {
 
     const VectorXd &variables_upper_bound() const { return x_ub_; }
 
-    variable addVariable(const std::string &name,
+    Variable addVariable(const std::string &name,
                          const double &initial_value = 0.0,
                          const double &lower_bound = -kInf,
                          const double &upper_bound = kInf) {
         // Create variable
-        variable v(name);
+        Variable v(name);
         // Add variable to map
         variable_index_map_.insert({v.id(), variables_.size()});
         variables_.push_back(v);
@@ -107,7 +101,7 @@ class MathematicalProgram {
         return v;
     }
 
-    Eigen::Index getVariableIndex(const variable &v) const {
+    Eigen::Index getVariableIndex(const Variable &v) const {
         const auto &it = variable_index_map_.find(v.id());
         if (it != variable_index_map_.end()) {
             return it->second;
@@ -119,7 +113,7 @@ class MathematicalProgram {
     }
 
     std::vector<Eigen::Index> getVariableIndices(
-        const Eigen::Ref<const variable_vector> &v) const {
+        const Eigen::Ref<const VariableVector> &v) const {
         std::vector<Eigen::Index> indices = {};
         for (const auto &vi : v) {
             indices.emplace_back(getVariableIndex(vi));
@@ -134,20 +128,20 @@ class MathematicalProgram {
      * @param x
      */
     void addCost(const std::shared_ptr<Cost> &cost,
-                 const Eigen::Ref<const variable_vector> &x) {
+                 const Eigen::Ref<const VariableVector> &x) {
         // Create binding
         costs_generic_.push_back(Binding<Cost>(cost, getVariableIndices(x)));
     }
 
     void add_linear_cost(const typename std::shared_ptr<LinearCost> &cost,
-                         const Eigen::Ref<const variable_vector> &x) {
+                         const Eigen::Ref<const VariableVector> &x) {
         // Create binding
         costs_linear_.push_back(
             Binding<LinearCost>(cost, getVariableIndices(x)));
     }
 
     void add_quadratic_cost(const typename std::shared_ptr<QuadraticCost> &cost,
-                            const Eigen::Ref<const variable_vector> &x) {
+                            const Eigen::Ref<const VariableVector> &x) {
         // Create binding
         costs_quadratic_.push_back(
             Binding<QuadraticCost>(cost, getVariableIndices(x)));
@@ -171,34 +165,37 @@ class MathematicalProgram {
     }
 
     // constraints
-    void add_constraint(const std::shared_ptr<Constraint> &constraint,
-                        const Eigen::Ref<const variable_vector> &x) {
+    void addConstraint(const std::shared_ptr<Constraint> &constraint,
+                       const Eigen::Ref<const VariableVector> &x) {
+        n_constraints_ += constraint->dim_output();
         // Create binding
         constraints_generic_.push_back(
             Binding<Constraint>(constraint, getVariableIndices(x)));
     }
 
-    void add_linear_constraint(
+    void addLinearConstraint(
         const std::shared_ptr<LinearConstraint> &constraint,
-        const Eigen::Ref<const variable_vector> &x) {
+        const Eigen::Ref<const VariableVector> &x) {
+        n_constraints_ += constraint->dim_output();
         // Create binding
         constraints_linear_.push_back(
             Binding<LinearConstraint>(constraint, getVariableIndices(x)));
     }
 
-    void add_BoundingBoxConstraint(
+    void addBoundingBoxConstraint(
         const std::shared_ptr<BoundingBoxConstraint> &constraint,
-        const Eigen::Ref<const variable_vector> &x) {
+        const Eigen::Ref<const VariableVector> &x) {
+        n_constraints_ += constraint->dim_output();
         // Create binding
         constraints_bounding_box_.push_back(
             Binding<BoundingBoxConstraint>(constraint, getVariableIndices(x)));
     }
 
-    std::vector<Binding<Constraint>> &generic_constraints() {
+    std::vector<Binding<Constraint>> &getConstraints() {
         return constraints_generic_;
     }
 
-    std::vector<Binding<LinearConstraint>> &linear_constraints() {
+    std::vector<Binding<LinearConstraint>> &getLinearConstraints() {
         return constraints_linear_;
     }
 
@@ -206,7 +203,7 @@ class MathematicalProgram {
         return constraints_bounding_box_;
     }
 
-    std::vector<Binding<Constraint>> get_all_constraints() const {
+    std::vector<Binding<Constraint>> getAllConstraints() const {
         std::vector<Binding<Constraint>> vec;
         vec.insert(vec.begin(), constraints_generic_.begin(),
                    constraints_generic_.end());
@@ -221,6 +218,8 @@ class MathematicalProgram {
     // Name
     std::string name_;
 
+    Index n_constraints_;
+
     VectorXd x_;
     // Decision variables initial value
     VectorXd x_iv_;
@@ -228,8 +227,8 @@ class MathematicalProgram {
     VectorXd x_lb_;
     VectorXd x_ub_;
 
-    std::vector<variable> variables_;
-    std::unordered_map<variable::id_type, Eigen::Index> variable_index_map_;
+    std::vector<Variable> variables_;
+    std::unordered_map<Variable::Id, Eigen::Index> variable_index_map_;
 
     // constraint bindings
     std::vector<Binding<Constraint>> constraints_generic_ = {};

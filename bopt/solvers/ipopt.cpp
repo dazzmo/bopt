@@ -9,20 +9,35 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
     : Ipopt::TNLP(),
       program_(program),
       cache_(program.n_variables(), program.n_constraints()) {
+    // Create data
     costs_ = program.get_all_costs();
-    constraints_ = program.get_all_constraints();
+    constraints_ = program.getAllConstraints();
+
+    cost_data_.reserve(costs_.size());
+    constraint_data_.reserve(constraints_.size());
+
+    for (const auto& c : costs_) {
+        cost_data_.push_back(CostData(*c.get()));
+    }
+    for (const auto& c : constraints_) {
+        constraint_data_.push_back(ConstraintData(*c.get()));
+    }
 
     VLOG(10) << "Constraint Jacobian";
     // Construct constraint jacobian and lagrangian
     int idx = 0;
+    int i = 0;
     for (auto& b : constraints_) {
         auto& c = *b.get();
+        const auto& cdata = constraint_data_[i];
         VLOG(10) << c;
-        if (c.jacobian_x_sparsity_pattern().has_value()) {
-            // Sparse insert
-            for (auto xy : *c.jacobian_x_sparsity_pattern()) {
-                cache_.constraint_jacobian.insert(
-                    idx + xy.first, b.indices().indices()[xy.second]);
+        if (cdata.Jx_s.nonZeros()) {
+            for (int k = 0; k < cdata.Jx_s.outerSize(); ++k) {
+                for (SparseMatrix<double>::InnerIterator it(cdata.Jx_s, k); it;
+                     ++it) {
+                    cache_.constraint_jacobian.insert(
+                        idx + it.row(), b.indices().indices()[it.col()]);
+                }
             }
         } else {
             // Dense output - currently use block insert
@@ -33,21 +48,37 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
                 }
             }
         }
+        i++;
         idx += c.dim_output();
     }
+    // Convert to compressed form
+    cache_.constraint_jacobian.makeCompressed();
+    // Assemble look-up map for indices
+    for (int k = 0; k < cache_.constraint_jacobian.outerSize(); ++k) {
+        for (SparseMatrix<double>::InnerIterator it(cache_.constraint_jacobian,
+                                                    k);
+             it; ++it) {
+            jac_nnz_map_.insert({{it.row(), it.col()}, it.index()});
+        }
+    }
+
     VLOG(10) << cache_.constraint_jacobian;
 
     // Construct lagrangian hessian
+    i = 0;
     VLOG(10) << "Lagrangian Hessian";
     for (auto& b : costs_) {
         auto& c = *b.get();
+        const auto& cdata = cost_data_[i];
         VLOG(10) << c;
-        if (c.hessian_xx_sparsity_pattern().has_value()) {
-            // Sparse insert
-            for (auto xy : *c.hessian_xx_sparsity_pattern()) {
-                cache_.lagrangian_hessian.insert(
-                    b.indices().indices()[xy.first],
-                    b.indices().indices()[xy.second]);
+        if (cdata.Hxx_s.nonZeros()) {
+            for (int k = 0; k < cdata.Hxx_s.outerSize(); ++k) {
+                for (SparseMatrix<double>::InnerIterator it(cdata.Hxx_s, k); it;
+                     ++it) {
+                    cache_.lagrangian_hessian.insert(
+                        b.indices().indices()[it.row()],
+                        b.indices().indices()[it.col()]);
+                }
             }
         } else {
             // Dense output - currently use block insert
@@ -58,20 +89,24 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
                 }
             }
         }
+        i++;
     }
-    idx = 0;
+
+    i = 0;
     for (auto& b : constraints_) {
         auto& c = *b.get();
+        const auto& cdata = constraint_data_[i];
         VLOG(10) << c;
-        if (c.hessian_xx_sparsity_pattern().has_value()) {
-            // Sparse insert
-            for (auto xy : *c.hessian_xx_sparsity_pattern()) {
-                cache_.lagrangian_hessian.insert(
-                    b.indices().indices()[xy.first],
-                    b.indices().indices()[xy.second]);
+        if (cdata.Hxx_s.nonZeros()) {
+            for (int k = 0; k < cdata.Hxx_s.outerSize(); ++k) {
+                for (SparseMatrix<double>::InnerIterator it(cdata.Hxx_s, k); it;
+                     ++it) {
+                    cache_.lagrangian_hessian.insert(
+                        b.indices().indices()[it.row()],
+                        b.indices().indices()[it.col()]);
+                }
             }
         } else {
-            // Dense output - currently use block insert
             // Dense output - currently use block insert
             for (Index row = 0; row < c.dim_tangent_space(); ++row) {
                 for (Index col = 0; col <= row; ++col) {
@@ -80,7 +115,18 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
                 }
             }
         }
-        idx += c.dim_output();
+        i++;
+    }
+
+    // Convert to compressed form
+    cache_.lagrangian_hessian.makeCompressed();
+    // Assemble look-up map for indices
+    for (int k = 0; k < cache_.lagrangian_hessian.outerSize(); ++k) {
+        for (SparseMatrix<double>::InnerIterator it(cache_.lagrangian_hessian,
+                                                    k);
+             it; ++it) {
+            lag_hes_nnz_map_.insert({{it.row(), it.col()}, it.index()});
+        }
     }
     VLOG(10) << cache_.lagrangian_hessian;
 }
@@ -115,14 +161,17 @@ bool ipopt_program_instance::eval_f(Index n, const Number* x, bool new_x,
     // Update caches
     cache_.objective = 0.0;
 
+    int i = 0;
     for (auto& binding : costs_) {
         auto& obj = *binding.get();
         const auto& indices = binding.indices().indices();
         const auto& xi = cache_.primal_vector(indices);
+        CostData& cdata = cost_data_[i];
+
         // Evaluate objective
-        double f;
-        binding.get()->eval(xi, Eigen::Map<VectorXd>(&f, 1));
-        cache_.objective += f;
+        binding.get()->eval(xi, cdata);
+        cache_.objective += obj.scaling_factor() * cdata.f;
+        i++;
     }
 
     // Set objective to most recently cached value
@@ -142,40 +191,27 @@ bool ipopt_program_instance::eval_grad_f(Index n, const Number* x, bool new_x,
 
     // Update caches
     cache_.objective_gradient.setZero();
+
+    int i = 0;
     for (auto& binding : costs_) {
         auto& obj = *binding.get();
         const auto& indices = binding.indices().indices();
         const auto& xi = cache_.primal_vector(indices);
 
-        VectorXd grd(obj.dim_input());
-        if (obj.jacobian_x_nz_only())
-            grd.resize(obj.jacobian_x_sparsity_pattern()->size());
+        CostData& cdata = cost_data_[i];
 
-        // Evaluate
-        obj.evalJacobian(xi, grd);
+        if (cdata.gx_s.nonZeros()) {
+            binding.get()->evalSparseGradients(xi, cdata, true, false);
 
-        int cnt = 0;
-        if (obj.jacobian_x_sparsity_pattern().has_value()) {
-            // Sparse insert
-            for (const auto& xy : *obj.jacobian_x_sparsity_pattern()) {
-                double& entry = cache_.objective_gradient(indices[xy.first]);
-                if (obj.jacobian_x_nz_only()) {
-                    entry += grd[cnt++];
-                } else {
-                    entry += grd(xy.first);
-                }
-            }
         } else {
-            // Perform block insert
-            if (binding.indices().is_block()) {
-                cache_.objective_gradient.middleRows(indices[0],
-                                                     indices.size()) += grd;
-            } else {
-                cache_.objective_gradient(indices) += grd;
-            }
+            // Evaluate objective gradient
+            binding.get()->evalGradients(xi, cdata, true, false);
+            cache_.objective_gradient(indices) +=
+                obj.scaling_factor() * cdata.gx;
         }
 
-        VLOG(10) << "grd : " << grd.transpose();
+        i++;
+        VLOG(10) << "grd : " << cdata.gx.transpose();
     }
 
     // TODO - See about mapping these
@@ -195,20 +231,20 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
     // Update caches
     std::size_t idx = 0;
     // Update caches
+    int i = 0;
     for (auto& binding : constraints_) {
-        auto& c = *binding.get();
-
-        VectorXd gi(c.dim_output());
-
-        auto indices = binding.indices().indices();
+        auto& con = *binding.get();
+        const auto& indices = binding.indices().indices();
         const auto& xi = cache_.primal_vector(indices);
 
-        c.eval(xi, gi);
+        ConstraintData& cdata = constraint_data_[i];
 
-        // Add constraints to vector
-        // todo - add constraint indexing or permutation
-        cache_.constraint_vector.middleRows(idx, c.dim_output()) = gi;
-        idx += c.dim_output();
+        // Evaluate constraint
+        binding.get()->eval(xi, cdata);
+        cache_.constraint_vector.middleRows(idx, con.dim_output()) = cdata.y;
+
+        i++;
+        VLOG(10) << "gi : " << cdata.y.transpose();
     }
 
     VLOG(10) << "c : " << cache_.constraint_vector.transpose();
@@ -242,45 +278,39 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
             std::copy_n(x, n, cache_.primal_vector.data());
         }
 
-        int idx = 0;
+        // Update caches
+        std::size_t idx = 0;
+        // Update caches
+        int i = 0;
         for (auto& binding : constraints_) {
-            auto& c = *binding.get();
+            auto& con = *binding.get();
             const auto& indices = binding.indices().indices();
-            Eigen::Ref<const VectorXd> xi = cache_.primal_vector(indices);
+            const auto& xi = cache_.primal_vector(indices);
 
-            MatrixXd jac(c.dim_output(), c.dim_tangent_space());
-            if (c.jacobian_x_nz_only())
-                jac.resize(c.jacobian_x_sparsity_pattern()->size(), 1);
-            c.evalJacobian(xi, jac);
+            ConstraintData& cdata = constraint_data_[i];
 
-            VLOG(10) << "jac eval: " << jac;
-
-            if (c.jacobian_x_sparsity_pattern().has_value()) {
-                if (c.jacobian_x_nz_only()) {
-                    int cnt = 0;
-                    for (const auto& xy : *c.jacobian_x_sparsity_pattern()) {
-                        cache_.constraint_jacobian.coeffRef(
-                            idx + xy.first, indices[xy.second]) = jac(cnt++);
-                    }
-                } else {
-                    for (const auto& xy : *c.jacobian_x_sparsity_pattern()) {
-                        cache_.constraint_jacobian.coeffRef(
-                            idx + xy.first, indices[xy.second]) =
-                            jac(xy.first, xy.second);
+            // Evaluate constraint jacobian
+            if (cdata.Jx_s.nonZeros()) {
+                binding.get()->evalSparseJacobians(xi, cdata, true, false);
+                for (int k = 0; k < cdata.Jx_s.outerSize(); ++k) {
+                    for (SparseMatrix<double>::InnerIterator it(cdata.Jx_s, k);
+                         it; ++it) {
+                        cache_.constraint_jacobian.valuePtr()[jac_nnz_map_.at(
+                            {idx + it.row(), indices[it.col()]})] = it.value();
                     }
                 }
-
             } else {
-                // Dense insert
-                for (Index row = 0; row < c.dim_output(); ++row) {
-                    for (Index col = 0; col < c.dim_tangent_space(); ++col) {
-                        cache_.constraint_jacobian.coeffRef(
-                            idx + row, indices[col]) = jac(row, col);
+                binding.get()->evalJacobians(xi, cdata, true, false);
+                for (Index row = 0; row < con.dim_output(); ++row) {
+                    for (Index col = 0; col < con.dim_tangent_space(); ++col) {
+                        cache_.constraint_jacobian.valuePtr()[jac_nnz_map_.at(
+                            {idx + row, indices[col]})] = cdata.Jx(row, col);
                     }
                 }
             }
 
-            idx += binding.get()->dim_output();
+            i++;
+            idx += con.dim_output();
         }
 
         // Update caches
@@ -323,84 +353,84 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             std::copy_n(lambda, m, cache_.dual_vector.data());
         }
 
+        // Costs
+        int i = 0;
         for (auto& binding : costs_) {
-            auto& c = *binding.get();
+            auto& con = *binding.get();
             const auto& indices = binding.indices().indices();
             const auto& xi = cache_.primal_vector(indices);
 
-            MatrixXd hes(c.dim_tangent_space(), c.dim_tangent_space());
-            if (c.hessian_xx_nz_only())
-                hes.resize(c.hessian_xx_sparsity_pattern()->size(), 1);
-            c.evalHessian(xi, Eigen::Map<VectorXd>(&obj_factor, 1), hes);
-            VLOG(10) << "hes eval: " << hes;
+            CostData& cdata = cost_data_[i];
 
-            if (c.hessian_xx_sparsity_pattern().has_value()) {
-                if (c.hessian_xx_nz_only()) {
-                    int cnt = 0;
-                    for (const auto& xy : *c.hessian_xx_sparsity_pattern()) {
-                        cache_.lagrangian_hessian.coeffRef(
-                            indices[xy.first], indices[xy.second]) +=
-                            hes(cnt++);
-                    }
-                } else {
-                    for (const auto& xy : *c.hessian_xx_sparsity_pattern()) {
-                        cache_.lagrangian_hessian.coeffRef(
-                            indices[xy.first], indices[xy.second]) +=
-                            hes(xy.first, xy.second);
+            // Evaluate constraint jacobian
+            if (cdata.Hxx_s.nonZeros()) {
+                binding.get()->evalSparseHessians(xi, cdata, true, false);
+                for (int k = 0; k < cdata.Hxx_s.outerSize(); ++k) {
+                    for (SparseMatrix<double>::InnerIterator it(cdata.Hxx_s, k);
+                         it; ++it) {
+                        cache_.lagrangian_hessian
+                            .valuePtr()[lag_hes_nnz_map_.at(
+                                {indices[it.row()], indices[it.col()]})] +=
+                            obj_factor * it.value();
                     }
                 }
-
             } else {
-                // Dense insert
-                for (Index row = 0; row < c.dim_tangent_space(); ++row) {
-                    for (Index col = 0; col <= row; ++col) {
-                        cache_.constraint_jacobian.coeffRef(
-                            indices[row], indices[col]) += hes(row, col);
+                binding.get()->evalHessians(xi, cdata, true, false);
+                for (Index row = 0; row < con.dim_input(); ++row) {
+                    for (Index col = 0; col < row; ++col) {
+                        cache_.lagrangian_hessian
+                            .valuePtr()[lag_hes_nnz_map_.at(
+                                {indices[row], indices[col]})] +=
+                            obj_factor * cdata.Hxx(row, col);
                     }
                 }
             }
+            i++;
         }
-
+        // Constraints
         int idx = 0;
+        i = 0;
         for (auto& binding : constraints_) {
-            auto& c = *binding.get();
+            auto& con = *binding.get();
             const auto& indices = binding.indices().indices();
             const auto& xi = cache_.primal_vector(indices);
-            const auto& li = cache_.dual_vector.middleRows(idx, c.dim_output());
+            const auto& li =
+                cache_.dual_vector.middleRows(idx, con.dim_output());
 
-            MatrixXd hes(c.dim_output(), c.dim_tangent_space());
-            if (c.hessian_xx_nz_only())
-                hes.resize(c.hessian_xx_sparsity_pattern()->size(), 1);
-            c.evalHessian(xi, li, hes);
+            ConstraintData& cdata = constraint_data_[i];
 
-            VLOG(10) << "hes eval: " << hes;
-
-            if (c.hessian_xx_sparsity_pattern().has_value()) {
-                if (c.hessian_xx_nz_only()) {
-                    int cnt = 0;
-                    for (const auto& xy : *c.hessian_xx_sparsity_pattern()) {
-                        cache_.constraint_jacobian.coeffRef(
-                            indices[xy.first], indices[xy.second]) = hes(cnt++);
-                    }
-                } else {
-                    for (const auto& xy : *c.hessian_xx_sparsity_pattern()) {
-                        cache_.constraint_jacobian.coeffRef(
-                            indices[xy.first], indices[xy.second]) =
-                            hes(xy.first, xy.second);
+            // Evaluate constraint jacobian
+            if (cdata.Jx_s.nonZeros()) {
+                binding.get()->evalSparseHessians(xi, li, cdata, true, false);
+                for (int k = 0; k < cdata.Hxx_s.outerSize(); ++k) {
+                    for (SparseMatrix<double>::InnerIterator it(cdata.Hxx_s, k);
+                         it; ++it) {
+                        cache_.lagrangian_hessian
+                            .valuePtr()[lag_hes_nnz_map_.at(
+                                {indices[it.row()], indices[it.col()]})] +=
+                            it.value();
                     }
                 }
-
             } else {
-                // Dense insert
-                for (Index row = 0; row < c.dim_tangent_space(); ++row) {
-                    for (Index col = 0; col <= row; ++col) {
-                        cache_.constraint_jacobian.coeffRef(
-                            indices[row], indices[col]) += hes(row, col);
+                binding.get()->evalHessians(xi, li, cdata, true, false);
+                for (Index row = 0; row < con.dim_input(); ++row) {
+                    for (Index col = 0; col < row; ++col) {
+                        cache_.lagrangian_hessian
+                            .valuePtr()[lag_hes_nnz_map_.at(
+                                {indices[row], indices[col]})] +=
+                            cdata.Hxx(row, col);
                     }
                 }
             }
-            idx += binding.get()->dim_output();
+
+            i++;
+            idx += con.dim_output();
         }
+
+        // Update caches
+        VLOG(10) << "hes : " << cache_.lagrangian_hessian;
+        std::copy_n(cache_.lagrangian_hessian.valuePtr(), nele_hess, values);
+        VLOG(10) << "finished";
         return true;
     }
 }
@@ -416,14 +446,15 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
 
     // Bounding box constraints
     for (const auto& b : program().BoundingBoxConstraints()) {
+        auto& con = *b.get();
         const auto& indices = b.indices().indices();
-        for (int i = 0; i < indices.size(); ++i) {
-            int idx = indices[i];
-            cache_.variables_lower_bound[idx] = std::max(
-                b.get()->lowerBound()[i], cache_.variables_lower_bound[idx]);
-            cache_.variables_upper_bound[idx] = std::min(
-                b.get()->upperBound()[i], cache_.variables_upper_bound[idx]);
-        }
+        // for (int i = 0; i < indices.size(); ++i) {
+        //     int idx = indices[i];
+        //     cache_.variables_lower_bound[idx] = std::max(
+        //         b.get()->lowerBound()[i], cache_.variables_lower_bound[idx]);
+        //     cache_.variables_upper_bound[idx] = std::min(
+        //         b.get()->upperBound()[i], cache_.variables_upper_bound[idx]);
+        // }
     }
 
     VLOG(10) << cache_.variables_lower_bound.transpose();
@@ -433,15 +464,18 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
     std::copy_n(cache_.variables_upper_bound.data(), n, x_u);
 
     // Constraint bounds
+    int i = 0;
     int cnt = 0;
     for (auto& binding : constraints_) {
-        cache_.constraint_lower_bound.middleRows(cnt,
-                                                 binding.get()->dim_output())
-            << binding.get()->lowerBound();
-
-        cache_.constraint_upper_bound.middleRows(cnt,
-                                                 binding.get()->dim_output())
-            << binding.get()->upperBound();
+        Constraint& con = *binding.get();
+        ConstraintData& cdata = constraint_data_[i];
+        con.evalBounds(cdata);
+        cache_.constraint_lower_bound.middleRows(cnt, con.dim_output())
+            << cdata.lb;
+        cache_.constraint_upper_bound.middleRows(cnt, con.dim_output())
+            << cdata.ub;
+        i++;
+        cnt += con.dim_output();
     }
 
     VLOG(10) << cache_.constraint_lower_bound.transpose();

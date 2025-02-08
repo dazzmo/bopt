@@ -12,6 +12,22 @@ qpoases_solver::qpoases_solver(MathematicalProgram& program) : solver(program) {
 
     qp_ = std::make_unique<qpOASES::SQProblem>(nx, ng);
 
+    // Create cost and constraint data
+    // linear_cost_data_.reserve(program.n_costs());
+    // for (const auto& c : program.linear_costs()) {
+    //     linear_cost_data_.push_back(LinearCostData(*c.get()));
+    // }
+
+    // quadratic_cost_data_.reserve(program.n_costs());
+    // for (const auto& c : program.quadratic_costs()) {
+    //     quadratic_cost_data_.push_back(QuadraticCostData(*c.get()));
+    // }
+
+    linear_constraint_data_.reserve(program.n_constraints());
+    for (const auto& c : program.getLinearConstraints()) {
+        linear_constraint_data_.push_back(LinearConstraintData(*c.get()));
+    }
+
     // Create matrix data
     data.H.resize(nx, nx);
     data.H.setZero();
@@ -55,35 +71,20 @@ void qpoases_solver::solve(MathematicalProgram& program) {
     {
         bopt::profiler profiler("qpoases: linear costs");
         VLOG(10) << "qpoases:linear costs";
+        int i = 0;
         for (auto& binding : program.linear_costs()) {
             const auto& c = *binding.get();
             const auto& indices = binding.indices().indices();
 
             // Create vector
-            VectorXd a(c.dim_input());
-            if (c.a_has_nz_only()) a.resize(c.a_sparsity_pattern()->size());
-            int cnt = 0;
-            if (c.a_sparsity_pattern().has_value()) {
-                // Sparse insert
-                for (const auto& xy : *c.a_sparsity_pattern()) {
-                    double& entry = data.g(indices[xy.first]);
-                    if (c.a_has_nz_only()) {
-                        entry += a[cnt++];
-                    } else {
-                        entry += a(xy.first);
-                    }
-                }
-            } else {
-                // Perform block insert
-                if (binding.indices().is_block()) {
-                    data.g.middleRows(indices[0], indices.size()) += a;
-                } else {
-                    data.g(indices, indices) += a;
-                }
-            }
+            LinearCostData& cdata = linear_cost_data_[i];
+            // todo - if sparse
+            c.evalCoefficientVector(cdata);
+            c.evalConstantTerm(cdata);
 
-            // Whether to also include the constant value
-            double b;
+            // Add coefficient vector
+            data.g(indices) += cdata.a;
+            i++;
         }
     }
 
@@ -91,63 +92,22 @@ void qpoases_solver::solve(MathematicalProgram& program) {
     {
         bopt::profiler profiler("qpoases: quadratic costs");
         VLOG(10) << "qpoases:quadratic costs";
+        int i = 0;
         for (auto& binding : program.quadratic_costs()) {
             auto& c = *binding.get();
             const auto& indices = binding.indices().indices();
 
-            // A
-            VLOG(10) << "A";
-            MatrixXd A(c.dim_input(), c.dim_input());
-            if (c.A_has_nz_only()) A.resize(c.A_sparsity_pattern()->size(), 1);
-            // Evaluate A matrix
-            c.evalA(A);
+            // Create vector
+            QuadraticCostData& cdata = quadratic_cost_data_[i];
+            // todo - if sparse
+            c.evalCoefficientMatrix(cdata);
+            c.evalCoefficientVector(cdata);
+            c.evalConstantTerm(cdata);
 
-            if (c.A_sparsity_pattern().has_value()) {
-                int cnt = 0;
-                for (const auto& xy : *c.A_sparsity_pattern()) {
-                    double& Hij = data.H(indices[xy.first], indices[xy.second]);
-                    // todo - ensure this is lower triangular
-                    if (c.A_has_nz_only()) {
-                        Hij += A(cnt++);
-                    } else {
-                        Hij += A(xy.first, xy.second);
-                    }
-                }
-            } else {
-                // Perform block insert
-                if (binding.indices().is_block()) {
-                    data.H.block(indices[0], indices[0], indices.size(),
-                                 indices.size()) += A;
-                } else {
-                    data.H(indices, indices) += A;
-                }
-            }
-
-            // b
-            VLOG(10) << "b";
-            VectorXd b(c.dim_input());
-            if (c.b_has_nz_only()) b.resize(c.b_sparsity_pattern()->size());
-            VLOG(10) << b;
-            c.evalb(b);
-
-            if (c.b_sparsity_pattern().has_value()) {
-                int cnt = 0;
-                for (const auto& xy : *c.b_sparsity_pattern()) {
-                    double& gi = data.g(indices[xy.first]);
-                    if (c.b_has_nz_only()) {
-                        gi += b[cnt++];
-                    } else {
-                        gi += b(xy.first);
-                    }
-                }
-            } else {
-                // Perform block insert
-                if (binding.indices().is_block()) {
-                    data.g.middleRows(indices[0], indices.size()) += b;
-                } else {
-                    data.g(indices) += b;
-                }
-            }
+            // Add coefficient matrix and vector
+            data.H(indices, indices) += cdata.A;
+            data.g(indices) += cdata.b;
+            i++;
         }
     }
 
@@ -157,40 +117,27 @@ void qpoases_solver::solve(MathematicalProgram& program) {
 
         VLOG(10) << "qpoases:linear constraints";
         int row = 0;
-        for (auto& binding : program.linear_constraints()) {
+        int i = 0;
+        for (auto& binding : program.getLinearConstraints()) {
             auto& c = *binding.get();
             const auto& indices = binding.indices().indices();
 
-            MatrixXd A(c.dim_output(), c.dim_input());
-            if (c.A_has_nz_only()) A.resize(c.A_sparsity_pattern()->size(), 1);
-            // Evaluate A matrix
-            c.evalA(A);
+            // Create vector
+            LinearConstraintData& cdata = linear_constraint_data_[i];
+            // todo - if sparse
+            c.evalCoefficientMatrix(cdata);
+            c.evalConstantVector(cdata);
 
-            if (c.A_sparsity_pattern().has_value()) {
-                int cnt = 0;
-                for (const auto& xy : *c.A_sparsity_pattern()) {
-                    double& Aij =
-                        data.A(row + indices[xy.first], indices[xy.second]);
-                    if (c.A_has_nz_only()) {
-                        Aij = A(cnt++);
-                    } else {
-                        Aij = A(xy.first, xy.second);
-                    }
-                }
-            } else {
-                // Perform block insert
-                if (binding.indices().is_block()) {
-                    data.A.block(indices[0], indices[0], indices.size(),
-                                 indices.size()) += A;
-                } else {
-                    data.A(indices, indices) += A;
-                }
-            }
+            c.evalBounds(cdata);
 
-            data.lbA.middleRows(row, c.dim_output()) << c.lowerBound();
-            data.ubA.middleRows(row, c.dim_output()) << c.upperBound();
+            // Add coefficient matrix and vector
+            data.A.middleRows(row, c.dim_output()) = cdata.A;
+            data.lbA.middleRows(row, c.dim_output()) = cdata.lb;
+            data.ubA.middleRows(row, c.dim_output()) = cdata.ub;
 
+            // Increment
             row += c.dim_output();
+            i++;
         }
     }
 
