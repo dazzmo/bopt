@@ -327,20 +327,16 @@ class LinearCostTpl : public CostTpl<Scalar> {
      * @param a Coefficient vector aₚ
      * @param b Constant bₚ
      */
-    void evalCoefficients(
-        const std::optional<Eigen::Ref<VectorX<Scalar>>> &a = std::nullopt,
-        const std::optional<Scalar> &b = std::nullopt) const {
-        evalCoefficientsImpl(a, b);
+    void evalCoefficients(LinearCostData &data) const {
+        evalCoefficientsImpl(data);
     }
 
-    void evalSparseCoefficients(
-        const std::optional<Eigen::Ref<SparseVector<Scalar>>> &a = std::nullopt,
-        const std::optional<Scalar> &b = std::nullopt) const {
-        evalSparseCoefficientsImpl(a, b);
+    void evalSparseCoefficients(LinearCostData &data) const {
+        evalSparseCoefficientsImpl(data);
     }
 
-    void setCoefficientsSparsityPatterns(SparseVector<Scalar> &a) const {
-        setCoefficientsSparsityPatternsImpl(a);
+    void setCoefficientSparsityPatterns(LinearCostData &data) const {
+        setCoefficientSparsityPatternsImpl(data);
     }
 
    protected:
@@ -348,16 +344,12 @@ class LinearCostTpl : public CostTpl<Scalar> {
         this->setName("linear_cost");
     }
 
-    virtual void evalCoefficientsImpl(
-        std::optional<Eigen::Ref<MatrixX<Scalar>>> a = std::nullopt,
-        std::optional<Scalar> b = std::nullopt) const {}
+    virtual void evalCoefficientsImpl(LinearCostData &data) const {}
 
-    virtual void evalSparseCoefficientsImpl(
-        std::optional<Eigen::Ref<SparseVector<Scalar>>> a = std::nullopt,
-        std::optional<Scalar> b = std::nullopt) const {}
+    virtual void evalSparseCoefficientsImpl(LinearCostData &data) const {}
 
-    virtual void setCoefficientsSparsityPatternsImpl(
-        SparseVector<Scalar> &a) const {}
+    virtual void setCoefficientSparsityPatternsImpl(
+        LinearCostData &data) const {}
 
    private:
 };
@@ -367,10 +359,11 @@ typedef LinearCostTpl<double> LinearCost;
 template <typename Scalar>
 struct LinearCostDataTpl : public CostDataTpl<Scalar> {
     LinearCostDataTpl(const LinearCostTpl<Scalar> &c)
-        : a(VectorX<Scalar>::Zero(c.dim_input())),
+        : CostDataTpl<Scalar>(c),
+          a(VectorX<Scalar>::Zero(c.dim_input())),
           b(0),
           a_s(SparseVector<Scalar>(c.dim_input())) {
-        c.setCoefficientSparsityPatterns(a_s);
+        c.setCoefficientSparsityPatterns(*this);
     }
 
     /// Dense coefficient vector a
@@ -410,19 +403,16 @@ class QuadraticCostTpl : public CostTpl<Scalar> {
      * @param b Vector bₚ
      * @param c Constant cₚ
      */
-    void evalCoefficients(Eigen::Ref<MatrixX<Scalar>> A,
-                          Eigen::Ref<VectorX<Scalar>> b, Scalar c) const {
-        evalCoefficientsImpl(A, b, c);
+    void evalCoefficients(QuadraticCostData &data) const {
+        evalCoefficientsImpl(data);
     }
 
-    void evalSparseCoefficients(SparseMatrix<Scalar> &A,
-                                SparseVector<Scalar> &b, Scalar &c) const {
-        evalSparseCoefficientsImpl(A, b, c);
+    void evalSparseCoefficients(QuadraticCostData &data) const {
+        evalSparseCoefficientsImpl(data);
     }
 
-    void setCoefficientSparsityPatterns(SparseMatrix<Scalar> &A,
-                                        SparseVector<Scalar> &b) const {
-        setCoefficientSparsityPatternsImpl(A, b);
+    void setCoefficientSparsityPatterns(QuadraticCostData &data) const {
+        setCoefficientSparsityPatternsImpl(data);
     }
 
    protected:
@@ -431,16 +421,12 @@ class QuadraticCostTpl : public CostTpl<Scalar> {
         this->setName("quadratic_cost");
     }
 
-    virtual void evalCoefficientsImpl(Eigen::Ref<MatrixX<Scalar>> A,
-                                      Eigen::Ref<VectorX<Scalar>> b,
-                                      Scalar c) const {}
+    virtual void evalCoefficientsImpl(QuadraticCostData &data) const {}
 
-    virtual void evalSparseCoefficientsImpl(SparseMatrix<Scalar> &A,
-                                            SparseVector<Scalar> &b,
-                                            Scalar &c) const {}
+    virtual void evalSparseCoefficientsImpl(QuadraticCostData &data) const {}
 
     virtual void setCoefficientSparsityPatternsImpl(
-        SparseMatrix<Scalar> &A, SparseVector<Scalar> &b) const {}
+        QuadraticCostData &data) const {}
 
    private:
 };
@@ -450,12 +436,13 @@ typedef QuadraticCostTpl<double> QuadraticCost;
 template <typename Scalar>
 struct QuadraticCostDataTpl : public CostDataTpl<Scalar> {
     QuadraticCostDataTpl(const QuadraticCostTpl<Scalar> &c)
-        : A(MatrixX<Scalar>::Zero(c.dim_input(), c.dim_input())),
+        : CostDataTpl<Scalar>(c),
+          A(MatrixX<Scalar>::Zero(c.dim_input(), c.dim_input())),
           b(VectorX<Scalar>::Zero(c.dim_input())),
           c(0),
           A_s(SparseMatrix<Scalar>(c.dim_input(), c.dim_input())),
           b_s(SparseVector<Scalar>(c.dim_input())) {
-        c.setCoefficientSparsityPatterns(A_s, b_s);
+        c.setCoefficientSparsityPatterns(*this);
     }
 
     /// Dense coefficient matrix A (lower triangular)

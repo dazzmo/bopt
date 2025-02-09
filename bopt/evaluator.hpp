@@ -15,7 +15,7 @@ namespace bopt {
 
 // Forward declarations
 template <typename Scalar>
-struct EvaluatorBaseDataTpl;
+struct EvaluatorDataTpl;
 
 using Index = Eigen::Index;
 
@@ -25,18 +25,19 @@ using Index = Eigen::Index;
  * @tparam Scalar
  */
 template <typename Scalar>
-class EvaluatorBaseTpl {
+class EvaluatorTpl {
    public:
-    using EvaluatorData = EvaluatorBaseDataTpl<Scalar>;
+    using EvaluatorData = EvaluatorDataTpl<Scalar>;
 
     /**
      * @brief Evaluates the expression y = fₚ(x) using variables x and
-     * parameters p (set through \ref EvaluatorBaseTpl::setParameters()).
+     * parameters p (set through \ref EvaluatorTpl::setParameters()).
      *
      * @param x The input vector (dim_input() x 1)
      * @param data
      */
-    void eval(const Eigen::Ref<const VectorXd> &x, EvaluatorData &data) const {
+    void eval(const Eigen::Ref<const VectorX<Scalar>> &x,
+              EvaluatorData &data) const {
         BOPT_ASSERT(x.rows() == dim_input());
         BOPT_ASSERT(data.y.rows() == dim_output());
         checkVector(x);
@@ -52,8 +53,9 @@ class EvaluatorBaseTpl {
      * @param compute_x Compute ∂y/∂x
      * @param compute_p Compute ∂y/∂p
      */
-    void evalJacobians(const Eigen::Ref<const VectorXd> &x, EvaluatorData &data,
-                       bool compute_x = true, bool compute_p = false) const {
+    void evalJacobians(const Eigen::Ref<const VectorX<Scalar>> &x,
+                       EvaluatorData &data, bool compute_x = true,
+                       bool compute_p = false) const {
         BOPT_ASSERT(x.rows() == dim_input());
         evalJacobiansImpl(x, data, compute_x, compute_p);
     }
@@ -66,7 +68,7 @@ class EvaluatorBaseTpl {
      * @param compute_x Compute ∂f/∂x
      * @param compute_p Compute ∂f/∂p
      */
-    void evalSparseJacobians(const Eigen::Ref<const VectorXd> &x,
+    void evalSparseJacobians(const Eigen::Ref<const VectorX<Scalar>> &x,
                              EvaluatorData &data, bool compute_x = true,
                              bool compute_p = false) const {
         BOPT_ASSERT(x.rows() == dim_input());
@@ -84,8 +86,8 @@ class EvaluatorBaseTpl {
      * @param compute_xp Compute ∂²(λᵀf)/∂x∂p
      * @param compute_pp Compute ∂²(λᵀf)/∂p²
      */
-    void evalHessians(const Eigen::Ref<const VectorXd> &x,
-                      const Eigen::Ref<const VectorXd> &lambda,
+    void evalHessians(const Eigen::Ref<const VectorX<Scalar>> &x,
+                      const Eigen::Ref<const VectorX<Scalar>> &lambda,
                       EvaluatorData &data, bool compute_xx = true,
                       bool compute_xp = false, bool compute_pp = false) const {
         evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
@@ -102,8 +104,8 @@ class EvaluatorBaseTpl {
      * @param compute_xp Compute ∂²(λᵀf)/∂x∂p
      * @param compute_pp Compute ∂²(λᵀf)/∂p²
      */
-    void evalSparseHessians(const Eigen::Ref<const VectorXd> &x,
-                            const Eigen::Ref<const VectorXd> &lambda,
+    void evalSparseHessians(const Eigen::Ref<const VectorX<Scalar>> &x,
+                            const Eigen::Ref<const VectorX<Scalar>> &lambda,
                             EvaluatorData &data, bool compute_xx = true,
                             bool compute_xp = false,
                             bool compute_pp = false) const {
@@ -160,26 +162,26 @@ class EvaluatorBaseTpl {
         description_ = description;
     }
 
-    const VectorXd &parameters() const { return parameters_; }
+    const VectorX<Scalar> &parameters() const { return parameters_; }
 
     /**
      * @brief Set the parameter vector p (dim_parameter() x 1).
      *
      * @param p
      */
-    void setParameters(const Eigen::Ref<const VectorXd> &p) {
+    void setParameters(const Eigen::Ref<const VectorX<Scalar>> &p) {
         BOPT_ASSERT(p.size() == dim_parameter());
         parameters_ = p;
     }
 
    protected:
-    EvaluatorBaseTpl(const Index &n_inputs, const Index &n_outputs,
-                     const std::string &description = "")
+    EvaluatorTpl(const Index &n_inputs, const Index &n_outputs,
+                 const std::string &description = "")
         : dim_input_(n_inputs),
           dim_tangent_space_(n_inputs),
           dim_output_(n_outputs),
           dim_parameter_(0),
-          parameters_(VectorXd::Zero(0)),
+          parameters_(VectorX<Scalar>::Zero(0)),
           description_(description) {}
 
     /**
@@ -203,7 +205,10 @@ class EvaluatorBaseTpl {
      *
      * @param dim Dimension of the vector
      */
-    void setParameterDimension(const Index &dim) { dim_parameter_ = dim; }
+    void setParameterDimension(const Index &dim) {
+        dim_parameter_ = dim;
+        parameters_ = VectorX<Scalar>::Zero(dim);
+    }
 
     /**
      * @brief Implementation of the evaluator
@@ -211,44 +216,46 @@ class EvaluatorBaseTpl {
      * @param x
      * @param out
      */
-    virtual void evalImpl(const Eigen::Ref<const VectorXd> &x,
+    virtual void evalImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
                           EvaluatorData &data) const = 0;
 
     /**
-     * \copydoc EvaluatorBaseTpl::evalJacobians(const Eigen::Ref<const
-     * VectorXd>, EvaluatorData &)
+     * \copydoc EvaluatorTpl::evalJacobians(const Eigen::Ref<const
+     * VectorX<Scalar>>, EvaluatorData &)
      *
      */
-    virtual void evalJacobiansImpl(const Eigen::Ref<const VectorXd> &x,
+    virtual void evalJacobiansImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
                                    EvaluatorData &data, bool compute_x,
                                    bool compute_p) const {}
 
     /**
-     * \copydoc EvaluatorBaseTpl::evalSparseJacobians(const Eigen::Ref<const
-     * VectorXd>, EvaluatorData &)
+     * \copydoc EvaluatorTpl::evalSparseJacobians(const Eigen::Ref<const
+     * VectorX<Scalar>>, EvaluatorData &)
      *
      */
-    virtual void evalSparseJacobiansImpl(const Eigen::Ref<const VectorXd> &x,
-                                         EvaluatorData &data, bool compute_x,
-                                         bool compute_p) const {}
+    virtual void evalSparseJacobiansImpl(
+        const Eigen::Ref<const VectorX<Scalar>> &x, EvaluatorData &data,
+        bool compute_x, bool compute_p) const {}
     /**
-     * \copydoc EvaluatorBaseTpl::evalHessians(const Eigen::Ref<const VectorXd>,
-     * const Eigen::Ref<const VectorXd>, EvaluatorData &)
+     * \copydoc EvaluatorTpl::evalHessians(const Eigen::Ref<const
+     * VectorX<Scalar>>, const Eigen::Ref<const VectorX<Scalar>>, EvaluatorData
+     * &)
      *
      */
-    virtual void evalHessiansImpl(const Eigen::Ref<const VectorXd> &x,
-                                  const Eigen::Ref<const VectorXd> &lambda,
-                                  EvaluatorData &data, bool compute_xx,
-                                  bool compute_xp, bool compute_pp) const {}
+    virtual void evalHessiansImpl(
+        const Eigen::Ref<const VectorX<Scalar>> &x,
+        const Eigen::Ref<const VectorX<Scalar>> &lambda, EvaluatorData &data,
+        bool compute_xx, bool compute_xp, bool compute_pp) const {}
 
     /**
-     * \copydoc EvaluatorBaseTpl::evalSparseHessians(const Eigen::Ref<const
-     * VectorXd>, const Eigen::Ref<const VectorXd>, EvaluatorData &)
+     * \copydoc EvaluatorTpl::evalSparseHessians(const Eigen::Ref<const
+     * VectorX<Scalar>>, const Eigen::Ref<const VectorX<Scalar>>, EvaluatorData
+     * &)
      *
      */
     virtual void evalSparseHessiansImpl(
-        const Eigen::Ref<const VectorXd> &x,
-        const Eigen::Ref<const VectorXd> &lambda, EvaluatorData &data,
+        const Eigen::Ref<const VectorX<Scalar>> &x,
+        const Eigen::Ref<const VectorX<Scalar>> &lambda, EvaluatorData &data,
         bool compute_xx, bool compute_xp, bool compute_pp) const {}
 
    private:
@@ -258,15 +265,15 @@ class EvaluatorBaseTpl {
     Index dim_parameter_;
     Index dim_output_;
 
-    VectorXd parameters_;
+    VectorX<Scalar> parameters_;
     std::string description_;
 };
 
-typedef EvaluatorBaseTpl<double> EvaluatorBase;
+typedef EvaluatorTpl<double> Evaluator;
 
 template <typename Scalar>
-std::ostream &operator<<(std::ostream &os, const EvaluatorBaseTpl<Scalar> &e) {
-    os << "EvaluatorBase\n";
+std::ostream &operator<<(std::ostream &os, const EvaluatorTpl<Scalar> &e) {
+    os << "Evaluator\n";
     os << "description: " << e.description() << '\n';
     os << "input dim: " << e.dim_input() << '\n';
     os << "output dim: " << e.dim_output();
@@ -274,8 +281,8 @@ std::ostream &operator<<(std::ostream &os, const EvaluatorBaseTpl<Scalar> &e) {
 }
 
 template <typename Scalar>
-struct EvaluatorBaseDataTpl {
-    EvaluatorBaseDataTpl(const EvaluatorBaseTpl<Scalar> &e)
+struct EvaluatorDataTpl {
+    EvaluatorDataTpl(const EvaluatorTpl<Scalar> &e)
         : y(VectorX<Scalar>::Zero(e.dim_output())),
           Jx(MatrixX<Scalar>::Zero(e.dim_output(), e.dim_tangent_space())),
           Jp(MatrixX<Scalar>::Zero(e.dim_output(), e.dim_parameter())),
@@ -318,5 +325,7 @@ struct EvaluatorBaseDataTpl {
     /// Sparse matrix for lower-triangular matrix ∂²(λᵀy)/∂p²
     SparseMatrix<Scalar> Hpp_s;
 };
+
+typedef EvaluatorDataTpl<double> EvaluatorData;
 
 }  // namespace bopt

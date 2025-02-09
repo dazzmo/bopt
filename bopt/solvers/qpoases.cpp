@@ -17,12 +17,10 @@ qpoases_solver::qpoases_solver(MathematicalProgram& program) : solver(program) {
     for (const auto& c : program.linearCosts()) {
         linear_cost_data_.push_back(LinearCostData(*c.get()));
     }
-
     quadratic_cost_data_.reserve(program.n_costs());
     for (const auto& c : program.quadraticCosts()) {
         quadratic_cost_data_.push_back(QuadraticCostData(*c.get()));
     }
-
     linear_constraint_data_.reserve(program.n_constraints());
     for (const auto& c : program.linearConstraints()) {
         linear_constraint_data_.push_back(LinearConstraintData(*c.get()));
@@ -60,10 +58,10 @@ void qpoases_solver::solve(MathematicalProgram& program) {
     {
         bopt::profiler profiler("qpoases: bounding box constraints");
         for (auto& binding : program.boundingBoxConstraints()) {
-            data.lbx(binding.indices().indices())
-                << binding.get()->lowerBound();
-            data.ubx(binding.indices().indices())
-                << binding.get()->upperBound();
+            // data.lbx(binding.indices().indices())
+            //     << binding.get()->lowerBound();
+            // data.ubx(binding.indices().indices())
+            //     << binding.get()->upperBound();
         }
     }
 
@@ -78,12 +76,15 @@ void qpoases_solver::solve(MathematicalProgram& program) {
 
             // Create vector
             LinearCostData& cdata = linear_cost_data_[i];
-            // todo - if sparse
-            c.evalCoefficientVector(cdata);
-            c.evalConstantTerm(cdata);
+            if (cdata.a_s.nonZeros()) {
+                c.evalSparseCoefficients(cdata);
+
+            } else {
+                c.evalCoefficients(cdata);
+                data.g(indices) += cdata.a;
+            }
 
             // Add coefficient vector
-            data.g(indices) += cdata.a;
             i++;
         }
     }
@@ -99,14 +100,13 @@ void qpoases_solver::solve(MathematicalProgram& program) {
 
             // Create vector
             QuadraticCostData& cdata = quadratic_cost_data_[i];
-            // todo - if sparse
-            c.evalCoefficientMatrix(cdata);
-            c.evalCoefficientVector(cdata);
-            c.evalConstantTerm(cdata);
-
-            // Add coefficient matrix and vector
-            data.H(indices, indices) += cdata.A;
-            data.g(indices) += cdata.b;
+            if (cdata.A_s.nonZeros()) {
+                c.evalSparseCoefficients(cdata);
+            } else {
+                c.evalCoefficients(cdata);
+                data.H(indices, indices) += cdata.A;
+                data.g(indices) += cdata.b;
+            }
             i++;
         }
     }
@@ -125,13 +125,15 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             // Create vector
             LinearConstraintData& cdata = linear_constraint_data_[i];
             // todo - if sparse
-            c.evalCoefficientMatrix(cdata);
-            c.evalConstantVector(cdata);
+            if (cdata.A_s.nonZeros()) {
+                c.evalSparseCoefficients(cdata);
+            } else {
+                c.evalCoefficients(cdata);
+                data.A.middleRows(row, c.dim_output()) = cdata.A;
+            }
 
+            // Evaluate bounds
             c.evalBounds(cdata);
-
-            // Add coefficient matrix and vector
-            data.A.middleRows(row, c.dim_output()) = cdata.A;
             data.lbA.middleRows(row, c.dim_output()) = cdata.lb;
             data.ubA.middleRows(row, c.dim_output()) = cdata.ub;
 

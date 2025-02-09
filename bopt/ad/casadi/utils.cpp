@@ -60,6 +60,7 @@ void set_eigen_sparsity(Eigen::SparseMatrix<double> &out,
 
     out.resize(sparsity.rows(), sparsity.columns());
     out.setFromTriplets(triplets.begin(), triplets.end());
+    out.makeCompressed();
 }
 
 void set_eigen_sparsity(Eigen::SparseVector<double> &out,

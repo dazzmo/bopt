@@ -14,76 +14,7 @@
 using sym = ::casadi::SX;
 using dm = ::casadi::DM;
 
-// TEST(Casadi, Codegen) {
-//     std::size_t n = 5;
-//     sym x = sym::sym("x", n);
-//     // Create symbolic constraint
-//     sym ex = sym::dot(x, x);
-//     ex += sin(dot(x, x));
-
-//     auto fun = ::casadi::Function("f", {x}, {ex});
-
-//     auto fun_cg = bopt::casadi::codegen(fun);
-
-//     Eigen::VectorXd y(5);
-//     y.setRandom();
-
-//     double ret;
-
-//     std::vector<const double *> in = {y.data()};
-//     std::vector<double *> out = {&ret};
-
-//     fun_cg(in, out);
-
-//     EXPECT_DOUBLE_EQ(ret, y.squaredNorm() + sin(y.squaredNorm()));
-// }
-
-TEST(Casadi, ScalarEvaluator) {
-    std::size_t n = 10;
-    sym x = sym::sym("x", n);
-    sym p = sym::sym("p", n);
-    // Create symbolic constraint
-    sym ex = sym::dot(x, p) + sin(dot(x, x));
-
-    auto expr = std::make_shared<bopt::casadi::evaluator::scalar>(ex, x, p);
-
-    EXPECT_EQ(expr->sz_in(), n);
-    EXPECT_EQ(expr->sz_out().first, 1);
-    EXPECT_EQ(expr->sz_out().second, 1);
-
-    EXPECT_EQ(expr->parameters().size(), n);
-
-    Eigen::VectorXd xv(10), pv(10);
-    double out;
-    xv.setRandom();
-    pv.setRandom();
-
-    double val = xv.dot(pv) + sin(xv.dot(xv));
-
-    expr->parameters() << pv;
-
-    for (int i = 0; i < 1000; ++i) {
-        bopt::profiler("casadi_evaluator_no_cg");
-        expr->eval(xv, out);
-    }
-
-    auto cpy = bopt::evaluator::scalar(expr);
-
-    EXPECT_EQ(cpy.sz_in(), n);
-    EXPECT_EQ(cpy.sz_out().first, 1);
-    EXPECT_EQ(cpy.sz_out().second, 1);
-
-    EXPECT_EQ(cpy.parameters().size(), n);
-
-    for (int i = 0; i < 1000; ++i) {
-        bopt::profiler("casadi_evaluator_cg");
-        cpy.eval(xv, out);
-    }
-
-    EXPECT_DOUBLE_EQ(out, val);
-}
-
-TEST(Casadi, VectorEvaluator) {
+TEST(Casadi, Evaluator) {
     std::size_t n = 10;
     sym x = sym::sym("x", n);
     sym p = sym::sym("p", n);
@@ -93,281 +24,38 @@ TEST(Casadi, VectorEvaluator) {
         ex(i) = sin(p(i)) * x(i);
     }
 
-    auto expr =
-        std::make_shared<bopt::casadi::evaluator::vector>(ex, x, p, false);
+    auto expr = std::make_shared<bopt::casadi::Evaluator>(ex, x, p, true);
 
-    EXPECT_EQ(expr->sz_in(), n);
-    EXPECT_EQ(expr->sz_out().first, n);
-    EXPECT_EQ(expr->sz_out().second, 1);
+    EXPECT_EQ(expr->dim_input(), n);
+    EXPECT_EQ(expr->dim_output(), n);
 
     EXPECT_EQ(expr->parameters().size(), n);
 
-    Eigen::VectorXd xv(10), pv(10);
-    double out;
-    xv.setRandom();
-    pv.setRandom();
-
-    auto cpy = bopt::evaluator::vector(expr);
-
-    EXPECT_EQ(cpy.sz_in(), n);
-    EXPECT_EQ(cpy.sz_out().first, n);
-    EXPECT_EQ(cpy.sz_out().second, 1);
-
-    EXPECT_EQ(cpy.parameters().size(), n);
-}
-
-TEST(Casadi, DifferentiableScalarEvaluator) {
-    sym x = sym::sym("x", 25);
-    sym p = sym::sym("p", 1);
-    // Create symbolic expression
-    sym ex = p * x(1) * x(1) + x(10) * x(10);
-
-    double out;
-
-    Eigen::VectorXd xv(25), grd;
-    Eigen::MatrixXd hes(25, 25);
-
-    auto opt = bopt::casadi::evaluator::differentiable::scalar::options();
-    opt.dense_gradient = false;
-    opt.dense_hessian = true;
-    opt.codegen_hessian = true;
-
-    // Map to bopt
-    auto cpy = bopt::evaluator::differentiable::scalar(
-        std::make_shared<bopt::casadi::evaluator::differentiable::scalar>(
-            ex, x, p, opt));
-
-    Eigen::SparseVector<double> grd_sparse;
-    cpy.get_gradient_sparsity(grd_sparse);
-
-    xv.setRandom();
-    cpy.parameters().setConstant(1.0);
-    cpy.eval(xv, out);
-    cpy.eval_gradient(xv, grd_sparse);
-    cpy.eval_hessian(xv, hes);
-
-    VLOG(10) << xv.transpose();
-    VLOG(10) << out;
-    VLOG(10) << grd_sparse.transpose();
-    VLOG(10) << hes;
-
-    cpy.parameters().setConstant(5.0);
-    for (int i = 0; i < 1000; ++i) {
-        {
-            bopt::profiler("test eval");
-            cpy.eval(xv, out);
-        }
-        // {
-        //     bopt::profiler("test grd");
-        //     cpy.eval_gradient(xv, grd);
-        // }
-        {
-            bopt::profiler("test hes");
-            cpy.eval_hessian(xv, hes);
-        }
+    auto data = bopt::EvaluatorData(*expr);
+    Eigen::VectorXd v(n), z(n);
+    v.setRandom();
+    z.setRandom();
+    expr->setParameters(z);
+    {
+        bopt::profiler profiler("eval");
+        expr->eval(v, data);
+    }
+    {
+        bopt::profiler profiler("evalJacobians");
+        expr->evalJacobians(v, data, true, true);
+    }
+    {
+        bopt::profiler profiler("evalSparseJacobians");
+        expr->evalSparseJacobians(v, data, true, true);
     }
 
-    VLOG(10) << out;
-    VLOG(10) << grd.transpose();
-    VLOG(10) << hes;
+    VLOG(10) << data.y;
+    VLOG(10) << data.Jx;
+    VLOG(10) << data.Jp;
 
-    EXPECT_EQ(cpy.sz_gradient().first, 1);
-    EXPECT_EQ(cpy.sz_gradient().second, 2);
-
-    EXPECT_EQ(cpy.sz_hessian().first, 2);
-    EXPECT_EQ(cpy.sz_hessian().second, 2);
+    VLOG(10) << data.Jx_s;
+    VLOG(10) << data.Jp_s;
 }
-
-TEST(Casadi, DifferentiableVectorEvaluator) {
-    sym x = sym::sym("x", 10);
-    sym p = sym::sym("p", 2);
-    // Create symbolic expression
-    sym ex = x;
-    ex(2) = p(0) * x(2);
-    ex(7) = p(1) * x(7);
-
-    // Map to bopt
-    auto cpy = bopt::evaluator::differentiable::vector(
-        std::make_shared<bopt::casadi::evaluator::differentiable::vector>(
-            ex, x, p, true, false));
-
-    Eigen::VectorXd out(cpy.sz_out().first);
-    Eigen::VectorXd xv(cpy.sz_in());
-    Eigen::VectorXd lv(cpy.sz_out().first);
-    Eigen::MatrixXd jac(cpy.sz_jacobian().first, cpy.sz_jacobian().second);
-    Eigen::MatrixXd hes(cpy.sz_hessian().first, cpy.sz_hessian().second);
-
-    xv.setRandom();
-    lv.setRandom();
-    cpy.parameters().setRandom();
-
-    cpy.eval(xv, out);
-    cpy.eval_jacobian(xv, jac);
-    cpy.eval_hessian(xv, lv, hes);
-
-    VLOG(10) << out;
-    VLOG(10) << jac.transpose();
-    VLOG(10) << hes;
-
-    // cpy.parameters().setConstant(5.0);
-    // for (int i = 0; i < 1000; ++i) {
-    //     {
-    //         bopt::profiler("test eval");
-    //         cpy.eval(xv, out);
-    //     }
-    //     {
-    //         bopt::profiler("test grd");
-    //         cpy.eval_gradient(xv, grd);
-    //     }
-    //     {
-    //         bopt::profiler("test hes");
-    //         cpy.eval_hessian(xv, lv, hes);
-    //     }
-    // }
-
-    // VLOG(10) << out;
-    // VLOG(10) << grd.transpose();
-    // VLOG(10) << hes;
-
-    // EXPECT_EQ(cpy.sz_gradient().first, 1);
-    // EXPECT_EQ(cpy.sz_gradient().second, 2);
-
-    // EXPECT_EQ(cpy.sz_hessian().first, 2);
-    // EXPECT_EQ(cpy.sz_hessian().second, 2);
-}
-
-TEST(Casadi, LinearVectorEvaluator) {
-    sym x = sym::sym("x", 10);
-    sym p = sym::sym("p", 2);
-    // Create symbolic expression
-    sym ex = x;
-    ex(2) = p(0) * x(2);
-    ex(7) = p(1) * x(7);
-    ex(9) = 10.0;
-
-    // Map to bopt
-    auto cpy = bopt::evaluator::linear::vector(
-        std::make_shared<bopt::casadi::evaluator::linear::vector>(ex, x, p,
-                                                                  true, false));
-
-    Eigen::VectorXd out(cpy.sz_out().first);
-    Eigen::VectorXd xv(cpy.sz_in());
-    Eigen::MatrixXd A(cpy.sz_A().first, cpy.sz_A().second);
-    Eigen::VectorXd b(cpy.sz_b().first);
-
-    xv.setRandom();
-    cpy.parameters().setRandom();
-
-    cpy.eval(xv, out);
-    cpy.eval_A(A);
-    cpy.eval_b(b);
-
-    VLOG(10) << out;
-    VLOG(10) << A;
-    VLOG(10) << b;
-
-    // cpy.parameters().setConstant(5.0);
-    // for (int i = 0; i < 1000; ++i) {
-    //     {
-    //         bopt::profiler("test eval");
-    //         cpy.eval(xv, out);
-    //     }
-    //     {
-    //         bopt::profiler("test grd");
-    //         cpy.eval_gradient(xv, grd);
-    //     }
-    //     {
-    //         bopt::profiler("test hes");
-    //         cpy.eval_hessian(xv, lv, hes);
-    //     }
-    // }
-
-    // VLOG(10) << out;
-    // VLOG(10) << grd.transpose();
-    // VLOG(10) << hes;
-
-    // EXPECT_EQ(cpy.sz_gradient().first, 1);
-    // EXPECT_EQ(cpy.sz_gradient().second, 2);
-
-    // EXPECT_EQ(cpy.sz_hessian().first, 2);
-    // EXPECT_EQ(cpy.sz_hessian().second, 2);
-}
-
-TEST(Casadi, LinearConstraint) {
-    sym x = sym::sym("x", 5);
-    sym p = sym::sym("p", 1);
-    // Create symbolic constraint
-    sym ex = p * x + sym::ones(5, 1);
-
-    auto expr = bopt::linear_constraint(
-        std::make_shared<bopt::casadi::evaluator::linear::vector>(ex, x, p,
-                                                                  false, false),
-        bopt::bounds::type::Equality);
-}
-
-// TEST(Casadi, ExpressionWithParameter) {
-//     std::size_t n = 10;
-//     sym x = sym::sym("x", n);
-//     sym p = sym::sym("p");
-
-//     // Create symbolic expression
-//     sym ex = p * sym::dot(x, x);
-
-//     auto expr = bopt::casadi::vector_evaluator(ex, x, p, false);
-
-//     Eigen::VectorXd in(10), out(1);
-//     in.setRandom();
-
-//     Eigen::VectorXd pv(1);
-//     pv << 2.0;
-
-//     expr.set_parameters(pv);
-//     for (int i = 0; i < 1000; ++i) {
-//         bopt::profiler("casadi_p_evaluator_no_cg");
-//         expr.eval(in, out);
-//     }
-
-//     EXPECT_DOUBLE_EQ(out[0], pv[0] * in.squaredNorm());
-
-//     expr = bopt::casadi::vector_evaluator(ex, x, p, true);
-//     expr.set_parameters(pv);
-
-//     for (int i = 0; i < 1000; ++i) {
-//         bopt::profiler("casadi_p_evaluator_cg");
-//         expr.eval(in, out);
-//     }
-
-//     EXPECT_DOUBLE_EQ(out[0], pv[0] * in.squaredNorm());
-// }
-
-// TEST(Casadi, Constraint) {
-//     std::size_t n = 10;
-//     sym x = sym::sym("x", n);
-//     sym p = sym::sym("p");
-
-//     // Create symbolic expression
-//     sym ex = x(0) + p * x(3);
-
-//     auto c = bopt::constraint(
-//         std::make_shared<bopt::casadi::differentiable_vector_evaluator>(
-//             ex, x, p, true, false),
-//         bopt::bounds::type::Negative);
-
-//     Eigen::VectorXd xv(10), pv(1), out(1);
-//     Eigen::MatrixXd jacobian(1, 10);
-//     xv.setRandom();
-//     pv << 1.0;
-
-//     c.set_parameters(pv);
-//     VLOG(10) << "p: " << c.parameters().transpose();
-//     VLOG(10) << "Status: " << (int)c.eval(xv, out);
-//     c.eval_jacobian(xv, jacobian);
-
-//     VLOG(10) << c;
-//     VLOG(10) << jacobian;
-
-//     EXPECT_DOUBLE_EQ(out[0], xv[0] + pv[0] * xv[3]);
-// }
 
 #endif  // BOPT_WITH_CASADI
 
