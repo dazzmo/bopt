@@ -13,18 +13,18 @@ qpoases_solver::qpoases_solver(MathematicalProgram& program) : solver(program) {
     qp_ = std::make_unique<qpOASES::SQProblem>(nx, ng);
 
     // Create cost and constraint data
-    // linear_cost_data_.reserve(program.n_costs());
-    // for (const auto& c : program.linear_costs()) {
-    //     linear_cost_data_.push_back(LinearCostData(*c.get()));
-    // }
+    linear_cost_data_.reserve(program.n_costs());
+    for (const auto& c : program.linearCosts()) {
+        linear_cost_data_.push_back(LinearCostData(*c.get()));
+    }
 
-    // quadratic_cost_data_.reserve(program.n_costs());
-    // for (const auto& c : program.quadratic_costs()) {
-    //     quadratic_cost_data_.push_back(QuadraticCostData(*c.get()));
-    // }
+    quadratic_cost_data_.reserve(program.n_costs());
+    for (const auto& c : program.quadraticCosts()) {
+        quadratic_cost_data_.push_back(QuadraticCostData(*c.get()));
+    }
 
     linear_constraint_data_.reserve(program.n_constraints());
-    for (const auto& c : program.getLinearConstraints()) {
+    for (const auto& c : program.linearConstraints()) {
         linear_constraint_data_.push_back(LinearConstraintData(*c.get()));
     }
 
@@ -44,8 +44,8 @@ qpoases_solver::qpoases_solver(MathematicalProgram& program) : solver(program) {
     data.lbx.resize(nx);
     data.ubx.resize(nx);
 
-    data.lbx = program.variables_lower_bound();
-    data.ubx = program.variables_upper_bound();
+    data.lbx = program.variableLowerBounds();
+    data.ubx = program.variableUpperBounds();
 
     VLOG(10) << "lbx: " << data.lbx.transpose();
     VLOG(10) << "ubx: " << data.ubx.transpose();
@@ -59,7 +59,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
     /** Bounding box constraints **/
     {
         bopt::profiler profiler("qpoases: bounding box constraints");
-        for (auto& binding : program.BoundingBoxConstraints()) {
+        for (auto& binding : program.boundingBoxConstraints()) {
             data.lbx(binding.indices().indices())
                 << binding.get()->lowerBound();
             data.ubx(binding.indices().indices())
@@ -72,7 +72,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
         bopt::profiler profiler("qpoases: linear costs");
         VLOG(10) << "qpoases:linear costs";
         int i = 0;
-        for (auto& binding : program.linear_costs()) {
+        for (auto& binding : program.linearCosts()) {
             const auto& c = *binding.get();
             const auto& indices = binding.indices().indices();
 
@@ -93,7 +93,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
         bopt::profiler profiler("qpoases: quadratic costs");
         VLOG(10) << "qpoases:quadratic costs";
         int i = 0;
-        for (auto& binding : program.quadratic_costs()) {
+        for (auto& binding : program.quadraticCosts()) {
             auto& c = *binding.get();
             const auto& indices = binding.indices().indices();
 
@@ -118,7 +118,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
         VLOG(10) << "qpoases:linear constraints";
         int row = 0;
         int i = 0;
-        for (auto& binding : program.getLinearConstraints()) {
+        for (auto& binding : program.linearConstraints()) {
             auto& c = *binding.get();
             const auto& indices = binding.indices().indices();
 

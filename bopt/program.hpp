@@ -23,14 +23,15 @@ class MathematicalProgram {
     /**
      * @brief Default constructor for the mathematical program.
      */
-    MathematicalProgram() : name_("") {}
+    MathematicalProgram() : name_(""), n_constraints_(0) {}
 
     /**
      * @brief Constructs a mathematical program with a specified name.
      *
      * @param name Name of the mathematical program.
      */
-    MathematicalProgram(const std::string &name) : name_(name) {}
+    MathematicalProgram(const std::string &name)
+        : name_(name), n_constraints_(0) {}
 
     /**
      * @brief Gets the name of the mathematical program.
@@ -67,7 +68,7 @@ class MathematicalProgram {
      initial
      * values.
      */
-    const VectorXd &variables_initial_value() const { return x_iv_; }
+    const VectorXd &variableInitialValues() const { return x_iv_; }
 
     /**
      * @brief Gets the bounds for the decision variables.
@@ -75,9 +76,9 @@ class MathematicalProgram {
      * @return const vector_bounds<value_type>& Reference to the variable
      * bounds.
      */
-    const VectorXd &variables_lower_bound() const { return x_lb_; }
+    const VectorXd &variableLowerBounds() const { return x_lb_; }
 
-    const VectorXd &variables_upper_bound() const { return x_ub_; }
+    const VectorXd &variableUpperBounds() const { return x_ub_; }
 
     Variable addVariable(const std::string &name,
                          const double &initial_value = 0.0,
@@ -133,14 +134,14 @@ class MathematicalProgram {
         costs_generic_.push_back(Binding<Cost>(cost, getVariableIndices(x)));
     }
 
-    void add_linear_cost(const typename std::shared_ptr<LinearCost> &cost,
+    void addLinearCost(const typename std::shared_ptr<LinearCost> &cost,
                          const Eigen::Ref<const VariableVector> &x) {
         // Create binding
         costs_linear_.push_back(
             Binding<LinearCost>(cost, getVariableIndices(x)));
     }
 
-    void add_quadratic_cost(const typename std::shared_ptr<QuadraticCost> &cost,
+    void addQuadraticCost(const typename std::shared_ptr<QuadraticCost> &cost,
                             const Eigen::Ref<const VariableVector> &x) {
         // Create binding
         costs_quadratic_.push_back(
@@ -149,9 +150,9 @@ class MathematicalProgram {
 
     std::vector<Binding<Cost>> &generic_costs() { return costs_generic_; }
 
-    std::vector<Binding<LinearCost>> &linear_costs() { return costs_linear_; }
+    std::vector<Binding<LinearCost>> &linearCosts() { return costs_linear_; }
 
-    std::vector<Binding<QuadraticCost>> &quadratic_costs() {
+    std::vector<Binding<QuadraticCost>> &quadraticCosts() {
         return costs_quadratic_;
     }
 
@@ -195,11 +196,11 @@ class MathematicalProgram {
         return constraints_generic_;
     }
 
-    std::vector<Binding<LinearConstraint>> &getLinearConstraints() {
+    std::vector<Binding<LinearConstraint>> &linearConstraints() {
         return constraints_linear_;
     }
 
-    std::vector<Binding<BoundingBoxConstraint>> &BoundingBoxConstraints() {
+    std::vector<Binding<BoundingBoxConstraint>> &boundingBoxConstraints() {
         return constraints_bounding_box_;
     }
 

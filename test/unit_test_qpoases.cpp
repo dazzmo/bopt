@@ -71,7 +71,7 @@ TEST(Program, SimpleProgram) {
     bopt::variable_vector v(3);
     v << x, y, z;
 
-    p.add_quadratic_cost(c, v({0, 2}));
+    p.addQuadraticCost(c, v({0, 2}));
     p.add_linear_constraint(g0, v({0, 2}));
 
     auto qp = bopt::solvers::qpoases_solver(p);

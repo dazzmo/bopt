@@ -13,20 +13,26 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
     costs_ = program.get_all_costs();
     constraints_ = program.getAllConstraints();
 
+    VLOG(10) << "Data";
     cost_data_.reserve(costs_.size());
     constraint_data_.reserve(constraints_.size());
-
+    VLOG(10) << "Data Initialisation";
     for (const auto& c : costs_) {
+        VLOG(10) << *c.get();
         cost_data_.push_back(CostData(*c.get()));
+        VLOG(10) << "Done";
     }
     for (const auto& c : constraints_) {
+        VLOG(10) << *c.get();
         constraint_data_.push_back(ConstraintData(*c.get()));
+        VLOG(10) << "Done";
     }
 
     VLOG(10) << "Constraint Jacobian";
     // Construct constraint jacobian and lagrangian
     int idx = 0;
     int i = 0;
+    std::vector<Eigen::Triplet<double>> triplets;
     for (auto& b : constraints_) {
         auto& c = *b.get();
         const auto& cdata = constraint_data_[i];
@@ -35,30 +41,35 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
             for (int k = 0; k < cdata.Jx_s.outerSize(); ++k) {
                 for (SparseMatrix<double>::InnerIterator it(cdata.Jx_s, k); it;
                      ++it) {
-                    cache_.constraint_jacobian.insert(
-                        idx + it.row(), b.indices().indices()[it.col()]);
+                    triplets.push_back(Eigen::Triplet<double>(
+                        idx + it.row(), b.indices().indices()[it.col()]));
                 }
             }
         } else {
             // Dense output - currently use block insert
             for (Index row = 0; row < c.dim_output(); ++row) {
                 for (Index col = 0; col < c.dim_tangent_space(); ++col) {
-                    cache_.constraint_jacobian.insert(
-                        idx + row, b.indices().indices()[col]);
+                    triplets.push_back(Eigen::Triplet<double>(
+                        idx + row, b.indices().indices()[col]));
                 }
             }
         }
         i++;
         idx += c.dim_output();
     }
-    // Convert to compressed form
+    cache_.constraint_jacobian.setFromTriplets(triplets.begin(),
+                                               triplets.end());
     cache_.constraint_jacobian.makeCompressed();
     // Assemble look-up map for indices
     for (int k = 0; k < cache_.constraint_jacobian.outerSize(); ++k) {
+        int inner_nz_cnt = 0;
         for (SparseMatrix<double>::InnerIterator it(cache_.constraint_jacobian,
                                                     k);
              it; ++it) {
-            jac_nnz_map_.insert({{it.row(), it.col()}, it.index()});
+            jac_nnz_map_.insert(
+                {{it.row(), it.col()},
+                 cache_.constraint_jacobian.outerIndexPtr()[it.outer()] +
+                     inner_nz_cnt++});
         }
     }
 
@@ -66,6 +77,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
 
     // Construct lagrangian hessian
     i = 0;
+    triplets.clear();
     VLOG(10) << "Lagrangian Hessian";
     for (auto& b : costs_) {
         auto& c = *b.get();
@@ -75,17 +87,18 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
             for (int k = 0; k < cdata.Hxx_s.outerSize(); ++k) {
                 for (SparseMatrix<double>::InnerIterator it(cdata.Hxx_s, k); it;
                      ++it) {
-                    cache_.lagrangian_hessian.insert(
+                    triplets.push_back(Eigen::Triplet<double>(
                         b.indices().indices()[it.row()],
-                        b.indices().indices()[it.col()]);
+                        b.indices().indices()[it.col()]));
                 }
             }
         } else {
             // Dense output - currently use block insert
             for (Index row = 0; row < c.dim_tangent_space(); ++row) {
                 for (Index col = 0; col <= row; ++col) {
-                    cache_.lagrangian_hessian.insert(
-                        b.indices().indices()[row], b.indices().indices()[col]);
+                    triplets.push_back(
+                        Eigen::Triplet<double>(b.indices().indices()[row],
+                                               b.indices().indices()[col]));
                 }
             }
         }
@@ -101,17 +114,18 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
             for (int k = 0; k < cdata.Hxx_s.outerSize(); ++k) {
                 for (SparseMatrix<double>::InnerIterator it(cdata.Hxx_s, k); it;
                      ++it) {
-                    cache_.lagrangian_hessian.insert(
+                    triplets.push_back(Eigen::Triplet<double>(
                         b.indices().indices()[it.row()],
-                        b.indices().indices()[it.col()]);
+                        b.indices().indices()[it.col()]));
                 }
             }
         } else {
             // Dense output - currently use block insert
             for (Index row = 0; row < c.dim_tangent_space(); ++row) {
                 for (Index col = 0; col <= row; ++col) {
-                    cache_.lagrangian_hessian.insert(
-                        b.indices().indices()[row], b.indices().indices()[col]);
+                    triplets.push_back(
+                        Eigen::Triplet<double>(b.indices().indices()[row],
+                                               b.indices().indices()[col]));
                 }
             }
         }
@@ -119,13 +133,17 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
     }
 
     // Convert to compressed form
-    cache_.lagrangian_hessian.makeCompressed();
+    cache_.lagrangian_hessian.setFromTriplets(triplets.begin(), triplets.end());
     // Assemble look-up map for indices
     for (int k = 0; k < cache_.lagrangian_hessian.outerSize(); ++k) {
+        int inner_nz_cnt = 0;
         for (SparseMatrix<double>::InnerIterator it(cache_.lagrangian_hessian,
                                                     k);
              it; ++it) {
-            lag_hes_nnz_map_.insert({{it.row(), it.col()}, it.index()});
+            lag_hes_nnz_map_.insert(
+                {{it.row(), it.col()},
+                 cache_.lagrangian_hessian.outerIndexPtr()[it.outer()] +
+                     inner_nz_cnt++});
         }
     }
     VLOG(10) << cache_.lagrangian_hessian;
@@ -202,16 +220,27 @@ bool ipopt_program_instance::eval_grad_f(Index n, const Number* x, bool new_x,
 
         if (cdata.gx_s.nonZeros()) {
             binding.get()->evalSparseGradients(xi, cdata, true, false);
+            for (int k = 0; k < cdata.gx_s.outerSize(); ++k) {
+                for (SparseVector<double>::InnerIterator it(cdata.gx_s, k); it;
+                     ++it) {
+                    VLOG(10)
+                        << it.row() << " " << it.col() << " " << it.index();
+
+                    cache_.objective_gradient[indices[it.row()]] +=
+                        obj.scaling_factor() * it.value();
+                }
+            }
+            VLOG(10) << "grd : " << cdata.gx_s.transpose();
 
         } else {
+            VLOG(10) << "Eval dense grad_f";
             // Evaluate objective gradient
             binding.get()->evalGradients(xi, cdata, true, false);
             cache_.objective_gradient(indices) +=
                 obj.scaling_factor() * cdata.gx;
+            VLOG(10) << "grd : " << cdata.gx.transpose();
         }
-
         i++;
-        VLOG(10) << "grd : " << cdata.gx.transpose();
     }
 
     // TODO - See about mapping these
@@ -295,6 +324,10 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
                 for (int k = 0; k < cdata.Jx_s.outerSize(); ++k) {
                     for (SparseMatrix<double>::InnerIterator it(cdata.Jx_s, k);
                          it; ++it) {
+                        VLOG(10)
+                            << it.row() << " " << it.col() << " " << it.index();
+                        VLOG(10) << jac_nnz_map_.at(
+                            {idx + it.row(), indices[it.col()]});
                         cache_.constraint_jacobian.valuePtr()[jac_nnz_map_.at(
                             {idx + it.row(), indices[it.col()]})] = it.value();
                     }
@@ -342,6 +375,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
                 cnt++;
             }
         }
+        return true;
 
     } else {
         bopt::profiler profiler("ipopt_program_instance: eval_h");
@@ -441,11 +475,11 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
     VLOG(10) << "get_bounds_info()";
 
     // Variable bounds
-    cache_.variables_lower_bound = program().variables_lower_bound();
-    cache_.variables_upper_bound = program().variables_upper_bound();
+    cache_.variables_lower_bound = program().variableLowerBounds();
+    cache_.variables_upper_bound = program().variableUpperBounds();
 
     // Bounding box constraints
-    for (const auto& b : program().BoundingBoxConstraints()) {
+    for (const auto& b : program().boundingBoxConstraints()) {
         auto& con = *b.get();
         const auto& indices = b.indices().indices();
         // for (int i = 0; i < indices.size(); ++i) {
@@ -493,13 +527,13 @@ bool ipopt_program_instance::get_starting_point(Index n, bool init_x, Number* x,
                                                 bool init_lambda,
                                                 Number* lambda) {
     VLOG(10) << "get_starting_point()";
-    VLOG(10) << "x0: " << program().variables_initial_value().transpose();
+    VLOG(10) << "x0: " << program().variableInitialValues().transpose();
 
     assert(init_z == false);
     assert(init_lambda == false);
 
     if (init_x) {
-        std::copy_n(program().variables_initial_value().data(), n, x);
+        std::copy_n(program().variableInitialValues().data(), n, x);
     }
 
     return true;

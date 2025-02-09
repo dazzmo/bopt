@@ -49,7 +49,7 @@ class solver {
 
     void solve() {}
 
-    const Eigen::VectorXd& primal_solution() const { return primal_solution_; }
+    const Eigen::VectorXd& getPrimalSolution() const { return primal_solution_; }
 
     // void evaluate_constraint()
    protected:

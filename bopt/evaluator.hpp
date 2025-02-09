@@ -36,7 +36,7 @@ class EvaluatorBaseTpl {
      * @param x The input vector (dim_input() x 1)
      * @param data
      */
-    void eval(const Eigen::Ref<const VectorXd> &x, EvaluatorData &data) {
+    void eval(const Eigen::Ref<const VectorXd> &x, EvaluatorData &data) const {
         BOPT_ASSERT(x.rows() == dim_input());
         BOPT_ASSERT(data.y.rows() == dim_output());
         checkVector(x);
@@ -53,9 +53,9 @@ class EvaluatorBaseTpl {
      * @param compute_p Compute ∂y/∂p
      */
     void evalJacobians(const Eigen::Ref<const VectorXd> &x, EvaluatorData &data,
-                       bool compute_x = true, bool compute_p = false) {
+                       bool compute_x = true, bool compute_p = false) const {
         BOPT_ASSERT(x.rows() == dim_input());
-        evalJacobiansImpl(x, data);
+        evalJacobiansImpl(x, data, compute_x, compute_p);
     }
 
     /**
@@ -68,9 +68,9 @@ class EvaluatorBaseTpl {
      */
     void evalSparseJacobians(const Eigen::Ref<const VectorXd> &x,
                              EvaluatorData &data, bool compute_x = true,
-                             bool compute_p = false) {
+                             bool compute_p = false) const {
         BOPT_ASSERT(x.rows() == dim_input());
-        evalSparseJacobiansImpl(x, data);
+        evalSparseJacobiansImpl(x, data, compute_x, compute_p);
     }
 
     /**
@@ -87,7 +87,7 @@ class EvaluatorBaseTpl {
     void evalHessians(const Eigen::Ref<const VectorXd> &x,
                       const Eigen::Ref<const VectorXd> &lambda,
                       EvaluatorData &data, bool compute_xx = true,
-                      bool compute_xp = false, bool compute_pp = false) {
+                      bool compute_xp = false, bool compute_pp = false) const {
         evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
     }
 
@@ -105,7 +105,8 @@ class EvaluatorBaseTpl {
     void evalSparseHessians(const Eigen::Ref<const VectorXd> &x,
                             const Eigen::Ref<const VectorXd> &lambda,
                             EvaluatorData &data, bool compute_xx = true,
-                            bool compute_xp = false, bool compute_pp = false) {
+                            bool compute_xp = false,
+                            bool compute_pp = false) const {
         evalSparseHessiansImpl(x, lambda, data, compute_xx, compute_xp,
                                compute_pp);
     }
@@ -115,15 +116,14 @@ class EvaluatorBaseTpl {
      * Jacobians ∂f/∂x and ∂f/∂p (if applicable).
      *
      */
-    virtual void setJacobianSparsityPatterns(EvaluatorData &data) {}
+    virtual void setJacobianSparsityPatterns(EvaluatorData &data) const {}
 
     /**
      * @brief Provides the sparsity patterns for the lower-triangular Hessians
      * ∂²(λᵀf)/∂x², ∂²(λᵀf)/∂x∂p,  ∂²(λᵀf)/∂p² ∀λ (if applicable)
      *
      */
-    virtual void setHessianSparsityPatterns(
-        EvaluatorBaseDataTpl<double> &data) {}
+    virtual void setHessianSparsityPatterns(EvaluatorData &data) const {}
 
     /**
      * @brief Dimension of the input variable vector, commonly denoted as x.
@@ -178,6 +178,7 @@ class EvaluatorBaseTpl {
         : dim_input_(n_inputs),
           dim_tangent_space_(n_inputs),
           dim_output_(n_outputs),
+          dim_parameter_(0),
           parameters_(VectorXd::Zero(0)),
           description_(description) {}
 
@@ -211,7 +212,7 @@ class EvaluatorBaseTpl {
      * @param out
      */
     virtual void evalImpl(const Eigen::Ref<const VectorXd> &x,
-                          EvaluatorData &data) = 0;
+                          EvaluatorData &data) const = 0;
 
     /**
      * \copydoc EvaluatorBaseTpl::evalJacobians(const Eigen::Ref<const
@@ -220,7 +221,7 @@ class EvaluatorBaseTpl {
      */
     virtual void evalJacobiansImpl(const Eigen::Ref<const VectorXd> &x,
                                    EvaluatorData &data, bool compute_x,
-                                   bool compute_p) {}
+                                   bool compute_p) const {}
 
     /**
      * \copydoc EvaluatorBaseTpl::evalSparseJacobians(const Eigen::Ref<const
@@ -229,7 +230,7 @@ class EvaluatorBaseTpl {
      */
     virtual void evalSparseJacobiansImpl(const Eigen::Ref<const VectorXd> &x,
                                          EvaluatorData &data, bool compute_x,
-                                         bool compute_p) {}
+                                         bool compute_p) const {}
     /**
      * \copydoc EvaluatorBaseTpl::evalHessians(const Eigen::Ref<const VectorXd>,
      * const Eigen::Ref<const VectorXd>, EvaluatorData &)
@@ -238,7 +239,7 @@ class EvaluatorBaseTpl {
     virtual void evalHessiansImpl(const Eigen::Ref<const VectorXd> &x,
                                   const Eigen::Ref<const VectorXd> &lambda,
                                   EvaluatorData &data, bool compute_xx,
-                                  bool compute_xp, bool compute_pp) {}
+                                  bool compute_xp, bool compute_pp) const {}
 
     /**
      * \copydoc EvaluatorBaseTpl::evalSparseHessians(const Eigen::Ref<const
@@ -248,7 +249,7 @@ class EvaluatorBaseTpl {
     virtual void evalSparseHessiansImpl(
         const Eigen::Ref<const VectorXd> &x,
         const Eigen::Ref<const VectorXd> &lambda, EvaluatorData &data,
-        bool compute_xx, bool compute_xp, bool compute_pp) {}
+        bool compute_xx, bool compute_xp, bool compute_pp) const {}
 
    private:
     /// @brief Dimension of the input vector
@@ -282,7 +283,10 @@ struct EvaluatorBaseDataTpl {
                                     e.dim_tangent_space())),
           Hxp(MatrixX<Scalar>::Zero(e.dim_tangent_space(), e.dim_parameter())),
           Hpp(MatrixX<Scalar>::Zero(e.dim_parameter(), e.dim_parameter())),
-          Jx_s(e.dim_output(), e.dim_tangent_space()) {
+          Jx_s(e.dim_output(), e.dim_tangent_space()),
+          Hxx_s(e.dim_input(), e.dim_input()),
+          Hxp_s(e.dim_input(), e.dim_input()),
+          Hpp_s(e.dim_input(), e.dim_input()) {
         e.setJacobianSparsityPatterns(*this);
         e.setHessianSparsityPatterns(*this);
     }

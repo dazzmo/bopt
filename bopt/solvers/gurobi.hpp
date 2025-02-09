@@ -45,7 +45,7 @@ class gurobi_solver_instance : public solver<double> {
         // GRBQuadExpr qdr_costs;
 
         // // Linear costs
-        // for (auto &binding : program.linear_costs()) {
+        // for (auto &binding : program.linearCosts()) {
         //     auto &a = binding.get()->buffer_a().dense;
         //     binding.get()->eval_a(a);
         //     for (int i = 0; i < a.rows(); ++i) {

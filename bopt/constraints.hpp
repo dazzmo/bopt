@@ -48,13 +48,13 @@ class ConstraintTpl : public EvaluatorBaseTpl<Scalar> {
     void setName(const std::string &name) { name_ = name; }
 
     // Derivatives with respect to parameters
-    void evalBounds(ConstraintData &data) { evalBoundsImpl(data); }
+    void evalBounds(ConstraintData &data) const { evalBoundsImpl(data); }
 
-    void evalBoundJacobians(ConstraintData &data) {
+    void evalBoundJacobians(ConstraintData &data) const {
         evalBoundJacobiansImpl(data);
     }
 
-    void evalBoundHessians(ConstraintData &data) {
+    void evalBoundHessians(ConstraintData &data) const {
         evalBoundHessiansImpl(data);
     }
 
@@ -83,11 +83,11 @@ class ConstraintTpl : public EvaluatorBaseTpl<Scalar> {
           name_(""),
           type_(ConstraintType::Equality) {}
 
-    virtual void evalBoundsImpl(ConstraintData &data) {}
+    virtual void evalBoundsImpl(ConstraintData &data) const {}
 
-    virtual void evalBoundJacobiansImpl(ConstraintData &data) {}
+    virtual void evalBoundJacobiansImpl(ConstraintData &data) const {}
 
-    virtual void evalBoundHessiansImpl(ConstraintData &data) {}
+    virtual void evalBoundHessiansImpl(ConstraintData &data) const {}
 
    private:
     std::string name_;
@@ -149,25 +149,26 @@ class LinearConstraintTpl : public ConstraintTpl<Scalar> {
     using LinearConstraintData = LinearConstraintDataTpl<Scalar>;
 
    public:
-    void evalCoefficientMatrix(LinearConstraintData &data) {
-        evalCoefficientMatrixImpl(data);
+    /**
+     * @brief Evaluates the vector coeffcient vector bₚ for the constraint lb ≤
+     * Ax ≤ ub
+     *
+     * @param A Coefficient matrix Aₚ
+     */
+    void evalCoefficients(const std::optional<Eigen::Ref<MatrixX<Scalar>>> &A =
+                              std::nullopt) const {
+        evalCoefficientsImpl(A);
     }
 
-    void evalSparseCoefficientMatrix(LinearConstraintData &data) {
-        evalSparseCoefficientMatrixImpl(data);
+    void evalSparseCoefficients(
+        const std::optional<Eigen::Ref<SparseMatrix<Scalar>>> &A =
+            std::nullopt) const {
+        evalSparseCoefficientsImpl(A);
     }
 
-    void evalConstantVector(LinearConstraintData &data) {
-        evalConstantVectorImpl(data);
+    void setCoefficientsSparsityPatterns(SparseMatrix<Scalar> &A) const {
+        setCoefficientsSparsityPatternsImpl(A);
     }
-
-    void evalSparseConstantVector(LinearConstraintData &data) {
-        evalSparseConstantVectorImpl(data);
-    }
-
-    virtual void setCoefficientMatrixSparsityPatterns(
-        LinearConstraintData &data) {}
-    virtual void seConstantVectorSparsityPatterns(LinearConstraintData &data) {}
 
    protected:
     LinearConstraintTpl(const Index &dim_input, const Index &dim_output)
@@ -175,11 +176,15 @@ class LinearConstraintTpl : public ConstraintTpl<Scalar> {
         this->setName("linear_constraint");
     }
 
-    virtual void evalCoefficientMatrixImpl(LinearConstraintData &data) {}
-    virtual void evalSparseCoefficientMatrixImpl(LinearConstraintData &data) {}
+    virtual void evalCoefficientsImpl(
+        std::optional<Eigen::Ref<MatrixX<Scalar>>> A = std::nullopt) const {}
 
-    virtual void evalConstantVectorImpl(LinearConstraintData &data) {}
-    virtual void evalSparseConstantVectorImpl(LinearConstraintData &data) {}
+    virtual void evalSparseCoefficientsImpl(
+        std::optional<Eigen::Ref<SparseMatrix<Scalar>>> A =
+            std::nullopt) const {}
+
+    virtual void setCoefficientsSparsityPatternsImpl(
+        SparseMatrix<Scalar> &A) const {}
 
    private:
 };
@@ -191,15 +196,12 @@ struct LinearConstraintDataTpl : public ConstraintDataTpl<Scalar> {
     LinearConstraintDataTpl(const LinearConstraintTpl<Scalar> &c)
         : ConstraintDataTpl<Scalar>(c),
           A(MatrixX<Scalar>::Zero(c.dim_output(), c.dim_tangent_space())),
-          b(VectorX<Scalar>::Zero(c.dim_output())),
-          A_s(c.dim_output(), c.dim_tangent_space()),
-          b_s(c.dim_output()) {}
+          A_s(c.dim_output(), c.dim_tangent_space()) {
+        c.setCoefficientsSparsityPatterns(A_s);
+    }
 
     MatrixX<Scalar> A;
-    VectorX<Scalar> b;
-
     SparseMatrix<Scalar> A_s;
-    SparseVector<Scalar> b_s;
 };
 
 typedef LinearConstraintDataTpl<double> LinearConstraintData;
@@ -229,7 +231,7 @@ class BoundingBoxConstraintTpl : public LinearConstraintTpl<Scalar> {
 
    protected:
     void evalImpl(const Eigen::Ref<const VectorXd> &x,
-                  EvaluatorBaseDataTpl<Scalar> &data) override {
+                  EvaluatorBaseDataTpl<Scalar> &data) const override {
         data.y = x;
     }
 

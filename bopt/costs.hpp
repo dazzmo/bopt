@@ -43,7 +43,7 @@ class CostTpl {
      * @param x The input vector (dim_input() x 1)
      * @param data
      */
-    void eval(const Eigen::Ref<const VectorXd> &x, CostData &data) {
+    void eval(const Eigen::Ref<const VectorXd> &x, CostData &data) const {
         BOPT_ASSERT(x.rows() == dim_input());
         checkVector(x);
         evalImpl(x, data);
@@ -58,9 +58,9 @@ class CostTpl {
      * @param compute_p Compute ∂f/∂p
      */
     void evalGradients(const Eigen::Ref<const VectorXd> &x, CostData &data,
-                       bool compute_x = true, bool compute_p = false) {
+                       bool compute_x = true, bool compute_p = false) const {
         BOPT_ASSERT(x.rows() == dim_input());
-        evalGradientsImpl(x, data);
+        evalGradientsImpl(x, data, compute_x, compute_p);
     }
 
     /**
@@ -73,9 +73,9 @@ class CostTpl {
      */
     void evalSparseGradients(const Eigen::Ref<const VectorXd> &x,
                              CostData &data, bool compute_x = true,
-                             bool compute_p = false) {
+                             bool compute_p = false) const {
         BOPT_ASSERT(x.rows() == dim_input());
-        evalSparseGradientsImpl(x, data);
+        evalSparseGradientsImpl(x, data, compute_x, compute_p);
     }
 
     /**
@@ -90,7 +90,7 @@ class CostTpl {
      */
     void evalHessians(const Eigen::Ref<const VectorXd> &x, CostData &data,
                       bool compute_xx = true, bool compute_xp = false,
-                      bool compute_pp = false) {
+                      bool compute_pp = false) const {
         evalHessiansImpl(x, data, compute_xx, compute_xp, compute_pp);
     }
 
@@ -106,7 +106,7 @@ class CostTpl {
      */
     void evalSparseHessians(const Eigen::Ref<const VectorXd> &x, CostData &data,
                             bool compute_xx = true, bool compute_xp = false,
-                            bool compute_pp = false) {
+                            bool compute_pp = false) const {
         evalSparseHessiansImpl(x, data, compute_xx, compute_xp, compute_pp);
     }
 
@@ -115,14 +115,14 @@ class CostTpl {
      * gradients ∂f/∂x and ∂f/∂p (if applicable).
      *
      */
-    virtual void setGradientSparsityPatterns(CostData &data) {}
+    virtual void setGradientSparsityPatterns(CostData &data) const {}
 
     /**
      * @brief Provides the sparsity patterns for the lower-triangular Hessians
      * ∂²f/∂x², ∂²f/∂x∂p, ∂²f/∂p² ∀λ (if applicable)
      *
      */
-    virtual void setHessianSparsityPatterns(CostData &data) {}
+    virtual void setHessianSparsityPatterns(CostData &data) const {}
 
     /**
      * @brief Dimension of the input variable vector, commonly denoted as x.
@@ -168,6 +168,9 @@ class CostTpl {
     CostTpl(const Index &n_inputs, const std::string &description = "")
         : dim_input_(n_inputs),
           dim_tangent_space_(n_inputs),
+          dim_parameter_(0),
+          name_(""),
+          scaling_factor_(1.0),
           parameters_(VectorXd::Zero(0)),
           description_(description) {}
 
@@ -194,7 +197,7 @@ class CostTpl {
      * @param out
      */
     virtual void evalImpl(const Eigen::Ref<const VectorXd> &x,
-                          CostData &data) = 0;
+                          CostData &data) const = 0;
 
     /**
      * \copydoc CostTpl::evalGradients(const Eigen::Ref<const
@@ -203,7 +206,7 @@ class CostTpl {
      */
     virtual void evalGradientsImpl(const Eigen::Ref<const VectorXd> &x,
                                    CostData &data, bool compute_x,
-                                   bool compute_p) {}
+                                   bool compute_p) const {}
 
     /**
      * \copydoc CostTpl::evalSparseGradients(const Eigen::Ref<const
@@ -212,7 +215,7 @@ class CostTpl {
      */
     virtual void evalSparseGradientsImpl(const Eigen::Ref<const VectorXd> &x,
                                          CostData &data, bool compute_x,
-                                         bool compute_p) {}
+                                         bool compute_p) const {}
     /**
      * \copydoc CostTpl::evalHessians(const Eigen::Ref<const VectorXd>,
      * const Eigen::Ref<const VectorXd>, CostData &)
@@ -220,7 +223,7 @@ class CostTpl {
      */
     virtual void evalHessiansImpl(const Eigen::Ref<const VectorXd> &x,
                                   CostData &data, bool compute_xx,
-                                  bool compute_xp, bool compute_pp) {}
+                                  bool compute_xp, bool compute_pp) const {}
 
     /**
      * \copydoc CostTpl::evalSparseHessians(const Eigen::Ref<const
@@ -229,7 +232,8 @@ class CostTpl {
      */
     virtual void evalSparseHessiansImpl(const Eigen::Ref<const VectorXd> &x,
                                         CostData &data, bool compute_xx,
-                                        bool compute_xp, bool compute_pp) {}
+                                        bool compute_xp,
+                                        bool compute_pp) const {}
 
    private:
     /// @brief Dimension of the input vector
@@ -317,42 +321,43 @@ class LinearCostTpl : public CostTpl<Scalar> {
     using LinearCostData = LinearCostDataTpl<Scalar>;
 
     /**
-     * @brief Evaluates the coefficient vector aₚ for the cost fₚ(x) = aₚᵀx + bₚ
+     * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) = aₚ
+     * x + bₚ
      *
-     * @param a
+     * @param a Coefficient vector aₚ
+     * @param b Constant bₚ
      */
-    void evalCoefficientVector(LinearCostData &data) {
-        return evalCoefficientVectorImpl(data);
+    void evalCoefficients(
+        const std::optional<Eigen::Ref<VectorX<Scalar>>> &a = std::nullopt,
+        const std::optional<Scalar> &b = std::nullopt) const {
+        evalCoefficientsImpl(a, b);
     }
 
-    /**
-     * @brief Evaluates the coefficient vector aₚ for the cost fₚ(x) = aₚᵀx + bₚ
-     *
-     * @param a
-     */
-    void evalSparseCofficientVector(LinearCostData &data) {
-        return evalSparseCoefficientVectorImpl(data);
+    void evalSparseCoefficients(
+        const std::optional<Eigen::Ref<SparseVector<Scalar>>> &a = std::nullopt,
+        const std::optional<Scalar> &b = std::nullopt) const {
+        evalSparseCoefficientsImpl(a, b);
     }
 
-    /**
-     * @brief Evaluates the constant value bₚ for the cost fₚ(x) = aₚᵀx + bₚ
-     *
-     * @param b
-     */
-    void evalConstantTerm(LinearCostData &data) {
-        return evalConstantTermImpl(data);
+    void setCoefficientsSparsityPatterns(SparseVector<Scalar> &a) const {
+        setCoefficientsSparsityPatternsImpl(a);
     }
-
-    virtual void setCoefficientVectorSparsityPatterns(LinearCostData &data) {}
 
    protected:
     LinearCostTpl(const Index &dim_input) : CostTpl<Scalar>(dim_input) {
         this->setName("linear_cost");
     }
 
-    virtual void evalCoefficientVectorImpl(LinearCostData &data) {}
-    virtual void evalSparseCoefficientVectorImpl(LinearCostData &data) {}
-    virtual void evalConstantTermImpl(LinearCostData &data) {}
+    virtual void evalCoefficientsImpl(
+        std::optional<Eigen::Ref<MatrixX<Scalar>>> a = std::nullopt,
+        std::optional<Scalar> b = std::nullopt) const {}
+
+    virtual void evalSparseCoefficientsImpl(
+        std::optional<Eigen::Ref<SparseVector<Scalar>>> a = std::nullopt,
+        std::optional<Scalar> b = std::nullopt) const {}
+
+    virtual void setCoefficientsSparsityPatternsImpl(
+        SparseVector<Scalar> &a) const {}
 
    private:
 };
@@ -361,6 +366,13 @@ typedef LinearCostTpl<double> LinearCost;
 
 template <typename Scalar>
 struct LinearCostDataTpl : public CostDataTpl<Scalar> {
+    LinearCostDataTpl(const LinearCostTpl<Scalar> &c)
+        : a(VectorX<Scalar>::Zero(c.dim_input())),
+          b(0),
+          a_s(SparseVector<Scalar>(c.dim_input())) {
+        c.setCoefficientSparsityPatterns(a_s);
+    }
+
     /// Dense coefficient vector a
     VectorX<Scalar> a;
     /// Constant term b
@@ -382,7 +394,7 @@ template <typename Scalar>
 struct QuadraticCostDataTpl;
 
 /**
- * @brief Quadratic cost of the form fₚ(x) = xᵀ Aₚ x + bₚᵀ x + cₚ
+ * @brief Quadratic cost of the form fₚ(x) = (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
  *
  */
 template <typename Scalar>
@@ -391,46 +403,26 @@ class QuadraticCostTpl : public CostTpl<Scalar> {
     using QuadraticCostData = QuadraticCostDataTpl<Scalar>;
 
     /**
-     * @brief Evaluates the lower-triangular coefficient matrix Aₚ for the cost
-     * fₚ(x) = xᵀ Aₚ x + bₚᵀ x + cₚ
+     * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) =
+     * (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
      *
-     * @param data
+     * @param A Lower triangular matrix Aₚ
+     * @param b Vector bₚ
+     * @param c Constant cₚ
      */
-    void evalCoefficientMatrix(QuadraticCostData &data) {
-        return evalCoefficientMatrixImpl(data);
+    void evalCoefficients(Eigen::Ref<MatrixX<Scalar>> A,
+                          Eigen::Ref<VectorX<Scalar>> b, Scalar c) const {
+        evalCoefficientsImpl(A, b, c);
     }
 
-    void evalSparseCoefficientMatrix(QuadraticCostData &data) {
-        return evalSparseCoefficientMatrixImpl(data);
+    void evalSparseCoefficients(SparseMatrix<Scalar> &A,
+                                SparseVector<Scalar> &b, Scalar &c) const {
+        evalSparseCoefficientsImpl(A, b, c);
     }
 
-    /**
-     * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) = xᵀ
-     * Aₚ x + bₚᵀ x + cₚ
-     *
-     * @param b
-     */
-    void evalCoefficientVector(QuadraticCostData &data) {
-        return evalCoefficientVectorImpl(data);
-    }
-
-    void evalSparseCoefficientVector(QuadraticCostData &data) {
-        return evalSparseCoefficientVectorImpl(data);
-    }
-
-    /**
-     * @brief Evaluates the constant cₚ for the cost fₚ(x) = xᵀ Aₚ x + bₚᵀ x +
-     * cₚ
-     *
-     * @param c
-     */
-    void evalConstantTerm(QuadraticCostData &data) {
-        return evalConstantTermImpl(data);
-    }
-
-    virtual void setCoefficientMatrixSparsityPatterns(QuadraticCostData &data) {
-    }
-    virtual void setCoefficientVectorSparsityPatterns(QuadraticCostData &data) {
+    void setCoefficientSparsityPatterns(SparseMatrix<Scalar> &A,
+                                        SparseVector<Scalar> &b) const {
+        setCoefficientSparsityPatternsImpl(A, b);
     }
 
    protected:
@@ -439,13 +431,16 @@ class QuadraticCostTpl : public CostTpl<Scalar> {
         this->setName("quadratic_cost");
     }
 
-    virtual void evalCoefficientMatrixImpl(QuadraticCostData &data) {}
-    virtual void evalSparseCoefficientMatrixImpl(QuadraticCostData &data) {}
+    virtual void evalCoefficientsImpl(Eigen::Ref<MatrixX<Scalar>> A,
+                                      Eigen::Ref<VectorX<Scalar>> b,
+                                      Scalar c) const {}
 
-    virtual void evalCoefficientVectorImpl(QuadraticCostData &data) {}
-    virtual void evalSparseCoefficientVectorImpl(QuadraticCostData &data) {}
+    virtual void evalSparseCoefficientsImpl(SparseMatrix<Scalar> &A,
+                                            SparseVector<Scalar> &b,
+                                            Scalar &c) const {}
 
-    virtual void evalConstantTermImpl(QuadraticCostData &data) {}
+    virtual void setCoefficientSparsityPatternsImpl(
+        SparseMatrix<Scalar> &A, SparseVector<Scalar> &b) const {}
 
    private:
 };
@@ -454,6 +449,15 @@ typedef QuadraticCostTpl<double> QuadraticCost;
 
 template <typename Scalar>
 struct QuadraticCostDataTpl : public CostDataTpl<Scalar> {
+    QuadraticCostDataTpl(const QuadraticCostTpl<Scalar> &c)
+        : A(MatrixX<Scalar>::Zero(c.dim_input(), c.dim_input())),
+          b(VectorX<Scalar>::Zero(c.dim_input())),
+          c(0),
+          A_s(SparseMatrix<Scalar>(c.dim_input(), c.dim_input())),
+          b_s(SparseVector<Scalar>(c.dim_input())) {
+        c.setCoefficientSparsityPatterns(A_s, b_s);
+    }
+
     /// Dense coefficient matrix A (lower triangular)
     MatrixX<Scalar> A;
     /// Dense coefficient vector b
