@@ -24,16 +24,6 @@ class ConstraintTpl : public EvaluatorTpl<Scalar> {
     using ConstraintData = ConstraintDataTpl<Scalar>;
 
    public:
-    /**
-     * @brief Construct a constraint from an existing evaluator
-     *
-     * @param evaluator
-     */
-    ConstraintTpl(const std::shared_ptr<EvaluatorTpl<Scalar>> &evaluator)
-        : EvaluatorTpl<Scalar>(evaluator),
-          name_(""),
-          type_(ConstraintType::Equality) {}
-
     const ConstraintType &type() const { return type_; }
 
     /**
@@ -73,8 +63,9 @@ class ConstraintTpl : public EvaluatorTpl<Scalar> {
         evalBoundHessiansImpl(lambda, data);
     }
 
-    void evalBoundSparseHessians(const Eigen::Ref<const VectorX<Scalar>> &lambda,
-                                 ConstraintData &data) const {
+    void evalBoundSparseHessians(
+        const Eigen::Ref<const VectorX<Scalar>> &lambda,
+        ConstraintData &data) const {
         evalBoundSparseHessiansImpl(lambda, data);
     }
 
@@ -101,23 +92,58 @@ class ConstraintTpl : public EvaluatorTpl<Scalar> {
     ConstraintTpl(const Index &dim_input, const Index &dim_output)
         : EvaluatorTpl<Scalar>(dim_input, dim_output),
           name_(""),
-          type_(ConstraintType::Equality) {}
+          type_(ConstraintType::Equality),
+          ptr_(nullptr) {}
 
-    virtual void evalBoundsImpl(ConstraintData &data) const {}
+    /**
+     * @brief Construct a constraint from an existing evaluator
+     *
+     * @param evaluator
+     */
+    ConstraintTpl(const std::shared_ptr<EvaluatorTpl<Scalar>> &evaluator)
+        : EvaluatorTpl<Scalar>(evaluator),
+          name_(""),
+          type_(ConstraintType::Equality),
+          ptr_(nullptr) {}
 
-    virtual void evalBoundJacobiansImpl(ConstraintData &data) const {}
-    virtual void evalBoundSparseJacobiansImpl(ConstraintData &data) const {}
+    /**
+     * @brief Construct a constraint from an existing constraint
+     *
+     * @param evaluator
+     */
+    ConstraintTpl(const std::shared_ptr<ConstraintTpl<Scalar>> &constraint)
+        : EvaluatorTpl<Scalar>(constraint),
+          name_(""),
+          type_(ConstraintType::Equality),
+          ptr_(constraint) {}
+
+    virtual void evalBoundsImpl(ConstraintData &data) const {
+        if (ptr_) ptr_->evalBounds(data);
+    }
+
+    virtual void evalBoundJacobiansImpl(ConstraintData &data) const {
+        if (ptr_) ptr_->evalBoundJacobians(data);
+    }
+    virtual void evalBoundSparseJacobiansImpl(ConstraintData &data) const {
+        if (ptr_) ptr_->evalBoundSparseJacobians(data);
+    }
 
     virtual void evalBoundHessiansImpl(
         const Eigen::Ref<const VectorX<Scalar>> &lambda,
-        ConstraintData &data) const {}
+        ConstraintData &data) const {
+        if (ptr_) ptr_->evalBoundHessians(lambda, data);
+    }
     virtual void evalBoundSparseHessiansImpl(
         const Eigen::Ref<const VectorX<Scalar>> &lambda,
-        ConstraintData &data) const {}
+        ConstraintData &data) const {
+        if (ptr_) ptr_->evalBoundSparseHessians(lambda, data);
+    }
 
    private:
     std::string name_;
     ConstraintType type_;
+
+    std::shared_ptr<ConstraintTpl> ptr_;
 };
 
 typedef ConstraintTpl<double> Constraint;
@@ -196,6 +222,12 @@ class LinearConstraintTpl : public ConstraintTpl<Scalar> {
    protected:
     LinearConstraintTpl(const Index &dim_input, const Index &dim_output)
         : ConstraintTpl<Scalar>(dim_input, dim_output) {
+        this->setName("linear_constraint");
+    }
+
+    LinearConstraintTpl(
+        const std::shared_ptr<ConstraintTpl<Scalar>> &constraint)
+        : ConstraintTpl<Scalar>(constraint) {
         this->setName("linear_constraint");
     }
 

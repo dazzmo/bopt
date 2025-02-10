@@ -114,68 +114,61 @@ class ConstraintTpl : public bopt::ConstraintTpl<Scalar> {
 
 typedef ConstraintTpl<double> Constraint;
 
-template <typename Scalar>
-struct LinearConstraintDataTpl;
-
 /**
  * @brief Constraint of the form lb ≤ Ax ≤ ub
  *
  */
 template <typename Scalar>
-class LinearConstraintTpl : public ConstraintTpl<Scalar> {
+class LinearConstraintTpl : public bopt::LinearConstraintTpl<Scalar> {
     using LinearConstraintData = LinearConstraintDataTpl<Scalar>;
 
    public:
-    /**
-     * @brief Evaluates the vector coeffcient vector bₚ for the constraint lb ≤
-     * Ax ≤ ub
-     *
-     * @param A Coefficient matrix Aₚ
-     */
-    void evalCoefficients(LinearConstraintData &data) const {
-        evalCoefficientsImpl(data);
-    }
+    LinearConstraintTpl(const sym_t &expression, const sym_vector_t &x,
+                        const sym_vector_t &p, const sym_vector_t &lb,
+                        const sym_vector_t &ub, bool codegen = false)
+        : bopt::LinearConstraintTpl<Scalar>(
+              std::make_shared<ConstraintTpl<Scalar>>(expression, x, p, lb, ub,
+                                                      codegen)) {
+        sym_t A, b;
+        // Check expression is linear
+        sym_t::linear_coeff(expression, x, A, b, true);
+        BOPT_ASSERT(b.is_zero());
 
-    void evalSparseCoefficients(LinearConstraintData &data) const {
-        evalSparseCoefficientsImpl(data);
-    }
+        // Create function
+        A_ = function_t("dense_A", {p}, {sym_t::densify(A)});
+        A_s_ = function_t("sparse_A", {p}, {A});
 
-    void setCoefficientSparsityPatterns(LinearConstraintData &data) const {
-        setCoefficientSparsityPatternsImpl(data);
+        // If function is to be code-generated, do so.
+        if (codegen) {
+            A_ = bopt::casadi::codegen(A_);
+            A_s_ = bopt::casadi::codegen(A_s_);
+        }
     }
 
    protected:
-    LinearConstraintTpl(const Index &dim_input, const Index &dim_output)
-        : ConstraintTpl<Scalar>(dim_input, dim_output) {
-        this->setName("linear_constraint");
+    virtual void evalCoefficientsImpl(LinearConstraintData &data) const {
+        std::vector<Scalar *> out(1);
+        out[0] = data.A.data();
+        A_({this->parameters().data()}, out);
     }
 
-    virtual void evalCoefficientsImpl(LinearConstraintData &data) const {}
-
-    virtual void evalSparseCoefficientsImpl(LinearConstraintData &data) const {}
+    virtual void evalSparseCoefficientsImpl(LinearConstraintData &data) const {
+        std::vector<Scalar *> out(1);
+        out[0] = data.A_s.valuePtr();
+        A_s_({this->parameters().data()}, out);
+    }
 
     virtual void setCoefficientSparsityPatternsImpl(
-        LinearConstraintData &data) const {}
+        LinearConstraintData &data) const {
+        set_eigen_sparsity(data.A_s, A_s_.sparsity_out(0));
+    }
 
    private:
+    function_t A_;
+    function_t A_s_;
 };
 
 typedef LinearConstraintTpl<double> LinearConstraint;
-
-template <typename Scalar>
-struct LinearConstraintDataTpl : public ConstraintDataTpl<Scalar> {
-    LinearConstraintDataTpl(const LinearConstraintTpl<Scalar> &c)
-        : ConstraintDataTpl<Scalar>(c),
-          A(MatrixX<Scalar>::Zero(c.dim_output(), c.dim_tangent_space())),
-          A_s(c.dim_output(), c.dim_tangent_space()) {
-        c.setCoefficientSparsityPatterns(*this);
-    }
-
-    MatrixX<Scalar> A;
-    SparseMatrix<Scalar> A_s;
-};
-
-typedef LinearConstraintDataTpl<double> LinearConstraintData;
 
 /**
  * @brief Constraint of the form lower_bound() <= x <= upper_bound()

@@ -56,18 +56,13 @@ TEST(Casadi, Evaluator) {
     VLOG(10) << data.Jx_s;
     VLOG(10) << data.Jp_s;
 
-    auto constraint = bopt::Constraint(expr);
-
-    {
-        bopt::profiler profiler("constraint eval");
-        constraint.eval(v, data);
-    }
-
     // Create a constraint with parameterised bounds
     sym lb = 2.0 * p + 5.0;
     sym ub = 2.0 * p - 5.0;
 
-    bopt::Constraint c = bopt::casadi::Constraint(ex, x, p, lb, ub, true);
+    bopt::Constraint c = bopt::casadi::Constraint(ex, x, p, lb, ub, true);  
+
+    bopt::LinearConstraint linc = bopt::casadi::LinearConstraint(ex, x, p, lb, ub, true);
 }
 
 #endif  // BOPT_WITH_CASADI
