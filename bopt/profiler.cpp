@@ -15,7 +15,7 @@ profiler::profiler() {
         double min = boost::accumulators::extract::min(p->second);
         std::cout << p->first.c_str() << '\t'
                   << boost::accumulators::count(p->second) << '\t' << av << '\t'
-                  << stdev << '\t' << min << '\t' << max;
+                  << stdev << '\t' << min << '\t' << max << '\n';
     }
 #endif
 }

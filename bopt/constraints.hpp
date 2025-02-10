@@ -24,6 +24,16 @@ class ConstraintTpl : public EvaluatorTpl<Scalar> {
     using ConstraintData = ConstraintDataTpl<Scalar>;
 
    public:
+    /**
+     * @brief Construct a constraint from an existing evaluator
+     *
+     * @param evaluator
+     */
+    ConstraintTpl(const std::shared_ptr<EvaluatorTpl<Scalar>> &evaluator)
+        : EvaluatorTpl<Scalar>(evaluator),
+          name_(""),
+          type_(ConstraintType::Equality) {}
+
     const ConstraintType &type() const { return type_; }
 
     /**
@@ -54,8 +64,18 @@ class ConstraintTpl : public EvaluatorTpl<Scalar> {
         evalBoundJacobiansImpl(data);
     }
 
-    void evalBoundHessians(ConstraintData &data) const {
-        evalBoundHessiansImpl(data);
+    void evalBoundSparseJacobians(ConstraintData &data) const {
+        evalBoundSparseJacobiansImpl(data);
+    }
+
+    void evalBoundHessians(const Eigen::Ref<const VectorX<Scalar>> &lambda,
+                           ConstraintData &data) const {
+        evalBoundHessiansImpl(lambda, data);
+    }
+
+    void evalBoundSparseHessians(const Eigen::Ref<const VectorX<Scalar>> &lambda,
+                                 ConstraintData &data) const {
+        evalBoundSparseHessiansImpl(lambda, data);
     }
 
     /**
@@ -86,8 +106,14 @@ class ConstraintTpl : public EvaluatorTpl<Scalar> {
     virtual void evalBoundsImpl(ConstraintData &data) const {}
 
     virtual void evalBoundJacobiansImpl(ConstraintData &data) const {}
+    virtual void evalBoundSparseJacobiansImpl(ConstraintData &data) const {}
 
-    virtual void evalBoundHessiansImpl(ConstraintData &data) const {}
+    virtual void evalBoundHessiansImpl(
+        const Eigen::Ref<const VectorX<Scalar>> &lambda,
+        ConstraintData &data) const {}
+    virtual void evalBoundSparseHessiansImpl(
+        const Eigen::Ref<const VectorX<Scalar>> &lambda,
+        ConstraintData &data) const {}
 
    private:
     std::string name_;

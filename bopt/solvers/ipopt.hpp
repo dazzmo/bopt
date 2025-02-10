@@ -15,39 +15,39 @@ namespace solvers {
 
 struct ipopt_data {
     ipopt_data(const bopt_index& n, const bopt_index& m) {
-        primal_vector = Eigen::VectorXd::Zero(n);
-        dual_vector = Eigen::VectorXd::Zero(m);
+        primal_vector = VectorXd::Zero(n);
+        dual_vector = VectorXd::Zero(m);
         variables_lower_bound =
-            Eigen::VectorXd::Constant(n, -std::numeric_limits<double>::max());
+            VectorXd::Constant(n, -std::numeric_limits<double>::max());
         variables_upper_bound =
-            Eigen::VectorXd::Constant(n, std::numeric_limits<double>::max());
+            VectorXd::Constant(n, std::numeric_limits<double>::max());
 
-        objective_gradient = Eigen::VectorXd::Zero(n);
+        objective_gradient = VectorXd::Zero(n);
 
-        constraint_vector = Eigen::VectorXd::Zero(m);
-        constraint_lower_bound = Eigen::VectorXd::Zero(m);
-        constraint_upper_bound = Eigen::VectorXd::Zero(m);
+        constraint_vector = VectorXd::Zero(m);
+        constraint_lower_bound = VectorXd::Zero(m);
+        constraint_upper_bound = VectorXd::Zero(m);
 
         constraint_jacobian.resize(m, n);
         lagrangian_hessian.resize(n, n);
     }
 
-    Eigen::VectorXd primal_vector;
-    Eigen::VectorXd dual_vector;
+    VectorXd primal_vector;
+    VectorXd dual_vector;
 
     double objective;
-    Eigen::VectorXd objective_gradient;
+    VectorXd objective_gradient;
 
-    Eigen::SparseMatrix<double> lagrangian_hessian;
+    SparseMatrix<double> lagrangian_hessian;
 
-    Eigen::VectorXd constraint_vector;
-    Eigen::SparseMatrix<double> constraint_jacobian;
+    VectorXd constraint_vector;
+    SparseMatrix<double> constraint_jacobian;
 
-    Eigen::VectorXd constraint_lower_bound;
-    Eigen::VectorXd constraint_upper_bound;
+    VectorXd constraint_lower_bound;
+    VectorXd constraint_upper_bound;
 
-    Eigen::VectorXd variables_lower_bound;
-    Eigen::VectorXd variables_upper_bound;
+    VectorXd variables_lower_bound;
+    VectorXd variables_upper_bound;
 };
 
 class ipopt_program_instance : public Ipopt::TNLP {
@@ -98,8 +98,11 @@ class ipopt_program_instance : public Ipopt::TNLP {
     std::vector<CostData> cost_data_;
     std::vector<ConstraintData> constraint_data_;
 
+    typedef std::pair<int, int> SparseMatrixIndices;
+
+    // Hash for pairs of ints (to allow hashtable for (x,y) indices in sparse matrices)
     struct hash_pair {
-        std::size_t operator()(const std::pair<int, int>& p) const {
+        std::size_t operator()(const SparseMatrixIndices& p) const {
             std::size_t seed = 0;
             boost::hash_combine(seed, p.first);
             boost::hash_combine(seed, p.second);
@@ -107,8 +110,8 @@ class ipopt_program_instance : public Ipopt::TNLP {
         }
     };
 
-    std::unordered_map<std::pair<int, int>, int, hash_pair> jac_nnz_map_;
-    std::unordered_map<std::pair<int, int>, int, hash_pair> lag_hes_nnz_map_;
+    std::unordered_map<SparseMatrixIndices, int, hash_pair> jac_nnz_map_;
+    std::unordered_map<SparseMatrixIndices, int, hash_pair> lag_hes_nnz_map_;
 
     MathematicalProgram& program_;
     MathematicalProgram& program() { return program_; }

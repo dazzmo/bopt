@@ -29,6 +29,15 @@ class EvaluatorTpl {
    public:
     using EvaluatorData = EvaluatorDataTpl<Scalar>;
 
+    EvaluatorTpl(const std::shared_ptr<EvaluatorTpl<Scalar>> &ptr)
+        : ptr_(ptr),
+          dim_input_(ptr->dim_input()),
+          dim_tangent_space_(ptr->dim_tangent_space()),
+          dim_output_(ptr->dim_output()),
+          dim_parameter_(ptr->dim_parameter()),
+          parameters_(VectorX<Scalar>::Zero(ptr->dim_parameter())),
+          description_(ptr->description()) {}
+
     /**
      * @brief Evaluates the expression y = fₚ(x) using variables x and
      * parameters p (set through \ref EvaluatorTpl::setParameters()).
@@ -177,7 +186,8 @@ class EvaluatorTpl {
    protected:
     EvaluatorTpl(const Index &n_inputs, const Index &n_outputs,
                  const std::string &description = "")
-        : dim_input_(n_inputs),
+        : ptr_(nullptr),
+          dim_input_(n_inputs),
           dim_tangent_space_(n_inputs),
           dim_output_(n_outputs),
           dim_parameter_(0),
@@ -217,7 +227,9 @@ class EvaluatorTpl {
      * @param out
      */
     virtual void evalImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
-                          EvaluatorData &data) const = 0;
+                          EvaluatorData &data) const {
+        if (ptr_) ptr_->eval(x, data);
+    }
 
     /**
      * \copydoc EvaluatorTpl::evalJacobians(const Eigen::Ref<const
@@ -226,7 +238,9 @@ class EvaluatorTpl {
      */
     virtual void evalJacobiansImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
                                    EvaluatorData &data, bool compute_x,
-                                   bool compute_p) const {}
+                                   bool compute_p) const {
+        if (ptr_) ptr_->evalJacobians(x, data, compute_x, compute_p);
+    }
 
     /**
      * \copydoc EvaluatorTpl::evalSparseJacobians(const Eigen::Ref<const
@@ -235,7 +249,9 @@ class EvaluatorTpl {
      */
     virtual void evalSparseJacobiansImpl(
         const Eigen::Ref<const VectorX<Scalar>> &x, EvaluatorData &data,
-        bool compute_x, bool compute_p) const {}
+        bool compute_x, bool compute_p) const {
+        if (ptr_) ptr_->evalSparseJacobians(x, data, compute_x, compute_p);
+    }
     /**
      * \copydoc EvaluatorTpl::evalHessians(const Eigen::Ref<const
      * VectorX<Scalar>>, const Eigen::Ref<const VectorX<Scalar>>, EvaluatorData
@@ -245,7 +261,11 @@ class EvaluatorTpl {
     virtual void evalHessiansImpl(
         const Eigen::Ref<const VectorX<Scalar>> &x,
         const Eigen::Ref<const VectorX<Scalar>> &lambda, EvaluatorData &data,
-        bool compute_xx, bool compute_xp, bool compute_pp) const {}
+        bool compute_xx, bool compute_xp, bool compute_pp) const {
+        if (ptr_)
+            ptr_->evalHessians(x, lambda, data, compute_xx, compute_xp,
+                               compute_pp);
+    }
 
     /**
      * \copydoc EvaluatorTpl::evalSparseHessians(const Eigen::Ref<const
@@ -256,9 +276,16 @@ class EvaluatorTpl {
     virtual void evalSparseHessiansImpl(
         const Eigen::Ref<const VectorX<Scalar>> &x,
         const Eigen::Ref<const VectorX<Scalar>> &lambda, EvaluatorData &data,
-        bool compute_xx, bool compute_xp, bool compute_pp) const {}
+        bool compute_xx, bool compute_xp, bool compute_pp) const {
+        if (ptr_)
+            ptr_->evalSparseHessians(x, lambda, data, compute_xx, compute_xp,
+                                     compute_pp);
+    }
 
    private:
+    /// Shared pointer for evaluator instance (if made from a copy)
+    std::shared_ptr<EvaluatorTpl<Scalar>> ptr_;
+
     /// @brief Dimension of the input vector
     Index dim_input_;
     Index dim_tangent_space_;
