@@ -147,15 +147,11 @@ class LinearConstraintTpl : public bopt::LinearConstraintTpl<Scalar> {
 
    protected:
     virtual void evalCoefficientsImpl(LinearConstraintData &data) const {
-        std::vector<Scalar *> out(1);
-        out[0] = data.A.data();
-        A_({this->parameters().data()}, out);
+        A_({this->parameters().data()}, {data.A.data()});
     }
 
     virtual void evalSparseCoefficientsImpl(LinearConstraintData &data) const {
-        std::vector<Scalar *> out(1);
-        out[0] = data.A_s.valuePtr();
-        A_s_({this->parameters().data()}, out);
+        A_s_({this->parameters().data()}, {data.A_s.valuePtr()});
     }
 
     virtual void setCoefficientSparsityPatternsImpl(

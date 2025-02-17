@@ -49,9 +49,11 @@ class EvaluatorTpl {
               EvaluatorData &data) const {
         BOPT_ASSERT(x.rows() == dim_input());
         BOPT_ASSERT(data.y.rows() == dim_output());
-        checkVector(x);
+        // Ensure vector is valid
+        CHECK(x.allFinite() && !x.hasNaN() && x.size());
         evalImpl(x, data);
-        checkVector(data.y);
+        // Ensure output is valid
+        CHECK(data.y.allFinite() && !data.y.hasNaN() && data.y.size());
     }
 
     /**
@@ -99,6 +101,8 @@ class EvaluatorTpl {
                       const Eigen::Ref<const VectorX<Scalar>> &lambda,
                       EvaluatorData &data, bool compute_xx = true,
                       bool compute_xp = false, bool compute_pp = false) const {
+        BOPT_ASSERT(x.rows() == dim_input());
+        BOPT_ASSERT(lambda.rows() == dim_output());
         evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
     }
 
@@ -118,6 +122,8 @@ class EvaluatorTpl {
                             EvaluatorData &data, bool compute_xx = true,
                             bool compute_xp = false,
                             bool compute_pp = false) const {
+        BOPT_ASSERT(x.rows() == dim_input());
+        BOPT_ASSERT(lambda.rows() == dim_output());
         evalSparseHessiansImpl(x, lambda, data, compute_xx, compute_xp,
                                compute_pp);
     }

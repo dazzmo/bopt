@@ -115,14 +115,18 @@ class CostTpl {
      * gradients ∂f/∂x and ∂f/∂p (if applicable).
      *
      */
-    virtual void setGradientSparsityPatterns(CostData &data) const {}
+    virtual void setGradientSparsityPatterns(CostData &data) const {
+        if (ptr_) ptr_->setGradientSparsityPatterns(data);
+    }
 
     /**
      * @brief Provides the sparsity patterns for the lower-triangular Hessians
      * ∂²f/∂x², ∂²f/∂x∂p, ∂²f/∂p² ∀λ (if applicable)
      *
      */
-    virtual void setHessianSparsityPatterns(CostData &data) const {}
+    virtual void setHessianSparsityPatterns(CostData &data) const {
+        if (ptr_) ptr_->setHessianSparsityPatterns(data);
+    }
 
     /**
      * @brief Dimension of the input variable vector, commonly denoted as x.
@@ -162,6 +166,7 @@ class CostTpl {
     void setParameters(const Eigen::Ref<const VectorXd> &p) {
         BOPT_ASSERT(p.size() == dim_parameter());
         parameters_ = p;
+        if (ptr_) ptr_->setParameters(p);
     }
 
    protected:
@@ -172,7 +177,18 @@ class CostTpl {
           name_(""),
           scaling_factor_(1.0),
           parameters_(VectorXd::Zero(0)),
-          description_(description) {}
+          description_(description),
+          ptr_(nullptr) {}
+
+    CostTpl(const std::shared_ptr<CostTpl<Scalar>> &ptr)
+        : dim_input_(ptr->dim_input()),
+          dim_tangent_space_(ptr->dim_input()),
+          dim_parameter_(ptr->dim_parameter()),
+          name_(ptr->name()),
+          scaling_factor_(ptr->scaling_factor()),
+          parameters_(ptr->parameters()),
+          description_(ptr->description()),
+          ptr_(ptr) {}
 
     /**
      * @brief Sets the dimension of the tangent space for the input variables.
@@ -197,7 +213,10 @@ class CostTpl {
      * @param out
      */
     virtual void evalImpl(const Eigen::Ref<const VectorXd> &x,
-                          CostData &data) const = 0;
+                          CostData &data) const {
+        VLOG(10) << "In bopt::CostTpl::evalImpl";
+        if (ptr_) ptr_->eval(x, data);
+    }
 
     /**
      * \copydoc CostTpl::evalGradients(const Eigen::Ref<const
@@ -206,7 +225,9 @@ class CostTpl {
      */
     virtual void evalGradientsImpl(const Eigen::Ref<const VectorXd> &x,
                                    CostData &data, bool compute_x,
-                                   bool compute_p) const {}
+                                   bool compute_p) const {
+        if (ptr_) ptr_->evalGradients(x, data, compute_x, compute_p);
+    }
 
     /**
      * \copydoc CostTpl::evalSparseGradients(const Eigen::Ref<const
@@ -215,7 +236,9 @@ class CostTpl {
      */
     virtual void evalSparseGradientsImpl(const Eigen::Ref<const VectorXd> &x,
                                          CostData &data, bool compute_x,
-                                         bool compute_p) const {}
+                                         bool compute_p) const {
+        if (ptr_) ptr_->evalSparseGradients(x, data, compute_x, compute_p);
+    }
     /**
      * \copydoc CostTpl::evalHessians(const Eigen::Ref<const VectorXd>,
      * const Eigen::Ref<const VectorXd>, CostData &)
@@ -223,7 +246,10 @@ class CostTpl {
      */
     virtual void evalHessiansImpl(const Eigen::Ref<const VectorXd> &x,
                                   CostData &data, bool compute_xx,
-                                  bool compute_xp, bool compute_pp) const {}
+                                  bool compute_xp, bool compute_pp) const {
+        if (ptr_)
+            ptr_->evalHessians(x, data, compute_xx, compute_xp, compute_pp);
+    }
 
     /**
      * \copydoc CostTpl::evalSparseHessians(const Eigen::Ref<const
@@ -233,7 +259,11 @@ class CostTpl {
     virtual void evalSparseHessiansImpl(const Eigen::Ref<const VectorXd> &x,
                                         CostData &data, bool compute_xx,
                                         bool compute_xp,
-                                        bool compute_pp) const {}
+                                        bool compute_pp) const {
+        if (ptr_)
+            ptr_->evalSparseHessians(x, data, compute_xx, compute_xp,
+                                     compute_pp);
+    }
 
    private:
     /// @brief Dimension of the input vector
@@ -246,6 +276,8 @@ class CostTpl {
 
     VectorXd parameters_;
     std::string description_;
+
+    std::shared_ptr<CostTpl> ptr_;
 };
 
 typedef CostTpl<double> Cost;
@@ -344,6 +376,11 @@ class LinearCostTpl : public CostTpl<Scalar> {
         this->setName("linear_cost");
     }
 
+    LinearCostTpl(const std::shared_ptr<CostTpl<Scalar>> &cost)
+        : CostTpl<Scalar>(cost) {
+        this->setName("linear_cost");
+    }
+
     virtual void evalCoefficientsImpl(LinearCostData &data) const {}
 
     virtual void evalSparseCoefficientsImpl(LinearCostData &data) const {}
@@ -418,6 +455,11 @@ class QuadraticCostTpl : public CostTpl<Scalar> {
    protected:
     QuadraticCostTpl<Scalar>(const Index &dim_input)
         : CostTpl<Scalar>(dim_input) {
+        this->setName("quadratic_cost");
+    }
+
+    QuadraticCostTpl<Scalar>(const std::shared_ptr<CostTpl<Scalar>> &cost)
+        : CostTpl<Scalar>(cost) {
         this->setName("quadratic_cost");
     }
 

@@ -52,7 +52,7 @@ class MathematicalProgram {
      *
      * @return bopt_index Number of cost functions.
      */
-    bopt_index n_costs() const { return get_all_costs().size(); }
+    bopt_index n_costs() const { return getAllCosts().size(); }
 
     /**
      * @brief Gets the number of constraints in the program.
@@ -102,15 +102,15 @@ class MathematicalProgram {
         return v;
     }
 
+    const std::vector<Variable> &getAllVariables() const { return variables_; }
+
     Eigen::Index getVariableIndex(const Variable &v) const {
         const auto &it = variable_index_map_.find(v.id());
         if (it != variable_index_map_.end()) {
             return it->second;
         }
-        std::ostringstream ss;
-        ss << "Variable \'" << v << "\' does not exist in program: \'"
-           << this->name() << '\'';
-        throw std::runtime_error(ss.str());
+        LOG(FATAL) << "Variable \'" << v << "\' does not exist in program: \'"
+                   << this->name() << '\'';
     }
 
     std::vector<Eigen::Index> getVariableIndices(
@@ -135,20 +135,20 @@ class MathematicalProgram {
     }
 
     void addLinearCost(const typename std::shared_ptr<LinearCost> &cost,
-                         const Eigen::Ref<const VariableVector> &x) {
+                       const Eigen::Ref<const VariableVector> &x) {
         // Create binding
         costs_linear_.push_back(
             Binding<LinearCost>(cost, getVariableIndices(x)));
     }
 
     void addQuadraticCost(const typename std::shared_ptr<QuadraticCost> &cost,
-                            const Eigen::Ref<const VariableVector> &x) {
+                          const Eigen::Ref<const VariableVector> &x) {
         // Create binding
         costs_quadratic_.push_back(
             Binding<QuadraticCost>(cost, getVariableIndices(x)));
     }
 
-    std::vector<Binding<Cost>> &generic_costs() { return costs_generic_; }
+    std::vector<Binding<Cost>> &genericCosts() { return costs_generic_; }
 
     std::vector<Binding<LinearCost>> &linearCosts() { return costs_linear_; }
 
@@ -156,7 +156,7 @@ class MathematicalProgram {
         return costs_quadratic_;
     }
 
-    std::vector<Binding<Cost>> get_all_costs() const {
+    std::vector<Binding<Cost>> getAllCosts() const {
         std::vector<Binding<Cost>> vec;
         vec.insert(vec.begin(), costs_generic_.begin(), costs_generic_.end());
         vec.insert(vec.end(), costs_linear_.begin(), costs_linear_.end());
@@ -186,7 +186,6 @@ class MathematicalProgram {
     void addBoundingBoxConstraint(
         const std::shared_ptr<BoundingBoxConstraint> &constraint,
         const Eigen::Ref<const VariableVector> &x) {
-        n_constraints_ += constraint->dim_output();
         // Create binding
         constraints_bounding_box_.push_back(
             Binding<BoundingBoxConstraint>(constraint, getVariableIndices(x)));
@@ -204,6 +203,13 @@ class MathematicalProgram {
         return constraints_bounding_box_;
     }
 
+    /**
+     * @brief Returns a vector of all constraint bindings.
+     *
+     * @note This does not include BoundingBox constraints, or any matrix-based
+     * constraints
+     * @return std::vector<Binding<Constraint>>
+     */
     std::vector<Binding<Constraint>> getAllConstraints() const {
         std::vector<Binding<Constraint>> vec;
         vec.insert(vec.begin(), constraints_generic_.begin(),
@@ -241,5 +247,7 @@ class MathematicalProgram {
     std::vector<Binding<LinearCost>> costs_linear_ = {};
     std::vector<Binding<QuadraticCost>> costs_quadratic_ = {};
 };
+
+std::ostream &operator<<(std::ostream &os, const MathematicalProgram &program);
 
 }  // namespace bopt

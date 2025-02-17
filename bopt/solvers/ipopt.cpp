@@ -10,7 +10,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
       program_(program),
       cache_(program.n_variables(), program.n_constraints()) {
     // Create data
-    costs_ = program.get_all_costs();
+    costs_ = program.getAllCosts();
     constraints_ = program.getAllConstraints();
 
     VLOG(10) << "Data";
@@ -569,7 +569,10 @@ ipopt_solver::ipopt_solver(MathematicalProgram& program) : solver(program) {
 int ipopt_solver::solve() {
     // Ask Ipopt to solve the problem
     Ipopt::ApplicationReturnStatus status;
-    status = app_->OptimizeTNLP(nlp_);
+    {
+        profiler profiler("ipopt_solver solve");
+        status = app_->OptimizeTNLP(nlp_);
+    }
 
     if (status == Ipopt::ApplicationReturnStatus::Solve_Succeeded) {
         LOG(INFO) << "*** The problem solved!" << std::endl;

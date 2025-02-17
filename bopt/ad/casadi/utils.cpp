@@ -65,6 +65,7 @@ void set_eigen_sparsity(Eigen::SparseMatrix<double> &out,
 
 void set_eigen_sparsity(Eigen::SparseVector<double> &out,
                         const ::casadi::Sparsity &sparsity) {
+    // todo - make sure that sparsity pattern is a column vector
     // Use casadi information
     std::vector<casadi_int> output_row, output_col;
     sparsity.get_triplet(output_row, output_col);
@@ -72,11 +73,16 @@ void set_eigen_sparsity(Eigen::SparseVector<double> &out,
     std::vector<Eigen::Triplet<double>> triplets;
     triplets.resize(sparsity.nnz());
 
-    out.resize(sparsity.rows());
     out.reserve(sparsity.nnz());
 
     // Loop over all non-zeros
-    for (int k = 0; k < sparsity.nnz(); ++k) out.insertBack(output_row[k]);
+    if (sparsity.rows() >= sparsity.columns()) {
+        // Column vector
+        for (int k = 0; k < sparsity.nnz(); ++k) out.insertBack(output_row[k]);
+    } else {
+        // Row vector
+        for (int k = 0; k < sparsity.nnz(); ++k) out.insertBack(output_col[k]);
+    }
 }
 
 function_t create_function(const std::string &name,

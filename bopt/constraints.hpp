@@ -265,31 +265,87 @@ typedef LinearConstraintDataTpl<double> LinearConstraintData;
 template <typename Scalar>
 class BoundingBoxConstraintTpl : public LinearConstraintTpl<Scalar> {
    public:
-    BoundingBoxConstraintTpl(const Index &dim_input,
-                             const Eigen::Ref<const VectorXd> &lower_bound,
-                             const Eigen::Ref<const VectorXd> &upper_bound)
-        : LinearConstraintTpl<Scalar>(dim_input, dim_input) {}
+    BoundingBoxConstraintTpl(
+        const Index &dim_input,
+        const Eigen::Ref<const VectorX<Scalar>> &lower_bound,
+        const Eigen::Ref<const VectorX<Scalar>> &upper_bound)
+        : LinearConstraintTpl<Scalar>(dim_input, dim_input),
+          lb_(lower_bound),
+          ub_(upper_bound) {}
 
-    BoundingBoxConstraintTpl(const Index &dim_input, const double &lower_bound,
-                             const double &upper_bound)
-        : LinearConstraintTpl<Scalar>(dim_input, dim_input) {}
+    BoundingBoxConstraintTpl(const Index &dim_input, const Scalar &lower_bound,
+                             const Scalar &upper_bound)
+        : LinearConstraintTpl<Scalar>(dim_input, dim_input),
+          lb_(VectorX<Scalar>::Constant(dim_input, lower_bound)),
+          ub_(VectorX<Scalar>::Constant(dim_input, upper_bound)) {}
 
     static std::shared_ptr<BoundingBoxConstraintTpl> create(
-        const Index &dim_input, const Eigen::Ref<const VectorXd> &lower_bound,
-        const Eigen::Ref<const VectorXd> &upper_bound) {
+        const Index &dim_input,
+        const Eigen::Ref<const VectorX<Scalar>> &lower_bound,
+        const Eigen::Ref<const VectorX<Scalar>> &upper_bound) {
+        return std::make_shared<BoundingBoxConstraintTpl>(
+            dim_input, lower_bound, upper_bound);
+    }
+
+    static std::shared_ptr<BoundingBoxConstraintTpl> create(
+        const Index &dim_input, const Scalar &lower_bound,
+        const Scalar &upper_bound) {
         return std::make_shared<BoundingBoxConstraintTpl>(
             dim_input, lower_bound, upper_bound);
     }
 
    protected:
-    void evalImpl(const Eigen::Ref<const VectorXd> &x,
+    void evalImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
                   EvaluatorDataTpl<Scalar> &data) const override {
         data.y = x;
     }
 
+    void evalJacobiansImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
+                           EvaluatorDataTpl<Scalar> &data, bool compute_x,
+                           bool compute_p) const override {
+        data.Jx.setIdentity();
+    }
+
+    void evalBoundsImpl(ConstraintDataTpl<Scalar> &data) const override {
+        data.lb = lb_;
+        data.ub = ub_;
+    }
+
    private:
+    /// Constant bounds that are set at initialisation
+    VectorX<Scalar> lb_;
+    VectorX<Scalar> ub_;
 };
 
 typedef BoundingBoxConstraintTpl<double> BoundingBoxConstraint;
+
+
+template <typename Scalar>
+struct MatrixConstraintDataTpl;
+/**
+ * @brief Matrix constraint of the form x₁ A₁ + x₂ A₂ + ... + xₙ Aₙ ≽ 0
+ *
+ * @tparam Scalar
+ */
+template <typename Scalar>
+class MatrixInequalityConstraintTpl {
+   public:
+    void eval(const Eigen::Ref<const VectorX<Scalar>> &x,
+              MatrixConstraintDataTpl<Scalar> &data) const {
+        // todo CHECK(); 
+        evalImpl(x, data);
+    }
+
+   private:
+    virtual void evalImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
+                      MatrixConstraintDataTpl<Scalar> &data) const {}
+};
+
+template <typename Scalar>
+struct MatrixConstraintDataTpl {
+    /// @brief Series of matrices for the inequality x₁ A₁ + x₂ A₂ + ... + xₙ
+    /// Aₙ ≽ 0
+    std::vector<MatrixX<Scalar>> A;
+};
 
 }  // namespace bopt

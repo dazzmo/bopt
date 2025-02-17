@@ -3,7 +3,8 @@
 namespace bopt {
 namespace solvers {
 
-qpoases_solver::qpoases_solver(MathematicalProgram& program) : solver(program) {
+qpoases_solver::qpoases_solver(MathematicalProgram& program)
+    : solver(program), data(program) {
     LOG(INFO) << "qpoases_solver::qpoases_solver";
 
     // Create problem
@@ -25,43 +26,26 @@ qpoases_solver::qpoases_solver(MathematicalProgram& program) : solver(program) {
     for (const auto& c : program.linearConstraints()) {
         linear_constraint_data_.push_back(LinearConstraintData(*c.get()));
     }
-
-    // Create matrix data
-    data.H.resize(nx, nx);
-    data.H.setZero();
-
-    data.g.resize(nx);
-    data.g.setZero();
-
-    data.A.resize(ng, nx);
-    data.A.setZero();
-
-    data.lbA.resize(ng);
-    data.ubA.resize(ng);
-
-    data.lbx.resize(nx);
-    data.ubx.resize(nx);
-
-    data.lbx = program.variableLowerBounds();
-    data.ubx = program.variableUpperBounds();
-
-    VLOG(10) << "lbx: " << data.lbx.transpose();
-    VLOG(10) << "ubx: " << data.ubx.transpose();
+    bounding_box_constraint_data_ = {};
+    for (const auto& c : program.boundingBoxConstraints()) {
+        bounding_box_constraint_data_.push_back(ConstraintData(*c.get()));
+    }
 }
 
 qpoases_solver::~qpoases_solver() = default;
 
 void qpoases_solver::solve(MathematicalProgram& program) {
-    Eigen::MatrixXd tmp;
-
+    data.clear();
     /** Bounding box constraints **/
     {
         bopt::profiler profiler("qpoases: bounding box constraints");
+        int i = 0;
         for (auto& binding : program.boundingBoxConstraints()) {
-            // data.lbx(binding.indices().indices())
-            //     << binding.get()->lowerBound();
-            // data.ubx(binding.indices().indices())
-            //     << binding.get()->upperBound();
+            ConstraintData& cdata = bounding_box_constraint_data_[i];
+            // todo - manage between program constraint and bounding box
+            binding.get()->evalBounds(cdata);
+            data.lbx(binding.indices().indices()) << cdata.lb;
+            data.ubx(binding.indices().indices()) << cdata.ub;
         }
     }
 
@@ -78,6 +62,13 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             LinearCostData& cdata = linear_cost_data_[i];
             if (cdata.a_s.nonZeros()) {
                 c.evalSparseCoefficients(cdata);
+                // a
+                for (int k = 0; k < cdata.a_s.outerSize(); ++k) {
+                    for (SparseVector<double>::InnerIterator it(cdata.a_s, k);
+                         it; ++it) {
+                        data.g(indices[it.row()]) += it.value();
+                    }
+                }
 
             } else {
                 c.evalCoefficients(cdata);
@@ -102,6 +93,21 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             QuadraticCostData& cdata = quadratic_cost_data_[i];
             if (cdata.A_s.nonZeros()) {
                 c.evalSparseCoefficients(cdata);
+                // A
+                for (int k = 0; k < cdata.A_s.outerSize(); ++k) {
+                    for (SparseMatrix<double>::InnerIterator it(cdata.A_s, k);
+                         it; ++it) {
+                        data.H(indices[it.row()], indices[it.col()]) +=
+                            it.value();
+                    }
+                }
+                // b
+                for (int k = 0; k < cdata.b_s.outerSize(); ++k) {
+                    for (SparseVector<double>::InnerIterator it(cdata.b_s, k);
+                         it; ++it) {
+                        data.g(indices[it.row()]) += it.value();
+                    }
+                }
             } else {
                 c.evalCoefficients(cdata);
                 data.H(indices, indices) += cdata.A;
@@ -127,6 +133,13 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             // todo - if sparse
             if (cdata.A_s.nonZeros()) {
                 c.evalSparseCoefficients(cdata);
+                // A
+                for (int k = 0; k < cdata.A_s.outerSize(); ++k) {
+                    for (SparseMatrix<double>::InnerIterator it(cdata.A_s, k);
+                         it; ++it) {
+                        data.A(row + it.row(), indices[it.col()]) = it.value();
+                    }
+                }
             } else {
                 c.evalCoefficients(cdata);
                 data.A.middleRows(row, c.dim_output()) = cdata.A;
@@ -154,6 +167,8 @@ void qpoases_solver::solve(MathematicalProgram& program) {
     VLOG(10) << "A: " << data.A;
     VLOG(10) << "lbA: " << data.lbA;
     VLOG(10) << "ubA: " << data.ubA;
+    VLOG(10) << "lbx: " << data.lbx;
+    VLOG(10) << "ubx: " << data.ubx;
 
     // Solve
     if (info_.number_of_solves > 0 && options_.perform_hotstart) {

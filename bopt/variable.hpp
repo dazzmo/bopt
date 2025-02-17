@@ -42,6 +42,8 @@ class Variable {
 
 typedef VectorX<Variable> VariableVector;
 
+typedef MatrixX<Variable> VariableMatrix;
+
 /**
  * @brief Create a vector of variables, all with the same name and indexed with
  * their position in the vector.
