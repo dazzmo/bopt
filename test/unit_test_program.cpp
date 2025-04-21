@@ -7,202 +7,87 @@
 #include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
 
-class GenericConstraint : public bopt::constraint {
+class BasicCost : public bopt::DenseCostTpl<double> {
    public:
-    GenericConstraint() : bopt::constraint(2, 2, 0) {
-        this->set_name("constraint");
-    }
+    BasicCost() : bopt::DenseCostTpl<double>(1) {}
 
-    void sparsity_jacobian(sparse_matrix_t &jac) const override {
-        jac.resize(rows_jacobian(), cols_jacobian());
-        jac.coeffRef(0, 1) = 0.0;
-        jac.coeffRef(1, 0) = 0.0;
-        jac.coeffRef(1, 1) = 0.0;
-    }
+    using Base = bopt::DenseCostTpl<double>;
+    using InputVectorConstRef = typename Base::InputVectorConstRef;
+    using Data = typename Base::Data;
 
-    void sparsity_hessian(sparse_matrix_t &hes) const override {
-        hes.resize(rows_hessian(), cols_hessian());
-        hes.coeffRef(0, 0) = 0.0;
-        hes.coeffRef(1, 0) = 0.0;
-        hes.coeffRef(1, 1) = 0.0;
+    std::shared_ptr<Data> createData() override {
+        auto data = std::make_shared<Data>(*this);
+        return data;
     }
 
    protected:
-    bopt::evaluator::return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        out[0] = x[0] * x[0];
-        out[1] = x[1] * x[1];
-        return bopt::evaluator::return_status::Success;
+    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
+        data.y = 1.0;
     }
 
-    bopt::evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        out(0, 0) = 1.0;
-        out(1, 0) = 1.0;
-        out(1, 1) = 1.0;
-        return bopt::evaluator::return_status::Success;
-    }
-
-    bopt::evaluator::return_status eval_hessian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        const Eigen::Ref<const dense_vector_t> &lambda,
-        sparse_matrix_t &out) override {
-        out.coeffRef(0, 0) = lambda[0];
-        out.coeffRef(1, 0) = lambda[1];
-        out.coeffRef(1, 1) = lambda[1];
-        return bopt::evaluator::return_status::Success;
+    void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
+                           bool compute_x, bool compute_p) const override {
+        data.gx << 1.0;
+        data.gp << 0.0;
     }
 };
 
-class GenericLinearConstraint : public bopt::linear_constraint {
+class BasicSparseCost : public bopt::SparseCostTpl<double> {
    public:
-    GenericLinearConstraint() : bopt::linear_constraint(2, 2, 0) {
-        this->set_name("linear_constraint");
-    }
+    BasicSparseCost() : bopt::SparseCostTpl<double>(1) {}
 
-    void sparsity_jacobian(sparse_matrix_t &jac) const override {
-        jac.resize(rows_jacobian(), cols_jacobian());
-        jac.coeffRef(0, 1) = 0.0;
-        jac.coeffRef(1, 0) = 0.0;
-        jac.coeffRef(1, 1) = 0.0;
+    using Base = bopt::SparseCostTpl<double>;
+    using InputVectorConstRef = typename Base::InputVectorConstRef;
+    using Data = typename Base::Data;
+
+    std::shared_ptr<Data> createData() override {
+        auto data = std::make_shared<Data>(*this);
+        return data;
     }
 
    protected:
-    bopt::evaluator::return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        out[0] = x[1];
-        out[0] = x[0] - x[1];
-        return bopt::evaluator::return_status::Success;
-    }
-
-    bopt::evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        out(0, 1) = 1.0;
-        out(1, 0) = 1.0;
-        out(1, 1) = -1.0;
-        return bopt::evaluator::return_status::Success;
-    }
-
-    bopt::evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        sparse_matrix_t &out) override {
-        out.coeffRef(0, 1) = 1.0;
-        out.coeffRef(1, 0) = 1.0;
-        out.coeffRef(1, 1) = -1.0;
-        return bopt::evaluator::return_status::Success;
+    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
+        data.y = 1.0;
     }
 };
 
-TEST(Program, ConstraintJacobian) {
-    auto c0 = std::make_shared<GenericConstraint>();
-    auto c1 = std::make_shared<GenericLinearConstraint>();
+// class LinearCost : public bopt::SparseLinearCostTpl<double> {
+//    public:
+//     LinearCost() : bopt::SparseLinearCostTpl<double>(1) {}
 
-    auto x = bopt::create_variable_vector("x", 5);
-    auto b0 =
-        bopt::binding<bopt::constraint>(c0, std::vector<Eigen::Index>({0, 1}));
-    auto b1 =
-        bopt::binding<bopt::constraint>(c0, std::vector<Eigen::Index>({1, 2}));
-    auto b2 =
-        bopt::binding<bopt::constraint>(c1, std::vector<Eigen::Index>({3, 4}));
+//     using LinearData = typename bopt::SparseLinearCostTpl<double>::Data;
+//     using Data = typename bopt::SparseLinearCostTpl<double>::Data;
 
-    Eigen::SparseMatrix<double> jacobian;
-    std::vector<bopt::binding<bopt::constraint>> bindings = {b0, b1, b2};
-    bopt::get_constraint_jacobian(jacobian, x.size(), bindings);
+//    protected:
+//     void evalImpl(const InputVectorConstRef &x, Data &data) const override {
+//         data.y = 1.0;
+//     }
 
-    VLOG(10) << jacobian;
-    Eigen::VectorXd values(5);
-    values.setRandom();
-    bopt::eval_constraint_jacobian(values, jacobian, bindings);
-
-    VLOG(10) << jacobian;
-}
-
-TEST(Program, LagrangianHessian) {
-    auto c0 = std::make_shared<GenericConstraint>();
-
-    auto x = bopt::create_variable_vector("x", 5);
-    auto b0 =
-        bopt::binding<bopt::constraint>(c0, std::vector<Eigen::Index>({0, 1}));
-    auto b1 =
-        bopt::binding<bopt::constraint>(c0, std::vector<Eigen::Index>({1, 2}));
-    auto b2 =
-        bopt::binding<bopt::constraint>(c0, std::vector<Eigen::Index>({2, 4}));
-
-    Eigen::SparseMatrix<double> hessian;
-    std::vector<bopt::binding<bopt::constraint>> bindings = {b0, b1, b2};
-    bopt::get_lagrangian_hessian(hessian, x.size(), {}, bindings);
-
-    VLOG(10) << hessian;
-    Eigen::VectorXd values(5);
-    Eigen::VectorXd lambda(6);
-    values.setRandom();
-    lambda.setRandom();
-    bopt::eval_lagrangian_hessian(values, lambda, hessian, {}, bindings);
-
-    VLOG(10) << hessian;
-}
-
-TEST(Program, AddVariable) {
-    bopt::mathematical_program<double> p("program");
-    bopt::variable x("x"), y("y");
-    p.add_variable(x);
-    p.add_variable(x);
-
-    EXPECT_EQ(p.variable_index(x), 0);
-    // EXPECT_DEATH({p.variable_index(y);}, "");
-}
-
-TEST(Program, AddVariables) {
-    bopt::mathematical_program<double> p("program");
-    bopt::variable_vector x = bopt::create_variable_vector("x", 10);
-    p.add_variables(x);
-
-    EXPECT_EQ(p.variable_index(x[3]), 3);
-    EXPECT_EQ(p.variable_index(x[9]), 9);
-
-    VLOG(10) << p.variables_initial_value().transpose();
-    VLOG(10) << p.variables_upper_bound().transpose();
-    VLOG(10) << p.variables_lower_bound().transpose();
-}
-
-TEST(Program, AddConstraints) {
-    bopt::mathematical_program<double> p("program");
-    bopt::variable_vector x = bopt::create_variable_vector("x", 10);
-    p.add_variables(x);
-
-    auto c0 = std::make_shared<GenericConstraint>();
-    auto c1 = std::make_shared<GenericLinearConstraint>();
-    auto c2 = std::make_shared<bopt::bounding_box_constraint_tpl<double>>(
-        2, 0, Eigen::Vector2d(-1.0, -2.0), Eigen::Vector2d(2.0, 1.0));
-
-    p.add_constraint(c0, x.topRows(2));
-    p.add_constraint(c0, x.middleRows(1, 2));
-    p.add_constraint(c1, x.middleRows(5, 2));
-    p.add_bounding_box_constraint(c2, x.middleRows(3, 2));
-
-    EXPECT_EQ(p.n_constraints(), 6);
-}
+//     void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
+//                            bool compute_x, bool compute_p) const override {
+//         data.gx.valuePtr()[0] = -1.0;
+//         data.gx.valuePtr()[1] = 1.0;
+//     }
+// };
 
 TEST(Program, AddCosts) {
-    bopt::mathematical_program<double> p("program");
-    bopt::variable_vector x = bopt::create_variable_vector("x", 10);
-    p.add_variables(x);
+    bopt::MathematicalProgram p("program");
+    bopt::VariableVector x(1);
+    x << p.addVariable("x");
 
-    auto c0 = std::make_shared<GenericConstraint>();
-    auto c1 = std::make_shared<GenericLinearConstraint>();
-    auto c2 = std::make_shared<bopt::bounding_box_constraint_tpl<double>>(
-        2, 0, Eigen::Vector2d(-1.0, -2.0), Eigen::Vector2d(2.0, 1.0));
+    auto c0 = std::make_shared<BasicCost>();
+    auto d0 = c0->createData();
+    p.addCost(c0, d0, x);
 
-    p.add_constraint(c0, x.topRows(2));
-    p.add_constraint(c0, x.middleRows(1, 2));
-    p.add_constraint(c1, x.middleRows(5, 2));
-    p.add_bounding_box_constraint(c2, x.middleRows(3, 2));
+    auto c1 = std::make_shared<BasicSparseCost>();
+    auto d1 = c1->createData();
+    p.addCost(c1, d1, x);
 
-    EXPECT_EQ(p.n_constraints(), 6);
+    auto c = p.getDenseCosts();
+
+    EXPECT_EQ(c.size(), 1);
+
+    std::cout << *c[0].get() << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -213,6 +98,6 @@ int main(int argc, char **argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
     int status = RUN_ALL_TESTS();
-    bopt::profiler summary;
+    // bopt::profiler summary;
     return status;
 }

@@ -19,6 +19,10 @@ class DenseEvaluator : public bopt::DenseEvaluatorTpl<double> {
         res->Jx.resize(2, 2);
         return res;
     }
+
+    void eval(const typename Base::InputVectorConstRef &x, Data &data) const {
+        data.y << 1.0;
+    }
 };
 
 class SparseEvaluator : public bopt::SparseEvaluatorTpl<double> {
@@ -35,7 +39,19 @@ class SparseEvaluator : public bopt::SparseEvaluatorTpl<double> {
     }
 };
 
-TEST(DenseEvaluator, Constructor) { DenseEvaluator e; }
+TEST(DenseEvaluator, Constructor) {
+    DenseEvaluator e;
+    EXPECT_EQ(e.getInputDimension(), 2);
+
+    std::cout << e << std::endl;
+
+    auto data = e.createData();
+
+    Eigen::VectorXd x(2);
+    x.setRandom();
+    e.eval(x, *data);
+
+}
 
 int main(int argc, char **argv) {
     google::InitGoogleLogging(argv[0]);

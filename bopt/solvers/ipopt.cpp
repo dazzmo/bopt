@@ -47,15 +47,15 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
             }
         } else {
             // Dense output - currently use block insert
-            for (Index row = 0; row < c.dim_output(); ++row) {
-                for (Index col = 0; col < c.dim_tangent_space(); ++col) {
+            for (Index row = 0; row < c.getOuptutDimension(); ++row) {
+                for (Index col = 0; col < c.getInputTangentSpaceDimension(); ++col) {
                     triplets.push_back(Eigen::Triplet<double>(
                         idx + row, b.indices().indices()[col]));
                 }
             }
         }
         i++;
-        idx += c.dim_output();
+        idx += c.getOuptutDimension();
     }
     cache_.constraint_jacobian.setFromTriplets(triplets.begin(),
                                                triplets.end());
@@ -94,7 +94,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
             }
         } else {
             // Dense output - currently use block insert
-            for (Index row = 0; row < c.dim_tangent_space(); ++row) {
+            for (Index row = 0; row < c.getInputTangentSpaceDimension(); ++row) {
                 for (Index col = 0; col <= row; ++col) {
                     triplets.push_back(
                         Eigen::Triplet<double>(b.indices().indices()[row],
@@ -121,7 +121,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
             }
         } else {
             // Dense output - currently use block insert
-            for (Index row = 0; row < c.dim_tangent_space(); ++row) {
+            for (Index row = 0; row < c.getInputTangentSpaceDimension(); ++row) {
                 for (Index col = 0; col <= row; ++col) {
                     triplets.push_back(
                         Eigen::Triplet<double>(b.indices().indices()[row],
@@ -270,7 +270,7 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
 
         // Evaluate constraint
         binding.get()->eval(xi, cdata);
-        cache_.constraint_vector.middleRows(idx, con.dim_output()) = cdata.y;
+        cache_.constraint_vector.middleRows(idx, con.getOuptutDimension()) = cdata.y;
 
         i++;
         VLOG(10) << "gi : " << cdata.y.transpose();
@@ -334,8 +334,8 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
                 }
             } else {
                 binding.get()->evalJacobians(xi, cdata, true, false);
-                for (Index row = 0; row < con.dim_output(); ++row) {
-                    for (Index col = 0; col < con.dim_tangent_space(); ++col) {
+                for (Index row = 0; row < con.getOuptutDimension(); ++row) {
+                    for (Index col = 0; col < con.getInputTangentSpaceDimension(); ++col) {
                         cache_.constraint_jacobian.valuePtr()[jac_nnz_map_.at(
                             {idx + row, indices[col]})] = cdata.Jx(row, col);
                     }
@@ -343,7 +343,7 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
             }
 
             i++;
-            idx += con.dim_output();
+            idx += con.getOuptutDimension();
         }
 
         // Update caches
@@ -410,7 +410,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
                 }
             } else {
                 binding.get()->evalHessians(xi, cdata, true, false);
-                for (Index row = 0; row < con.dim_input(); ++row) {
+                for (Index row = 0; row < con.getInputDimension(); ++row) {
                     for (Index col = 0; col < row; ++col) {
                         cache_.lagrangian_hessian
                             .valuePtr()[lag_hes_nnz_map_.at(
@@ -429,7 +429,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             const auto& indices = binding.indices().indices();
             const auto& xi = cache_.primal_vector(indices);
             const auto& li =
-                cache_.dual_vector.middleRows(idx, con.dim_output());
+                cache_.dual_vector.middleRows(idx, con.getOuptutDimension());
 
             ConstraintData& cdata = constraint_data_[i];
 
@@ -447,7 +447,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
                 }
             } else {
                 binding.get()->evalHessians(xi, li, cdata, true, false);
-                for (Index row = 0; row < con.dim_input(); ++row) {
+                for (Index row = 0; row < con.getInputDimension(); ++row) {
                     for (Index col = 0; col < row; ++col) {
                         cache_.lagrangian_hessian
                             .valuePtr()[lag_hes_nnz_map_.at(
@@ -458,7 +458,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             }
 
             i++;
-            idx += con.dim_output();
+            idx += con.getOuptutDimension();
         }
 
         // Update caches
@@ -504,12 +504,12 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
         Constraint& con = *binding.get();
         ConstraintData& cdata = constraint_data_[i];
         con.evalBounds(cdata);
-        cache_.constraint_lower_bound.middleRows(cnt, con.dim_output())
+        cache_.constraint_lower_bound.middleRows(cnt, con.getOuptutDimension())
             << cdata.lb;
-        cache_.constraint_upper_bound.middleRows(cnt, con.dim_output())
+        cache_.constraint_upper_bound.middleRows(cnt, con.getOuptutDimension())
             << cdata.ub;
         i++;
-        cnt += con.dim_output();
+        cnt += con.getOuptutDimension();
     }
 
     VLOG(10) << cache_.constraint_lower_bound.transpose();

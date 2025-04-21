@@ -1,11 +1,13 @@
 #pragma once
 
+#include <variant>
+
 #include "bopt/binding.hpp"
 #include "bopt/common.hpp"
-#include "bopt/constraints.hpp"
+// #include "bopt/constraints.hpp"
 #include "bopt/costs.hpp"
 #include "bopt/logging.hpp"
-#include "bopt/profiler.hpp"
+// #include "bopt/profiler.hpp"
 
 namespace bopt {
 
@@ -19,6 +21,12 @@ namespace bopt {
  * @tparam ValueType Type of values in the program (e.g., double).
  */
 class MathematicalProgram {
+   private:
+    using CostVariant = std::variant<Binding<DenseCostTpl<double>>,
+                                     Binding<SparseCostTpl<double>>,
+                                     Binding<DenseLinearCostTpl<double>>,
+                                     Binding<SparseLinearCostTpl<double>>>;
+
    public:
     /**
      * @brief Default constructor for the mathematical program.
@@ -52,7 +60,7 @@ class MathematicalProgram {
      *
      * @return bopt_index Number of cost functions.
      */
-    bopt_index n_costs() const { return getAllCosts().size(); }
+    // todo bopt_index n_costs() const { return getAllCosts().size(); }
 
     /**
      * @brief Gets the number of constraints in the program.
@@ -111,6 +119,7 @@ class MathematicalProgram {
         }
         LOG(FATAL) << "Variable \'" << v << "\' does not exist in program: \'"
                    << this->name() << '\'';
+        return -1;
     }
 
     std::vector<Eigen::Index> getVariableIndices(
@@ -128,97 +137,108 @@ class MathematicalProgram {
      * @param cost
      * @param x
      */
-    void addCost(const std::shared_ptr<Cost> &cost,
+    template <typename CostType>
+    void addCost(const std::shared_ptr<CostType> &cost,
+                 const std::shared_ptr<typename CostType::Data> &data,
                  const Eigen::Ref<const VariableVector> &x) {
         // Create binding
-        costs_generic_.push_back(Binding<Cost>(cost, getVariableIndices(x)));
+        cost_bindings_.emplace_back(
+            Binding<CostType>(cost, data, getVariableIndices(x)));
     }
 
-    void addLinearCost(const typename std::shared_ptr<LinearCost> &cost,
-                       const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        costs_linear_.push_back(
-            Binding<LinearCost>(cost, getVariableIndices(x)));
-    }
+    std::vector<Binding<DenseCostTpl<double>>> getDenseCosts() {
+        std::vector<Binding<DenseCostTpl<double>>> vec;
 
-    void addQuadraticCost(const typename std::shared_ptr<QuadraticCost> &cost,
-                          const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        costs_quadratic_.push_back(
-            Binding<QuadraticCost>(cost, getVariableIndices(x)));
-    }
+        for (const auto &cost : cost_bindings_) {
+            std::visit(
+                [&](auto &&binding) {
+                    using T = std::decay_t<decltype(binding)>;
+                    if constexpr (std::is_same_v<typename T::Evaluator,
+                                                 DenseCostTpl<double>>) {
+                        vec.push_back(binding);
+                    }
+                },
+                cost);
+        }
 
-    std::vector<Binding<Cost>> &genericCosts() { return costs_generic_; }
-
-    std::vector<Binding<LinearCost>> &linearCosts() { return costs_linear_; }
-
-    std::vector<Binding<QuadraticCost>> &quadraticCosts() {
-        return costs_quadratic_;
-    }
-
-    std::vector<Binding<Cost>> getAllCosts() const {
-        std::vector<Binding<Cost>> vec;
-        vec.insert(vec.begin(), costs_generic_.begin(), costs_generic_.end());
-        vec.insert(vec.end(), costs_linear_.begin(), costs_linear_.end());
-        vec.insert(vec.end(), costs_quadratic_.begin(), costs_quadratic_.end());
         // Return vector of all costs
         return vec;
     }
 
-    // constraints
-    void addConstraint(const std::shared_ptr<Constraint> &constraint,
-                       const Eigen::Ref<const VariableVector> &x) {
-        n_constraints_ += constraint->dim_output();
-        // Create binding
-        constraints_generic_.push_back(
-            Binding<Constraint>(constraint, getVariableIndices(x)));
-    }
+    // std::vector<Binding<Cost>> &genericCosts() { return costs_generic_; }
 
-    void addLinearConstraint(
-        const std::shared_ptr<LinearConstraint> &constraint,
-        const Eigen::Ref<const VariableVector> &x) {
-        n_constraints_ += constraint->dim_output();
-        // Create binding
-        constraints_linear_.push_back(
-            Binding<LinearConstraint>(constraint, getVariableIndices(x)));
-    }
+    // std::vector<Binding<LinearCost>> &linearCosts() { return costs_linear_; }
 
-    void addBoundingBoxConstraint(
-        const std::shared_ptr<BoundingBoxConstraint> &constraint,
-        const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        constraints_bounding_box_.push_back(
-            Binding<BoundingBoxConstraint>(constraint, getVariableIndices(x)));
-    }
+    // std::vector<Binding<QuadraticCost>> &quadraticCosts() {
+    //     return costs_quadratic_;
+    // }
 
-    std::vector<Binding<Constraint>> &getConstraints() {
-        return constraints_generic_;
-    }
+    // std::vector<Binding<Cost>> getAllCosts() const {
+    //     std::vector<Binding<Cost>> vec;
+    //     vec.insert(vec.begin(), costs_generic_.begin(),
+    //     costs_generic_.end()); vec.insert(vec.end(), costs_linear_.begin(),
+    //     costs_linear_.end()); vec.insert(vec.end(), costs_quadratic_.begin(),
+    //     costs_quadratic_.end());
+    //     // Return vector of all costs
+    //     return vec;
+    // }
 
-    std::vector<Binding<LinearConstraint>> &linearConstraints() {
-        return constraints_linear_;
-    }
+    // // constraints
+    // void addConstraint(const std::shared_ptr<Constraint> &constraint,
+    //                    const Eigen::Ref<const VariableVector> &x) {
+    //     n_constraints_ += constraint->getOuptutDimension();
+    //     // Create binding
+    //     constraints_generic_.push_back(
+    //         Binding<Constraint>(constraint, getVariableIndices(x)));
+    // }
 
-    std::vector<Binding<BoundingBoxConstraint>> &boundingBoxConstraints() {
-        return constraints_bounding_box_;
-    }
+    // void addLinearConstraint(
+    //     const std::shared_ptr<LinearConstraint> &constraint,
+    //     const Eigen::Ref<const VariableVector> &x) {
+    //     n_constraints_ += constraint->getOuptutDimension();
+    //     // Create binding
+    //     constraints_linear_.push_back(
+    //         Binding<LinearConstraint>(constraint, getVariableIndices(x)));
+    // }
 
-    /**
-     * @brief Returns a vector of all constraint bindings.
-     *
-     * @note This does not include BoundingBox constraints, or any matrix-based
-     * constraints
-     * @return std::vector<Binding<Constraint>>
-     */
-    std::vector<Binding<Constraint>> getAllConstraints() const {
-        std::vector<Binding<Constraint>> vec;
-        vec.insert(vec.begin(), constraints_generic_.begin(),
-                   constraints_generic_.end());
-        vec.insert(vec.end(), constraints_linear_.begin(),
-                   constraints_linear_.end());
-        // Return vector of all costs
-        return vec;
-    }
+    // void addBoundingBoxConstraint(
+    //     const std::shared_ptr<BoundingBoxConstraint> &constraint,
+    //     const Eigen::Ref<const VariableVector> &x) {
+    //     // Create binding
+    //     constraints_bounding_box_.push_back(
+    //         Binding<BoundingBoxConstraint>(constraint,
+    //         getVariableIndices(x)));
+    // }
+
+    // std::vector<Binding<Constraint>> &getConstraints() {
+    //     return constraints_generic_;
+    // }
+
+    // std::vector<Binding<LinearConstraint>> &linearConstraints() {
+    //     return constraints_linear_;
+    // }
+
+    // std::vector<Binding<BoundingBoxConstraint>> &boundingBoxConstraints() {
+    //     return constraints_bounding_box_;
+    // }
+
+    // /**
+    //  * @brief Returns a vector of all constraint bindings.
+    //  *
+    //  * @note This does not include BoundingBox constraints, or any
+    //  matrix-based
+    //  * constraints
+    //  * @return std::vector<Binding<Constraint>>
+    //  */
+    // std::vector<Binding<Constraint>> getAllConstraints() const {
+    //     std::vector<Binding<Constraint>> vec;
+    //     vec.insert(vec.begin(), constraints_generic_.begin(),
+    //                constraints_generic_.end());
+    //     vec.insert(vec.end(), constraints_linear_.begin(),
+    //                constraints_linear_.end());
+    //     // Return vector of all costs
+    //     return vec;
+    // }
 
    protected:
    private:
@@ -238,19 +258,16 @@ class MathematicalProgram {
     std::unordered_map<Variable::Id, Eigen::Index> variable_index_map_;
 
     // constraint bindings
-    std::vector<Binding<Constraint>> constraints_generic_ = {};
-    std::vector<Binding<LinearConstraint>> constraints_linear_ = {};
-    std::vector<Binding<BoundingBoxConstraint>> constraints_bounding_box_ = {};
+    // std::vector<Binding<Constraint>> constraints_generic_ = {};
+    // std::vector<Binding<LinearConstraint>> constraints_linear_ = {};
+    // std::vector<Binding<BoundingBoxConstraint>> constraints_bounding_box_ =
+    // {};
 
     // cost bindings
-    std::vector<Binding<Cost>> costs_generic_ = {};
-    std::vector<Binding<LinearCost>> costs_linear_ = {};
-    std::vector<Binding<QuadraticCost>> costs_quadratic_ = {};
+    std::vector<CostVariant> cost_bindings_ = {};
+    // std::vector<Binding<Cost>> costs_generic_ = {};
+    // std::vector<Binding<LinearCost>> costs_linear_ = {};
 };
-
-template <typename Scalar>
-using ConstraintVariant = std::variant<Binding<DenseConstraintTpl<Scalar>>,
-                                       Binding<SparseConstraintTpl<Scalar>>>;
 
 //    template <typename T>
 //    void addConstraint(const Binding<T>& binding) {

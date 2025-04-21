@@ -70,18 +70,9 @@ class ConstraintTpl : public EvaluatorTpl<InputTraits> {
 
     void evalBoundJacobians(Data &data) const { evalBoundJacobiansImpl(data); }
 
-    void evalBoundSparseJacobians(Data &data) const {
-        evalBoundSparseJacobiansImpl(data);
-    }
-
-    void evalBoundHessians(const Eigen::Ref<const VectorX<Scalar>> &lambda,
+    void evalBoundHessians(const InputVectorConstRef &lambda,
                            Data &data) const {
         evalBoundHessiansImpl(lambda, data);
-    }
-
-    void evalBoundSparseHessians(
-        const Eigen::Ref<const VectorX<Scalar>> &lambda, Data &data) const {
-        evalBoundSparseHessiansImpl(lambda, data);
     }
 
     /**
@@ -94,7 +85,7 @@ class ConstraintTpl : public EvaluatorTpl<InputTraits> {
      * @return false
      */
     bool isSatisfied(Data &data, const double &epsilon = kEpsilon) const {
-        for (int i = 0; i < this->dim_output(); ++i) {
+        for (int i = 0; i < this->getOuptutDimension(); ++i) {
             if (data.lb[i] - data.y[i] > epsilon ||
                 data.ub[i] - data.y[i] < -epsilon)
                 return false;
@@ -138,17 +129,10 @@ class ConstraintTpl : public EvaluatorTpl<InputTraits> {
     virtual void evalBoundJacobiansImpl(Data &data) const {
         if (ptr_) ptr_->evalBoundJacobians(data);
     }
-    virtual void evalBoundSparseJacobiansImpl(Data &data) const {
-        if (ptr_) ptr_->evalBoundSparseJacobians(data);
-    }
 
-    virtual void evalBoundHessiansImpl(
-        const Eigen::Ref<const VectorX<Scalar>> &lambda, Data &data) const {
+    virtual void evalBoundHessiansImpl(const InputVectorConstRef &lambda,
+                                       Data &data) const {
         if (ptr_) ptr_->evalBoundHessians(lambda, data);
-    }
-    virtual void evalBoundSparseHessiansImpl(
-        const Eigen::Ref<const VectorX<Scalar>> &lambda, Data &data) const {
-        if (ptr_) ptr_->evalBoundSparseHessians(lambda, data);
     }
 
    private:
@@ -179,14 +163,30 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<InputTraitType> {
     using VectorConstInput = typename Base::VectorConstInput;
     using MatrixConstInput = typename Base::MatrixConstInput;
 
-    ConstraintDataTpl(const ConstraintTpl<Scalar> &c)
-        : EvaluatorDataTpl<Scalar>(c),
-          lb(Vector::Zero(c.dim_output())),
-          ub(Vector::Zero(c.dim_output())),
-          Jlb_p(Matrix::Zero(c.dim_output(), c.dim_parameter())),
-          Jub_p(Matrix::Zero(c.dim_output(), c.dim_parameter())),
-          Hlb_pp(Matrix::Zero(c.dim_parameter(), c.dim_parameter())),
-          Hub_pp(Matrix::Zero(c.dim_parameter(), c.dim_parameter())) {}
+    ConstraintDataTpl(const ConstraintTpl<InputTraitType> &c)
+        : EvaluatorDataTpl<InputTraitType>(c) {
+        if constexpr (InputTraitType::type == "Sparse") {
+            // Sparse: allocate sparse objects properly
+            lb.resize(c.getOuptutDimension());
+            ub.resize(c.getOuptutDimension());
+            Jlb_p.resize(c.getOuptutDimension(), c.getNumberOfParameters());
+            Jub_p.resize(c.getOuptutDimension(), c.getNumberOfParameters());
+            Hlb_pp.resize(c.getNumberOfParameters(), c.getNumberOfParameters());
+            Hub_pp.resize(c.getNumberOfParameters(), c.getNumberOfParameters());
+        } else {
+            // Dense
+            lb(Vector::Zero(c.getOuptutDimension()));
+            ub(Vector::Zero(c.getOuptutDimension()));
+            Jlb_p(Matrix::Zero(c.getOuptutDimension(),
+                               c.getNumberOfParameters()));
+            Jub_p(Matrix::Zero(c.getOuptutDimension(),
+                               c.getNumberOfParameters()));
+            Hlb_pp(Matrix::Zero(c.getNumberOfParameters(),
+                                c.getNumberOfParameters()));
+            Hub_pp(Matrix::Zero(c.getNumberOfParameters(),
+                                c.getNumberOfParameters()));
+        }
+    }
 
     /// Lower bound of the constraint
     Vector lb;
@@ -257,8 +257,9 @@ template <typename Scalar>
 struct LinearConstraintDataTpl : public ConstraintDataTpl<Scalar> {
     LinearConstraintDataTpl(const LinearConstraintTpl<Scalar> &c)
         : ConstraintDataTpl<Scalar>(c),
-          A(MatrixX<Scalar>::Zero(c.dim_output(), c.dim_tangent_space())),
-          A_s(c.dim_output(), c.dim_tangent_space()) {
+          A(MatrixX<Scalar>::Zero(c.getOuptutDimension(),
+                                  c.getInputTangentSpaceDimension())),
+          A_s(c.getOuptutDimension(), c.getInputTangentSpaceDimension()) {
         c.setCoefficientSparsityPatterns(*this);
     }
 
@@ -283,7 +284,8 @@ typedef LinearConstraintDataTpl<double> LinearConstraintData;
 //           lb_(lower_bound),
 //           ub_(upper_bound) {}
 
-//     BoundingBoxConstraintTpl(const Index &dim_input, const Scalar &lower_bound,
+//     BoundingBoxConstraintTpl(const Index &dim_input, const Scalar
+//     &lower_bound,
 //                              const Scalar &upper_bound)
 //         : LinearConstraintTpl<Scalar>(dim_input, dim_input),
 //           lb_(VectorX<Scalar>::Constant(dim_input, lower_bound)),

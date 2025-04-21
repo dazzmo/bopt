@@ -12,9 +12,9 @@ SET(${PROJECT_NAME}_SOURCES
 # profiler.cpp
 # common.cpp
 # evaluator.cpp
-# program.cpp
+program.cpp
 # costs.cpp
-# variable.cpp
+variable.cpp
 )
 
 SET(${PROJECT_NAME}_INCLUDE_DIRS

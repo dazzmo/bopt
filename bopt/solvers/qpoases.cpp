@@ -142,16 +142,16 @@ void qpoases_solver::solve(MathematicalProgram& program) {
                 }
             } else {
                 c.evalCoefficients(cdata);
-                data.A.middleRows(row, c.dim_output()) = cdata.A;
+                data.A.middleRows(row, c.getOuptutDimension()) = cdata.A;
             }
 
             // Evaluate bounds
             c.evalBounds(cdata);
-            data.lbA.middleRows(row, c.dim_output()) = cdata.lb;
-            data.ubA.middleRows(row, c.dim_output()) = cdata.ub;
+            data.lbA.middleRows(row, c.getOuptutDimension()) = cdata.lb;
+            data.ubA.middleRows(row, c.getOuptutDimension()) = cdata.ub;
 
             // Increment
-            row += c.dim_output();
+            row += c.getOuptutDimension();
             i++;
         }
     }

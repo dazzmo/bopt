@@ -30,8 +30,8 @@ TEST(Casadi, Evaluator) {
 
     auto expr = std::make_shared<bopt::casadi::Evaluator>(ex, x, p, true);
 
-    EXPECT_EQ(expr->dim_input(), n);
-    EXPECT_EQ(expr->dim_output(), n);
+    EXPECT_EQ(expr->getInputDimension(), n);
+    EXPECT_EQ(expr->getOuptutDimension(), n);
 
     EXPECT_EQ(expr->parameters().size(), n);
 

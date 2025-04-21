@@ -15,10 +15,24 @@ struct CostDataTpl;
  * @brief Cost function y = fₚ(x) ∈ ℝ
  *
  */
-template <typename Scalar>
+template <typename InputTraits>
 class CostTpl {
    public:
-    using CostData = CostDataTpl<Scalar>;
+    using Scalar = typename InputTraits::Scalar;
+
+    using InputVector = Eigen::VectorX<Scalar>;
+    using InputVectorConstRef = Eigen::Ref<const InputVector>;
+
+    using Vector = typename InputTraits::Vector;
+    using Matrix = typename InputTraits::Matrix;
+
+    using VectorInput = typename InputTraits::VectorInput;
+    using MatrixInput = typename InputTraits::MatrixInput;
+
+    using VectorConstInput = typename InputTraits::VectorConstInput;
+    using MatrixConstInput = typename InputTraits::MatrixConstInput;
+
+    using Data = CostDataTpl<InputTraits>;
 
     /**
      * @brief Sets the name of the cost.
@@ -28,8 +42,10 @@ class CostTpl {
     const std::string &name() const { return name_; }
     void setName(const std::string &name) { name_ = name; }
 
+    virtual std::shared_ptr<Data> createData() = 0;
+
     /**
-     * @brief Scaling factor for the objective.
+     * @brief Scaling factor for the objectivc.
      *
      * @return const double&
      */
@@ -40,12 +56,11 @@ class CostTpl {
      * @brief Evaluates the expression y = fₚ(x) using variables x and
      * parameters p (set through \ref CostTpl::setParameters()).
      *
-     * @param x The input vector (dim_input() x 1)
+     * @param x The input vector (getInputDimension() x 1)
      * @param data
      */
-    void eval(const Eigen::Ref<const VectorXd> &x, CostData &data) const {
-        BOPT_ASSERT(x.rows() == dim_input());
-        checkVector(x);
+    void eval(const InputVectorConstRef &x, Data &data) const {
+        BOPT_ASSERT(x.rows() == getInputDimension());
         evalImpl(x, data);
     }
 
@@ -57,9 +72,9 @@ class CostTpl {
      * @param compute_x Compute ∂f/∂x
      * @param compute_p Compute ∂f/∂p
      */
-    void evalGradients(const Eigen::Ref<const VectorXd> &x, CostData &data,
+    void evalGradients(const InputVectorConstRef &x, Data &data,
                        bool compute_x = true, bool compute_p = false) const {
-        BOPT_ASSERT(x.rows() == dim_input());
+        BOPT_ASSERT(x.rows() == getInputDimension());
         evalGradientsImpl(x, data, compute_x, compute_p);
     }
 
@@ -71,10 +86,10 @@ class CostTpl {
      * @param compute_x Compute ∂f/∂x
      * @param compute_p Compute ∂f/∂p
      */
-    void evalSparseGradients(const Eigen::Ref<const VectorXd> &x,
-                             CostData &data, bool compute_x = true,
+    void evalSparseGradients(const InputVectorConstRef &x, Data &data,
+                             bool compute_x = true,
                              bool compute_p = false) const {
-        BOPT_ASSERT(x.rows() == dim_input());
+        BOPT_ASSERT(x.rows() == getInputDimension());
         evalSparseGradientsImpl(x, data, compute_x, compute_p);
     }
 
@@ -88,7 +103,7 @@ class CostTpl {
      * @param compute_xp Compute ∂²f/∂x∂p
      * @param compute_pp Compute ∂²f/∂p²
      */
-    void evalHessians(const Eigen::Ref<const VectorXd> &x, CostData &data,
+    void evalHessians(const InputVectorConstRef &x, Data &data,
                       bool compute_xx = true, bool compute_xp = false,
                       bool compute_pp = false) const {
         evalHessiansImpl(x, data, compute_xx, compute_xp, compute_pp);
@@ -104,28 +119,10 @@ class CostTpl {
      * @param compute_xp Compute ∂²f/∂x∂p
      * @param compute_pp Compute ∂²f/∂p²
      */
-    void evalSparseHessians(const Eigen::Ref<const VectorXd> &x, CostData &data,
+    void evalSparseHessians(const InputVectorConstRef &x, Data &data,
                             bool compute_xx = true, bool compute_xp = false,
                             bool compute_pp = false) const {
         evalSparseHessiansImpl(x, data, compute_xx, compute_xp, compute_pp);
-    }
-
-    /**
-     * @brief Provides the sparsity patterns for the sparse
-     * gradients ∂f/∂x and ∂f/∂p (if applicable).
-     *
-     */
-    virtual void setGradientSparsityPatterns(CostData &data) const {
-        if (ptr_) ptr_->setGradientSparsityPatterns(data);
-    }
-
-    /**
-     * @brief Provides the sparsity patterns for the lower-triangular Hessians
-     * ∂²f/∂x², ∂²f/∂x∂p, ∂²f/∂p² ∀λ (if applicable)
-     *
-     */
-    virtual void setHessianSparsityPatterns(CostData &data) const {
-        if (ptr_) ptr_->setHessianSparsityPatterns(data);
     }
 
     /**
@@ -133,22 +130,24 @@ class CostTpl {
      *
      * @return const Index&
      */
-    const Index &dim_input() const { return dim_input_; }
+    const Index &getInputDimension() const { return dim_input_; }
 
     /**
      * @brief Dimension of the tangent space for the input vector, typically
-     * this is equal to dim_input().
+     * this is equal to getInputDimension().
      *
      * @return const Index&
      */
-    const Index &dim_tangent_space() const { return dim_tangent_space_; }
+    const Index &getInputTangentSpaceDimension() const {
+        return dim_tangent_space_;
+    }
 
     /**
      * @brief Dimension of the parameter vector p.
      *
      * @return const Index&
      */
-    const Index &dim_parameter() const { return dim_parameter_; }
+    const Index &getNumberOfParameters() const { return num_parameters_; }
 
     const std::string &description() const { return description_; }
 
@@ -156,15 +155,15 @@ class CostTpl {
         description_ = description;
     }
 
-    const VectorXd &parameters() const { return parameters_; }
+    const InputVector &parameters() const { return parameters_; }
 
     /**
-     * @brief Set the parameter vector p (dim_parameter() x 1).
+     * @brief Set the parameter vector p (getNumberOfParameters() x 1).
      *
      * @param p
      */
-    void setParameters(const Eigen::Ref<const VectorXd> &p) {
-        BOPT_ASSERT(p.size() == dim_parameter());
+    void setParameters(const InputVectorConstRef &p) {
+        BOPT_ASSERT(p.size() == getNumberOfParameters());
         parameters_ = p;
         if (ptr_) ptr_->setParameters(p);
     }
@@ -173,17 +172,17 @@ class CostTpl {
     CostTpl(const Index &n_inputs, const std::string &description = "")
         : dim_input_(n_inputs),
           dim_tangent_space_(n_inputs),
-          dim_parameter_(0),
+          num_parameters_(0),
           name_(""),
           scaling_factor_(1.0),
-          parameters_(VectorXd::Zero(0)),
+          parameters_(InputVector::Zero(0)),
           description_(description),
           ptr_(nullptr) {}
 
-    CostTpl(const std::shared_ptr<CostTpl<Scalar>> &ptr)
-        : dim_input_(ptr->dim_input()),
-          dim_tangent_space_(ptr->dim_input()),
-          dim_parameter_(ptr->dim_parameter()),
+    CostTpl(const std::shared_ptr<CostTpl<InputTraits>> &ptr)
+        : dim_input_(ptr->getInputDimension()),
+          dim_tangent_space_(ptr->getInputDimension()),
+          num_parameters_(ptr->getNumberOfParameters()),
           name_(ptr->name()),
           scaling_factor_(ptr->scaling_factor()),
           parameters_(ptr->parameters()),
@@ -204,7 +203,7 @@ class CostTpl {
      *
      * @param dim Dimension of the vector
      */
-    void setParameterDimension(const Index &dim) { dim_parameter_ = dim; }
+    void setParameterDimension(const Index &dim) { num_parameters_ = dim; }
 
     /**
      * @brief Implementation of the evaluator
@@ -212,127 +211,110 @@ class CostTpl {
      * @param x
      * @param out
      */
-    virtual void evalImpl(const Eigen::Ref<const VectorXd> &x,
-                          CostData &data) const {
+    virtual void evalImpl(const InputVectorConstRef &x, Data &data) const {
         VLOG(10) << "In bopt::CostTpl::evalImpl";
         if (ptr_) ptr_->eval(x, data);
     }
 
     /**
      * \copydoc CostTpl::evalGradients(const Eigen::Ref<const
-     * VectorXd>, CostData &)
+     * VectorXd>, Data &)
      *
      */
-    virtual void evalGradientsImpl(const Eigen::Ref<const VectorXd> &x,
-                                   CostData &data, bool compute_x,
-                                   bool compute_p) const {
+    virtual void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
+                                   bool compute_x, bool compute_p) const {
         if (ptr_) ptr_->evalGradients(x, data, compute_x, compute_p);
     }
 
     /**
-     * \copydoc CostTpl::evalSparseGradients(const Eigen::Ref<const
-     * VectorXd>, CostData &)
-     *
-     */
-    virtual void evalSparseGradientsImpl(const Eigen::Ref<const VectorXd> &x,
-                                         CostData &data, bool compute_x,
-                                         bool compute_p) const {
-        if (ptr_) ptr_->evalSparseGradients(x, data, compute_x, compute_p);
-    }
-    /**
      * \copydoc CostTpl::evalHessians(const Eigen::Ref<const VectorXd>,
-     * const Eigen::Ref<const VectorXd>, CostData &)
+     * const Eigen::Ref<const VectorXd>, Data &)
      *
      */
-    virtual void evalHessiansImpl(const Eigen::Ref<const VectorXd> &x,
-                                  CostData &data, bool compute_xx,
-                                  bool compute_xp, bool compute_pp) const {
+    virtual void evalHessiansImpl(const InputVectorConstRef &x, Data &data,
+                                  bool compute_xx, bool compute_xp,
+                                  bool compute_pp) const {
         if (ptr_)
             ptr_->evalHessians(x, data, compute_xx, compute_xp, compute_pp);
-    }
-
-    /**
-     * \copydoc CostTpl::evalSparseHessians(const Eigen::Ref<const
-     * VectorXd>, const Eigen::Ref<const VectorXd>, CostData &)
-     *
-     */
-    virtual void evalSparseHessiansImpl(const Eigen::Ref<const VectorXd> &x,
-                                        CostData &data, bool compute_xx,
-                                        bool compute_xp,
-                                        bool compute_pp) const {
-        if (ptr_)
-            ptr_->evalSparseHessians(x, data, compute_xx, compute_xp,
-                                     compute_pp);
     }
 
    private:
     /// @brief Dimension of the input vector
     Index dim_input_;
     Index dim_tangent_space_;
-    Index dim_parameter_;
+    Index num_parameters_;
 
     std::string name_;
     double scaling_factor_;
 
-    VectorXd parameters_;
+    InputVector parameters_;
     std::string description_;
 
     std::shared_ptr<CostTpl> ptr_;
 };
 
-typedef CostTpl<double> Cost;
+template <typename Scalar>
+using DenseCostTpl = CostTpl<DenseInputTraits<Scalar>>;
 
 template <typename Scalar>
+using SparseCostTpl = CostTpl<SparseInputTraits<Scalar>>;
+
+template <typename InputTraits>
 struct CostDataTpl {
-    CostDataTpl(const CostTpl<Scalar> &e)
-        : f(0.0),
-          gx(VectorX<Scalar>::Zero(e.dim_tangent_space())),
-          gp(VectorX<Scalar>::Zero(e.dim_parameter())),
-          Hxx(MatrixX<Scalar>::Zero(e.dim_tangent_space(),
-                                    e.dim_tangent_space())),
-          Hxp(MatrixX<Scalar>::Zero(e.dim_tangent_space(), e.dim_parameter())),
-          Hpp(MatrixX<Scalar>::Zero(e.dim_parameter(), e.dim_parameter())),
-          gx_s(e.dim_tangent_space()),
-          gp_s(e.dim_tangent_space()),
-          Hxx_s(e.dim_tangent_space(), e.dim_tangent_space()),
-          Hxp_s(e.dim_tangent_space(), e.dim_parameter()),
-          Hpp_s(e.dim_parameter(), e.dim_parameter()) {
-        e.setGradientSparsityPatterns(*this);
-        e.setHessianSparsityPatterns(*this);
+    using Scalar = typename InputTraits::Scalar;
+
+    using Vector = typename InputTraits::Vector;
+    using Matrix = typename InputTraits::Matrix;
+
+    using VectorInput = typename InputTraits::VectorInput;
+    using MatrixInput = typename InputTraits::MatrixInput;
+
+    using VectorConstInput = typename InputTraits::VectorConstInput;
+    using MatrixConstInput = typename InputTraits::MatrixConstInput;
+
+    CostDataTpl(const CostTpl<InputTraits> &c) {
+        if constexpr (InputTraits::type == "Sparse") {
+            // Sparse: allocate sparse objects properly
+            gx.resize(c.getInputTangentSpaceDimension());
+            gp.resize(c.getNumberOfParameters());
+            Hxx.resize(c.getInputTangentSpaceDimension(),
+                       c.getInputTangentSpaceDimension());
+            Hxp.resize(c.getInputTangentSpaceDimension(),
+                       c.getNumberOfParameters());
+            Hpp.resize(c.getNumberOfParameters(), c.getNumberOfParameters());
+        } else {
+            // Dense
+            gx = Vector::Zero(c.getInputTangentSpaceDimension());
+            gp = Vector::Zero(c.getNumberOfParameters());
+            Hxx = Matrix::Zero(c.getInputTangentSpaceDimension(),
+                               c.getInputTangentSpaceDimension());
+            Hxp = Matrix::Zero(c.getInputTangentSpaceDimension(),
+                               c.getNumberOfParameters());
+            Hpp = Matrix::Zero(c.getNumberOfParameters(),
+                               c.getNumberOfParameters());
+        }
     }
 
-    /// Cost value f
-    Scalar f;
+    /// Evaluator output vector y
+    Scalar y;
 
-    /// Dense vector for gradient ∂f/∂x
-    VectorX<Scalar> gx;
-    /// Dense vector for gradient ∂f/∂p
-    VectorX<Scalar> gp;
+    /// Gradient for ∂y/∂x
+    Vector gx;
+    /// Gradient for ∂y/∂p
+    Vector gp;
 
-    /// Sparse matrix for ∂f/∂x
-    SparseVector<Scalar> gx_s;
-    /// Sparse matrix for ∂f/∂p
-    SparseVector<Scalar> gp_s;
-
-    /// Dense matrix for lower-triangular matrix ∂²f/∂x²
-    MatrixX<Scalar> Hxx;
-    /// Dense matrix for lower-triangular matrix ∂²f/∂x∂p
-    MatrixX<Scalar> Hxp;
-    /// Dense matrix for lower-triangular matrix ∂²f/∂p²
-    MatrixX<Scalar> Hpp;
-
-    /// Sparse matrix for lower-triangular matrix ∂²f/∂x²
-    SparseMatrix<Scalar> Hxx_s;
-    /// Sparse matrix for lower-triangular matrix ∂²f/∂x∂p
-    SparseMatrix<Scalar> Hxp_s;
-    /// Sparse matrix for lower-triangular matrix ∂²f/∂p²
-    SparseMatrix<Scalar> Hpp_s;
+    /// Matrix for lower-triangular hessian ∂²(λᵀy)/∂x²
+    Matrix Hxx;
+    /// Matrix for lower-triangular hessian ∂²(λᵀy)/∂x∂p
+    Matrix Hxp;
+    /// Matrix for lower-triangular hessian ∂²(λᵀy)/∂p²
+    Matrix Hpp;
 };
 
 typedef CostDataTpl<double> CostData;
 
-template <typename Scalar>
-std::ostream &operator<<(std::ostream &os, const CostTpl<Scalar> &c) {
+template <typename InputTraits>
+std::ostream &operator<<(std::ostream &os, const CostTpl<InputTraits> &c) {
     os << "cost:\n";
     os << "name: " << c.name() << '\n';
     os << "scaling factor: " << c.scaling_factor() << '\n';
@@ -347,10 +329,10 @@ struct LinearCostDataTpl;
  * @brief Linear cost of the form fₚ(x) = aₚᵀx + bₚ
  *
  */
-template <typename Scalar>
-class LinearCostTpl : public CostTpl<Scalar> {
+template <typename InputTraits>
+class LinearCostTpl : public CostTpl<InputTraits> {
    public:
-    using LinearCostData = LinearCostDataTpl<Scalar>;
+    using Data = LinearCostDataTpl<InputTraits>;
 
     /**
      * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) = aₚ
@@ -359,148 +341,163 @@ class LinearCostTpl : public CostTpl<Scalar> {
      * @param a Coefficient vector aₚ
      * @param b Constant bₚ
      */
-    void evalCoefficients(LinearCostData &data) const {
-        evalCoefficientsImpl(data);
-    }
+    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
-    void evalSparseCoefficients(LinearCostData &data) const {
+    void evalSparseCoefficients(Data &data) const {
         evalSparseCoefficientsImpl(data);
     }
 
-    void setCoefficientSparsityPatterns(LinearCostData &data) const {
+    void setCoefficientSparsityPatterns(Data &data) const {
         setCoefficientSparsityPatternsImpl(data);
     }
 
    protected:
-    LinearCostTpl(const Index &dim_input) : CostTpl<Scalar>(dim_input) {
+    LinearCostTpl(const Index &dim_input) : CostTpl<InputTraits>(dim_input) {
         this->setName("linear_cost");
     }
 
-    LinearCostTpl(const std::shared_ptr<CostTpl<Scalar>> &cost)
-        : CostTpl<Scalar>(cost) {
+    LinearCostTpl(const std::shared_ptr<CostTpl<InputTraits>> &cost)
+        : CostTpl<InputTraits>(cost) {
         this->setName("linear_cost");
     }
 
-    virtual void evalCoefficientsImpl(LinearCostData &data) const {}
-
-    virtual void evalSparseCoefficientsImpl(LinearCostData &data) const {}
-
-    virtual void setCoefficientSparsityPatternsImpl(
-        LinearCostData &data) const {}
+    virtual void evalCoefficientsImpl(Data &data) const {}
 
    private:
 };
 
-typedef LinearCostTpl<double> LinearCost;
+template <typename Scalar>
+using DenseLinearCostTpl = LinearCostTpl<DenseInputTraits<Scalar>>;
 
 template <typename Scalar>
-struct LinearCostDataTpl : public CostDataTpl<Scalar> {
-    LinearCostDataTpl(const LinearCostTpl<Scalar> &c)
-        : CostDataTpl<Scalar>(c),
-          a(VectorX<Scalar>::Zero(c.dim_input())),
-          b(0),
-          a_s(SparseVector<Scalar>(c.dim_input())) {
-        c.setCoefficientSparsityPatterns(*this);
+using SparseLinearCostTpl = LinearCostTpl<SparseInputTraits<Scalar>>;
+
+typedef LinearCostTpl<double> LinearCost;
+
+template <typename InputTraits>
+struct LinearCostDataTpl : public CostDataTpl<InputTraits> {
+    using Base = CostDataTpl<InputTraits>;
+    using Scalar = typename Base::Scalar;
+
+    using Vector = typename Base::Vector;
+    using Matrix = typename Base::Matrix;
+
+    using VectorInput = typename Base::VectorInput;
+    using MatrixInput = typename Base::MatrixInput;
+
+    using VectorConstInput = typename Base::VectorConstInput;
+    using MatrixConstInput = typename Base::MatrixConstInput;
+
+    LinearCostDataTpl(const LinearCostTpl<InputTraits> &c)
+        : CostDataTpl<InputTraits>(c) {
+        if constexpr (InputTraits::type == "Sparse") {
+            // Sparse: allocate sparse objects properly
+            a.resize(c.getInputDimension());
+        } else {
+            // Dense
+            a = Vector::Zero(c.getInputDimension());
+        }
     }
 
     /// Dense coefficient vector a
-    VectorX<Scalar> a;
+    Vector a;
     /// Constant term b
     Scalar b;
-
-    /// Sparse coefficient vector a
-    SparseVector<Scalar> a_s;
 };
 
 typedef LinearCostDataTpl<double> LinearCostData;
 
-/**
- * @brief Types of hessians
- *
- */
-enum class HessianType { kPositiveDefinite, kPositiveSemiDefinite, Indefinite };
+// /**
+//  * @brief Types of hessians
+//  *
+//  */
+// enum class HessianType { kPositiveDefinite, kPositiveSemiDefinite, Indefinite
+// };
 
-template <typename Scalar>
-struct QuadraticCostDataTpl;
+// template <typename Scalar>
+// struct QuadraticCostDataTpl;
 
-/**
- * @brief Quadratic cost of the form fₚ(x) = (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
- *
- */
-template <typename Scalar>
-class QuadraticCostTpl : public CostTpl<Scalar> {
-   public:
-    using QuadraticCostData = QuadraticCostDataTpl<Scalar>;
+// /**
+//  * @brief Quadratic cost of the form fₚ(x) = (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
+//  *
+//  */
+// template <typename Scalar>
+// class QuadraticCostTpl : public CostTpl<InputTraits> {
+//    public:
+//     using QuadraticCostData = QuadraticCostDataTpl<Scalar>;
 
-    /**
-     * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) =
-     * (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
-     *
-     * @param A Lower triangular matrix Aₚ
-     * @param b Vector bₚ
-     * @param c Constant cₚ
-     */
-    void evalCoefficients(QuadraticCostData &data) const {
-        evalCoefficientsImpl(data);
-    }
+//     /**
+//      * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) =
+//      * (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
+//      *
+//      * @param A Lower triangular matrix Aₚ
+//      * @param b Vector bₚ
+//      * @param c Constant cₚ
+//      */
+//     void evalCoefficients(QuadraticCostData &data) const {
+//         evalCoefficientsImpl(data);
+//     }
 
-    void evalSparseCoefficients(QuadraticCostData &data) const {
-        evalSparseCoefficientsImpl(data);
-    }
+//     void evalSparseCoefficients(QuadraticCostData &data) const {
+//         evalSparseCoefficientsImpl(data);
+//     }
 
-    void setCoefficientSparsityPatterns(QuadraticCostData &data) const {
-        setCoefficientSparsityPatternsImpl(data);
-    }
+//     void setCoefficientSparsityPatterns(QuadraticCostData &data) const {
+//         setCoefficientSparsityPatternsImpl(data);
+//     }
 
-   protected:
-    QuadraticCostTpl<Scalar>(const Index &dim_input)
-        : CostTpl<Scalar>(dim_input) {
-        this->setName("quadratic_cost");
-    }
+//    protected:
+//     QuadraticCostTpl<InputTraits>(const Index &dim_input)
+//         : CostTpl<InputTraits>(dim_input) {
+//         this->setName("quadratic_cost");
+//     }
 
-    QuadraticCostTpl<Scalar>(const std::shared_ptr<CostTpl<Scalar>> &cost)
-        : CostTpl<Scalar>(cost) {
-        this->setName("quadratic_cost");
-    }
+//     QuadraticCostTpl<InputTraits>(const std::shared_ptr<CostTpl<InputTraits>>
+//     &cost)
+//         : CostTpl<InputTraits>(cost) {
+//         this->setName("quadratic_cost");
+//     }
 
-    virtual void evalCoefficientsImpl(QuadraticCostData &data) const {}
+//     virtual void evalCoefficientsImpl(QuadraticCostData &data) const {}
 
-    virtual void evalSparseCoefficientsImpl(QuadraticCostData &data) const {}
+//     virtual void evalSparseCoefficientsImpl(QuadraticCostData &data) const {}
 
-    virtual void setCoefficientSparsityPatternsImpl(
-        QuadraticCostData &data) const {}
+//     virtual void setCoefficientSparsityPatternsImpl(
+//         QuadraticCostData &data) const {}
 
-   private:
-};
+//    private:
+// };
 
-typedef QuadraticCostTpl<double> QuadraticCost;
+// typedef QuadraticCostTpl<double> QuadraticCost;
 
-template <typename Scalar>
-struct QuadraticCostDataTpl : public CostDataTpl<Scalar> {
-    QuadraticCostDataTpl(const QuadraticCostTpl<Scalar> &c)
-        : CostDataTpl<Scalar>(c),
-          A(MatrixX<Scalar>::Zero(c.dim_input(), c.dim_input())),
-          b(VectorX<Scalar>::Zero(c.dim_input())),
-          c(0),
-          A_s(SparseMatrix<Scalar>(c.dim_input(), c.dim_input())),
-          b_s(SparseVector<Scalar>(c.dim_input())) {
-        c.setCoefficientSparsityPatterns(*this);
-    }
+// template <typename Scalar>
+// struct QuadraticCostDataTpl : public CostDataTpl<Scalar> {
+//     QuadraticCostDataTpl(const QuadraticCostTpl<InputTraits> &c)
+//         : CostDataTpl<Scalar>(c),
+//           A(MatrixX<Scalar>::Zero(c.getInputDimension(),
+//                                   c.getInputDimension())),
+//           b(VectorX<Scalar>::Zero(c.getInputDimension())),
+//           c(0),
+//           A_s(SparseMatrix<Scalar>(c.getInputDimension(),
+//                                    c.getInputDimension())),
+//           b_s(SparseVector<Scalar>(c.getInputDimension())) {
+//         c.setCoefficientSparsityPatterns(*this);
+//     }
 
-    /// Dense coefficient matrix A (lower triangular)
-    MatrixX<Scalar> A;
-    /// Dense coefficient vector b
-    VectorX<Scalar> b;
-    /// Constant term c
-    Scalar c;
+//     /// Dense coefficient matrix A (lower triangular)
+//     MatrixX<Scalar> A;
+//     /// Dense coefficient vector b
+//     VectorX<Scalar> b;
+//     /// Constant term c
+//     Scalar c;
 
-    /// Sparse coefficient matrix A (lower triangular)
-    SparseMatrix<Scalar> A_s;
-    /// Sparse coefficient vector b
-    SparseVector<Scalar> b_s;
-};
+//     /// Sparse coefficient matrix A (lower triangular)
+//     SparseMatrix<Scalar> A_s;
+//     /// Sparse coefficient vector b
+//     SparseVector<Scalar> b_s;
+// };
 
-typedef QuadraticCostDataTpl<double> QuadraticCostData;
+// typedef QuadraticCostDataTpl<double> QuadraticCostData;
 
 // class LeastSquaresCost : public QuadraticCost {
 //    public:

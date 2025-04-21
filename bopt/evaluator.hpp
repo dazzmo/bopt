@@ -79,11 +79,11 @@ class EvaluatorTpl {
 
     EvaluatorTpl(const std::shared_ptr<EvaluatorTpl<InputTraits>> &ptr)
         : ptr_(ptr),
-          dim_input_(ptr->dim_input()),
-          dim_tangent_space_(ptr->dim_tangent_space()),
-          dim_output_(ptr->dim_output()),
-          dim_parameter_(ptr->dim_parameter()),
-          parameters_(InputVector::Zero(ptr->dim_parameter())),
+          dim_input_(ptr->getInputDimension()),
+          dim_tangent_space_(ptr->getInputTangentSpaceDimension()),
+          dim_output_(ptr->getOuptutDimension()),
+          num_parameters_(ptr->getNumberOfParameters()),
+          parameters_(InputVector::Zero(ptr->getNumberOfParameters())),
           description_(ptr->description()) {}
 
     virtual std::shared_ptr<Data> createData() = 0;
@@ -92,12 +92,12 @@ class EvaluatorTpl {
      * @brief Evaluates the expression y = fₚ(x) using variables x and
      * parameters p (set through \ref EvaluatorTpl::setParameters()).
      *
-     * @param x The input vector (dim_input() x 1)
+     * @param x The input vector (getInputDimension() x 1)
      * @param data
      */
     void eval(const InputVectorConstRef &x, Data &data) const {
-        BOPT_ASSERT(x.rows() == dim_input());
-        BOPT_ASSERT(data.y.rows() == dim_output());
+        BOPT_ASSERT(x.rows() == getInputDimension());
+        BOPT_ASSERT(data.y.rows() == getOuptutDimension());
         // Ensure vector is valid
         // CHECK(x.allFinite() && !x.hasNaN() && x.size());
         evalImpl(x, data);
@@ -115,7 +115,7 @@ class EvaluatorTpl {
      */
     void evalJacobians(const InputVectorConstRef &x, Data &data,
                        bool compute_x = true, bool compute_p = false) const {
-        BOPT_ASSERT(x.rows() == dim_input());
+        BOPT_ASSERT(x.rows() == getInputDimension());
         evalJacobiansImpl(x, data, compute_x, compute_p);
     }
 
@@ -134,8 +134,8 @@ class EvaluatorTpl {
                       const InputVectorConstRef &lambda, Data &data,
                       bool compute_xx = true, bool compute_xp = false,
                       bool compute_pp = false) const {
-        BOPT_ASSERT(x.rows() == dim_input());
-        BOPT_ASSERT(lambda.rows() == dim_output());
+        BOPT_ASSERT(x.rows() == getInputDimension());
+        BOPT_ASSERT(lambda.rows() == getOuptutDimension());
         evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
     }
 
@@ -144,29 +144,31 @@ class EvaluatorTpl {
      *
      * @return const Index&
      */
-    const Index &dim_input() const { return dim_input_; }
+    const Index &getInputDimension() const { return dim_input_; }
 
     /**
      * @brief Dimension of the tangent space for the input vector, typically
-     * this is equal to dim_input().
+     * this is equal to getInputDimension().
      *
      * @return const Index&
      */
-    const Index &dim_tangent_space() const { return dim_tangent_space_; }
+    const Index &getInputTangentSpaceDimension() const {
+        return dim_tangent_space_;
+    }
 
     /**
      * @brief Dimension of the output vector y.
      *
      * @return const Index&
      */
-    const Index &dim_output() const { return dim_output_; }
+    const Index &getOuptutDimension() const { return dim_output_; }
 
     /**
      * @brief Dimension of the parameter vector p.
      *
      * @return const Index&
      */
-    const Index &dim_parameter() const { return dim_parameter_; }
+    const Index &getNumberOfParameters() const { return num_parameters_; }
 
     const std::string &description() const { return description_; }
 
@@ -177,12 +179,12 @@ class EvaluatorTpl {
     const InputVector &parameters() const { return parameters_; }
 
     /**
-     * @brief Set the parameter vector p (dim_parameter() x 1).
+     * @brief Set the parameter vector p (getNumberOfParameters() x 1).
      *
      * @param p
      */
     void setParameters(const InputVectorConstRef &p) {
-        BOPT_ASSERT(p.size() == dim_parameter());
+        BOPT_ASSERT(p.size() == getNumberOfParameters());
         parameters_ = p;
     }
 
@@ -193,7 +195,7 @@ class EvaluatorTpl {
           dim_input_(n_inputs),
           dim_tangent_space_(n_inputs),
           dim_output_(n_outputs),
-          dim_parameter_(0),
+          num_parameters_(0),
           parameters_(InputVector::Zero(0)),
           description_(description) {}
 
@@ -219,7 +221,7 @@ class EvaluatorTpl {
      * @param dim Dimension of the vector
      */
     void setParameterDimension(const Index &dim) {
-        dim_parameter_ = dim;
+        num_parameters_ = dim;
         parameters_ = InputVector::Zero(dim);
     }
 
@@ -265,7 +267,7 @@ class EvaluatorTpl {
     /// @brief Dimension of the input vector
     Index dim_input_;
     Index dim_tangent_space_;
-    Index dim_parameter_;
+    Index num_parameters_;
     Index dim_output_;
 
     InputVector parameters_;
@@ -280,14 +282,14 @@ using DenseEvaluatorTpl = EvaluatorTpl<DenseInputTraits<Scalar>>;
 template <typename Scalar>
 using SparseEvaluatorTpl = EvaluatorTpl<SparseInputTraits<Scalar>>;
 
-// template <typename InputTraits>
-// std::ostream &operator<<(std::ostream &os, const EvaluatorTpl<Scalar> &e) {
-//     os << "Evaluator\n";
-//     os << "description: " << e.description() << '\n';
-//     os << "input dim: " << e.dim_input() << '\n';
-//     os << "output dim: " << e.dim_output();
-//     return os;
-// }
+template <typename InputTraits>
+std::ostream &operator<<(std::ostream &os, const EvaluatorTpl<InputTraits> &e) {
+    os << "Evaluator\n";
+    os << "description: " << e.description() << '\n';
+    os << "input dim: " << e.getInputDimension() << '\n';
+    os << "output dim: " << e.getOuptutDimension();
+    return os;
+}
 
 template <typename InputTraitType>
 struct EvaluatorDataTpl {
@@ -303,21 +305,29 @@ struct EvaluatorDataTpl {
     EvaluatorDataTpl(const EvaluatorTpl<InputTraitType> &e) {
         if constexpr (InputTraitType::type == "Sparse") {
             // Sparse: allocate sparse objects properly
-            y.resize(e.dim_output());
-            Jx.resize(e.dim_output(), e.dim_tangent_space());
-            Jp.resize(e.dim_output(), e.dim_parameter());
-            Hxx.resize(e.dim_tangent_space(), e.dim_tangent_space());
-            Hxp.resize(e.dim_tangent_space(), e.dim_parameter());
-            Hpp.resize(e.dim_parameter(), e.dim_parameter());
+            y.resize(e.getOuptutDimension());
+            Jx.resize(e.getOuptutDimension(),
+                      e.getInputTangentSpaceDimension());
+            Jp.resize(e.getOuptutDimension(), e.getNumberOfParameters());
+            Hxx.resize(e.getInputTangentSpaceDimension(),
+                       e.getInputTangentSpaceDimension());
+            Hxp.resize(e.getInputTangentSpaceDimension(),
+                       e.getNumberOfParameters());
+            Hpp.resize(e.getNumberOfParameters(), e.getNumberOfParameters());
             // Optionally set values to zero explicitly if needed
         } else {
             // Dense
-            y = Vector::Zero(e.dim_output());
-            Jx = Matrix::Zero(e.dim_output(), e.dim_tangent_space());
-            Jp = Matrix::Zero(e.dim_output(), e.dim_parameter());
-            Hxx = Matrix::Zero(e.dim_tangent_space(), e.dim_tangent_space());
-            Hxp = Matrix::Zero(e.dim_tangent_space(), e.dim_parameter());
-            Hpp = Matrix::Zero(e.dim_parameter(), e.dim_parameter());
+            y = Vector::Zero(e.getOuptutDimension());
+            Jx = Matrix::Zero(e.getOuptutDimension(),
+                              e.getInputTangentSpaceDimension());
+            Jp =
+                Matrix::Zero(e.getOuptutDimension(), e.getNumberOfParameters());
+            Hxx = Matrix::Zero(e.getInputTangentSpaceDimension(),
+                               e.getInputTangentSpaceDimension());
+            Hxp = Matrix::Zero(e.getInputTangentSpaceDimension(),
+                               e.getNumberOfParameters());
+            Hpp = Matrix::Zero(e.getNumberOfParameters(),
+                               e.getNumberOfParameters());
         }
 
         // Perform initialisation depending on what type we have?
