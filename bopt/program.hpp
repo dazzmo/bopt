@@ -11,7 +11,7 @@ namespace bopt {
 
 /**
  * @brief Represents a generic mathematical program with constraints and
- costs.
+ costs. Can either be of a dense or sparse nature.
  *
  * This class represents an optimisation problem of the form:
  * \f$ \min f(x) \text{ s.t. } g_l \le g(x) \le q_u, x_l \le x \le x_u \f$
@@ -247,6 +247,20 @@ class MathematicalProgram {
     std::vector<Binding<LinearCost>> costs_linear_ = {};
     std::vector<Binding<QuadraticCost>> costs_quadratic_ = {};
 };
+
+template <typename Scalar>
+using ConstraintVariant = std::variant<Binding<DenseConstraintTpl<Scalar>>,
+                                       Binding<SparseConstraintTpl<Scalar>>>;
+
+//    template <typename T>
+//    void addConstraint(const Binding<T>& binding) {
+//        constraint_bindings_.emplace_back(binding);
+//    }
+
+//    template <typename T>
+//    void addConstraint(const T& constraint) {
+//        addConstraint(Binding<T>(constraint));
+//    }
 
 std::ostream &operator<<(std::ostream &os, const MathematicalProgram &program);
 

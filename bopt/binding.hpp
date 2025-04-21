@@ -16,8 +16,11 @@ namespace bopt {
  *
  * @tparam T
  */
-template <class EvaluatorType>
+template <typename EvaluatorType>
 class Binding {
+    using Evaluator = EvaluatorType;
+    using Data = typename EvaluatorType::Data;
+
    public:
     typedef typename std::shared_ptr<EvaluatorType> evaluator_shared_ptr;
 
@@ -32,9 +35,10 @@ class Binding {
      * @param ptr
      * @param indices Indices of the variables bound to the evaluator
      */
-    Binding(const std::shared_ptr<EvaluatorType> &ptr,
+    Binding(const std::shared_ptr<Evaluator> &ptr,
+            const std::shared_ptr<Data> &data,
             const std::vector<Eigen::Index> &indices)
-        : evaluator_(ptr), indices_(nullptr) {
+        : evaluator_(ptr), data_(data), indices_(nullptr) {
         BOPT_ASSERT(ptr->dim_input() == indices.size());
         this->indices_ = std::make_shared<variable_indices>(indices);
     }
@@ -47,11 +51,10 @@ class Binding {
      * @param b
      */
     template <typename Other>
-    Binding(
-        const Binding<Other> &b,
-        typename std::enable_if_t<std::is_convertible_v<
-            typename Binding<Other>::evaluator_shared_ptr,
-            typename Binding<EvaluatorType>::evaluator_shared_ptr>> * = nullptr)
+    Binding(const Binding<Other> &b,
+            typename std::enable_if_t<std::is_convertible_v<
+                typename Binding<Other>::evaluator_shared_ptr,
+                typename Binding<Evaluator>::evaluator_shared_ptr>> * = nullptr)
         : Binding(static_cast<evaluator_shared_ptr>(b.get()),
                   b.indices().indices()) {}
 
@@ -65,7 +68,17 @@ class Binding {
         return *indices_;
     }
 
+    /**
+     * @brief The data class associated with the computing functions of the
+     * bound evaluator.
+     *
+     * @return std::shared_ptr<Data>
+     */
+    std::shared_ptr<Data> &data() { return data_; }
+
    private:
+    std::shared_ptr<Data> data_;
+
     evaluator_shared_ptr evaluator_;
     // todo - see about memory management here
     std::shared_ptr<variable_indices> indices_;

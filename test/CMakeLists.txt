@@ -12,6 +12,7 @@ unit_test_expression.cpp
 unit_test_costs.cpp
 unit_test_constraints.cpp
 unit_test_binding.cpp
+unit_test_evaluator.cpp
 unit_test_variable.cpp
 unit_test_program.cpp
 unit_test_qpoases.cpp
