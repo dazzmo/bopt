@@ -15,11 +15,6 @@ class BasicCost : public bopt::DenseCostTpl<double> {
     using InputVectorConstRef = typename Base::InputVectorConstRef;
     using Data = typename Base::Data;
 
-    std::shared_ptr<Data> createData() override {
-        auto data = std::make_shared<Data>(*this);
-        return data;
-    }
-
    protected:
     void evalImpl(const InputVectorConstRef &x, Data &data) const override {
         data.y = 1.0;
@@ -40,35 +35,29 @@ class BasicSparseCost : public bopt::SparseCostTpl<double> {
     using InputVectorConstRef = typename Base::InputVectorConstRef;
     using Data = typename Base::Data;
 
-    std::shared_ptr<Data> createData() override {
-        auto data = std::make_shared<Data>(*this);
-        return data;
-    }
-
    protected:
     void evalImpl(const InputVectorConstRef &x, Data &data) const override {
         data.y = 1.0;
     }
 };
 
-// class LinearCost : public bopt::SparseLinearCostTpl<double> {
-//    public:
-//     LinearCost() : bopt::SparseLinearCostTpl<double>(1) {}
+class LinearCost : public bopt::DenseLinearCostTpl<double> {
+   public:
+    LinearCost() : bopt::DenseLinearCostTpl<double>(1) {}
+    using Base = bopt::DenseLinearCostTpl<double>;
+    using Data = typename Base::Data;
+    using LinearData = typename Base::LinearCostData;
 
-//     using LinearData = typename bopt::SparseLinearCostTpl<double>::Data;
-//     using Data = typename bopt::SparseLinearCostTpl<double>::Data;
+   protected:
+    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
+        data.y = 1.0;
+    }
 
-//    protected:
-//     void evalImpl(const InputVectorConstRef &x, Data &data) const override {
-//         data.y = 1.0;
-//     }
-
-//     void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
-//                            bool compute_x, bool compute_p) const override {
-//         data.gx.valuePtr()[0] = -1.0;
-//         data.gx.valuePtr()[1] = 1.0;
-//     }
-// };
+    void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
+                           bool compute_x, bool compute_p) const override {
+        data.gx << -1.0;
+    }
+};
 
 TEST(Program, AddCosts) {
     bopt::MathematicalProgram p("program");
@@ -83,11 +72,13 @@ TEST(Program, AddCosts) {
     auto d1 = c1->createData();
     p.addCost(c1, d1, x);
 
-    auto c = p.getDenseCosts();
+    auto c2 = std::make_shared<LinearCost>();
+    auto d2 = c2->createData();
+    p.addLinearCost<bopt::DenseInputTraits<double>>(c2, d2, x);
+
+    auto c = p.getCosts<bopt::DenseCostTpl<double>>();
 
     EXPECT_EQ(c.size(), 1);
-
-    std::cout << *c[0].get() << std::endl;
 }
 
 int main(int argc, char **argv) {

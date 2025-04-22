@@ -146,15 +146,34 @@ class MathematicalProgram {
             Binding<CostType>(cost, data, getVariableIndices(x)));
     }
 
-    std::vector<Binding<DenseCostTpl<double>>> getDenseCosts() {
-        std::vector<Binding<DenseCostTpl<double>>> vec;
+    template <typename InputTraits>
+    void addLinearCost(
+        const std::shared_ptr<LinearCostTpl<InputTraits>> &cost,
+        const std::shared_ptr<typename LinearCostTpl<InputTraits>::Data> &data,
+        const Eigen::Ref<const VariableVector> &x) {
+        // Create binding
+        cost_bindings_.emplace_back(Binding<LinearCostTpl<InputTraits>>(
+            cost, data, getVariableIndices(x)));
+    }
+
+    /**
+     * @brief Get all cost bindings of a specific type, note that this will
+     * return all bindings which are of this type, as well as any bindings that
+     * have a base of this given type.
+     *
+     * @tparam BindingType
+     * @return std::vector<Binding<BindingType>>
+     */
+    template <typename BindingType>
+    std::vector<Binding<BindingType>> getCosts() {
+        std::vector<Binding<BindingType>> vec;
 
         for (const auto &cost : cost_bindings_) {
             std::visit(
                 [&](auto &&binding) {
                     using T = std::decay_t<decltype(binding)>;
-                    if constexpr (std::is_same_v<typename T::Evaluator,
-                                                 DenseCostTpl<double>>) {
+                    if constexpr (std::is_base_of_v<BindingType,
+                                                    typename T::Evaluator>) {
                         vec.push_back(binding);
                     }
                 },

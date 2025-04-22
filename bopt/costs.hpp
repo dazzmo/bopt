@@ -42,7 +42,9 @@ class CostTpl {
     const std::string &name() const { return name_; }
     void setName(const std::string &name) { name_ = name; }
 
-    virtual std::shared_ptr<Data> createData() = 0;
+    virtual std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
 
     /**
      * @brief Scaling factor for the objectivc.
@@ -332,7 +334,13 @@ struct LinearCostDataTpl;
 template <typename InputTraits>
 class LinearCostTpl : public CostTpl<InputTraits> {
    public:
-    using Data = LinearCostDataTpl<InputTraits>;
+    using Base = CostTpl<InputTraits>;
+    using Data = typename Base::Data;
+    using LinearCostData = LinearCostDataTpl<InputTraits>;
+
+    virtual std::shared_ptr<LinearCostData> createLinearCostData() {
+        return std::make_shared<LinearCostData>(*this);
+    }
 
     /**
      * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) = aₚ
@@ -342,14 +350,6 @@ class LinearCostTpl : public CostTpl<InputTraits> {
      * @param b Constant bₚ
      */
     void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
-
-    void evalSparseCoefficients(Data &data) const {
-        evalSparseCoefficientsImpl(data);
-    }
-
-    void setCoefficientSparsityPatterns(Data &data) const {
-        setCoefficientSparsityPatternsImpl(data);
-    }
 
    protected:
     LinearCostTpl(const Index &dim_input) : CostTpl<InputTraits>(dim_input) {
@@ -372,24 +372,25 @@ using DenseLinearCostTpl = LinearCostTpl<DenseInputTraits<Scalar>>;
 template <typename Scalar>
 using SparseLinearCostTpl = LinearCostTpl<SparseInputTraits<Scalar>>;
 
-typedef LinearCostTpl<double> LinearCost;
-
+/**
+ * @brief Contains the data associated with a linear cost
+ *
+ * @tparam InputTraits
+ */
 template <typename InputTraits>
-struct LinearCostDataTpl : public CostDataTpl<InputTraits> {
-    using Base = CostDataTpl<InputTraits>;
-    using Scalar = typename Base::Scalar;
+struct LinearCostDataTpl {
+    using Scalar = typename InputTraits::Scalar;
 
-    using Vector = typename Base::Vector;
-    using Matrix = typename Base::Matrix;
+    using Vector = typename InputTraits::Vector;
+    using Matrix = typename InputTraits::Matrix;
 
-    using VectorInput = typename Base::VectorInput;
-    using MatrixInput = typename Base::MatrixInput;
+    using VectorInput = typename InputTraits::VectorInput;
+    using MatrixInput = typename InputTraits::MatrixInput;
 
-    using VectorConstInput = typename Base::VectorConstInput;
-    using MatrixConstInput = typename Base::MatrixConstInput;
+    using VectorConstInput = typename InputTraits::VectorConstInput;
+    using MatrixConstInput = typename InputTraits::MatrixConstInput;
 
-    LinearCostDataTpl(const LinearCostTpl<InputTraits> &c)
-        : CostDataTpl<InputTraits>(c) {
+    LinearCostDataTpl(const LinearCostTpl<InputTraits> &c) {
         if constexpr (InputTraits::type == "Sparse") {
             // Sparse: allocate sparse objects properly
             a.resize(c.getInputDimension());

@@ -86,7 +86,9 @@ class EvaluatorTpl {
           parameters_(InputVector::Zero(ptr->getNumberOfParameters())),
           description_(ptr->description()) {}
 
-    virtual std::shared_ptr<Data> createData() = 0;
+    virtual std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    };
 
     /**
      * @brief Evaluates the expression y = fₚ(x) using variables x and
