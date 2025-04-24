@@ -21,33 +21,37 @@ struct EvaluatorDataTpl;
 using Index = Eigen::Index;
 
 template <typename ScalarType>
-struct SparseInputTraits {
+struct FunctionTraits {
     using Scalar = ScalarType;
 
-    using Matrix = Eigen::SparseMatrix<Scalar>;
-    using Vector = Eigen::SparseVector<Scalar>;
+    using InputVector = Eigen::VectorX<Scalar>;
+    using InputVectorConstRef = Eigen::Ref<const InputVector>;
+};
 
-    using VectorInput = Vector;
-    using MatrixInput = Matrix;
+template <typename ScalarType>
+struct SparseFunctionTraits : public FunctionTraits<ScalarType> {
+    using Base = FunctionTraits<ScalarType>;
 
-    using VectorConstInput = const Vector;
-    using MatrixConstInput = const Matrix;
+    using Scalar = typename Base::Scalar;
+    using InputVector = typename Base::InputVector;
+    using InputVectorConstRef = typename Base::InputVectorConstRef;
+
+    using OutputVector = Eigen::SparseVector<Scalar>;
+    using OutputMatrix = Eigen::SparseMatrix<Scalar>;
 
     static constexpr const char *type = "Sparse";
 };
 
 template <typename ScalarType>
-struct DenseInputTraits {
-    using Scalar = ScalarType;
+struct DenseFunctionTraits : public FunctionTraits<ScalarType> {
+    using Base = FunctionTraits<ScalarType>;
 
-    using Matrix = Eigen::MatrixX<Scalar>;
-    using Vector = Eigen::VectorX<Scalar>;
+    using Scalar = typename Base::Scalar;
+    using InputVector = typename Base::InputVector;
+    using InputVectorConstRef = typename Base::InputVectorConstRef;
 
-    using VectorInput = Eigen::Ref<Vector>;
-    using MatrixInput = Eigen::Ref<Matrix>;
-
-    using VectorConstInput = Eigen::Ref<const Vector>;
-    using MatrixConstInput = Eigen::Ref<const Matrix>;
+    using OutputVector = Eigen::VectorX<Scalar>;
+    using OutputMatrix = Eigen::MatrixX<Scalar>;
 
     static constexpr const char *type = "Dense";
 };
@@ -57,27 +61,21 @@ struct DenseInputTraits {
  *
  * @tparam Scalar
  */
-template <typename InputTraits>
+template <typename FunctionTraits>
 class EvaluatorTpl {
    public:
-    using Scalar = typename InputTraits::Scalar;
+    using Scalar = typename FunctionTraits::Scalar;
 
-    using InputVector = Eigen::VectorX<Scalar>;
-    using InputVectorConstRef = Eigen::Ref<const InputVector>;
+    using InputVector = typename FunctionTraits::InputVector;
+    using InputVectorConstRef = typename FunctionTraits::InputVectorConstRef;
 
-    using Vector = typename InputTraits::Vector;
-    using Matrix = typename InputTraits::Matrix;
+    using Vector = typename FunctionTraits::Vector;
+    using Matrix = typename FunctionTraits::Matrix;
 
-    using VectorInput = typename InputTraits::VectorInput;
-    using MatrixInput = typename InputTraits::MatrixInput;
+    /// @brief The standard type of data to be used for the evaluation functions
+    using Data = EvaluatorDataTpl<FunctionTraits>;
 
-    using VectorConstInput = typename InputTraits::VectorConstInput;
-    using MatrixConstInput = typename InputTraits::MatrixConstInput;
-
-    /// @brief The type of data to be used for the evaluation functions
-    using Data = EvaluatorDataTpl<InputTraits>;
-
-    EvaluatorTpl(const std::shared_ptr<EvaluatorTpl<InputTraits>> &ptr)
+    EvaluatorTpl(const std::shared_ptr<EvaluatorTpl<FunctionTraits>> &ptr)
         : ptr_(ptr),
           dim_input_(ptr->getInputDimension()),
           dim_tangent_space_(ptr->getInputTangentSpaceDimension()),
@@ -264,7 +262,7 @@ class EvaluatorTpl {
 
    private:
     /// Shared pointer for evaluator instance (if made from a copy)
-    std::shared_ptr<EvaluatorTpl<InputTraits>> ptr_;
+    std::shared_ptr<EvaluatorTpl<FunctionTraits>> ptr_;
 
     /// @brief Dimension of the input vector
     Index dim_input_;
@@ -279,13 +277,14 @@ class EvaluatorTpl {
 typedef EvaluatorTpl<double> Evaluator;
 
 template <typename Scalar>
-using DenseEvaluatorTpl = EvaluatorTpl<DenseInputTraits<Scalar>>;
+using DenseEvaluatorTpl = EvaluatorTpl<DenseFunctionTraits<Scalar>>;
 
 template <typename Scalar>
-using SparseEvaluatorTpl = EvaluatorTpl<SparseInputTraits<Scalar>>;
+using SparseEvaluatorTpl = EvaluatorTpl<SparseFunctionTraits<Scalar>>;
 
-template <typename InputTraits>
-std::ostream &operator<<(std::ostream &os, const EvaluatorTpl<InputTraits> &e) {
+template <typename FunctionTraits>
+std::ostream &operator<<(std::ostream &os,
+                         const EvaluatorTpl<FunctionTraits> &e) {
     os << "Evaluator\n";
     os << "description: " << e.description() << '\n';
     os << "input dim: " << e.getInputDimension() << '\n';
@@ -295,14 +294,8 @@ std::ostream &operator<<(std::ostream &os, const EvaluatorTpl<InputTraits> &e) {
 
 template <typename InputTraitType>
 struct EvaluatorDataTpl {
-    using Vector = typename InputTraitType::Vector;
-    using Matrix = typename InputTraitType::Matrix;
-
-    using VectorInput = typename InputTraitType::VectorInput;
-    using MatrixInput = typename InputTraitType::MatrixInput;
-
-    using VectorConstInput = typename InputTraitType::VectorConstInput;
-    using MatrixConstInput = typename InputTraitType::MatrixConstInput;
+    using Vector = typename InputTraitType::OutputVector;
+    using Matrix = typename InputTraitType::OutputMatrix;
 
     EvaluatorDataTpl(const EvaluatorTpl<InputTraitType> &e) {
         if constexpr (InputTraitType::type == "Sparse") {
@@ -350,7 +343,5 @@ struct EvaluatorDataTpl {
     /// Matrix for lower-triangular matrix ∂²(λᵀy)/∂p²
     Matrix Hpp;
 };
-
-typedef EvaluatorDataTpl<double> EvaluatorData;
 
 }  // namespace bopt

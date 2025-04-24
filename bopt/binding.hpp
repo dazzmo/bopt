@@ -12,7 +12,7 @@ namespace bopt {
 
 /**
  * @brief Class to bind an evaluator-based object to a sequence of input
- * variables
+ * variables as well as the data used to evaluate it.
  *
  * @tparam T
  */
@@ -20,13 +20,15 @@ template <typename EvaluatorType>
 class Binding {
    public:
     using Evaluator = EvaluatorType;
+    /// @brief Evaluator data used to compute the main components of the
+    /// function
     using Data = typename EvaluatorType::Data;
 
     using EvaluatorPtr = std::shared_ptr<Evaluator>;
     using DataPtr = std::shared_ptr<Data>;
 
    public:
-    Binding() : evaluator_(nullptr), indices_(nullptr) {}
+    Binding() : evaluator_(nullptr), data_(nullptr), indices_(nullptr) {}
 
     ~Binding() = default;
 
@@ -37,8 +39,7 @@ class Binding {
      * @param ptr
      * @param indices Indices of the variables bound to the evaluator
      */
-    Binding(const std::shared_ptr<Evaluator> &ptr,
-            const std::shared_ptr<Data> &data,
+    Binding(const std::shared_ptr<Evaluator> &ptr, const DataPtr &data,
             const std::vector<Eigen::Index> &indices)
         : evaluator_(ptr), data_(data), indices_(nullptr) {
         BOPT_ASSERT(ptr->getInputDimension() == indices.size());
@@ -78,15 +79,14 @@ class Binding {
      * @brief The data class associated with the computing functions of the
      * bound evaluator.
      *
-     * @return std::shared_ptr<Data>
+     * @return DataPtr
      */
-    std::shared_ptr<Data> &data() { return data_; }
-    const std::shared_ptr<Data> &data() const { return data_; }
+    DataPtr &data() { return data_; }
+    const DataPtr &data() const { return data_; }
 
    private:
-    DataPtr data_;
-
     EvaluatorPtr evaluator_;
+    DataPtr data_;
     // todo - see about memory management here
     std::shared_ptr<variable_indices> indices_;
 };

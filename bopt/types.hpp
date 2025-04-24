@@ -9,6 +9,7 @@
 namespace bopt {
 
 // New
+using Real = double;
 
 using bopt_int = long long;
 using bopt_double = double;

@@ -4,7 +4,7 @@
 
 #include "bopt/binding.hpp"
 #include "bopt/common.hpp"
-// #include "bopt/constraints.hpp"
+#include "bopt/constraints.hpp"
 #include "bopt/costs.hpp"
 #include "bopt/logging.hpp"
 // #include "bopt/profiler.hpp"
@@ -22,10 +22,16 @@ namespace bopt {
  */
 class MathematicalProgram {
    private:
-    using CostVariant = std::variant<Binding<DenseCostTpl<double>>,
-                                     Binding<SparseCostTpl<double>>,
-                                     Binding<DenseLinearCostTpl<double>>,
-                                     Binding<SparseLinearCostTpl<double>>>;
+    using CostVariant =
+        std::variant<Binding<DenseCostTpl<Real>>, Binding<SparseCostTpl<Real>>,
+                     Binding<DenseLinearCostTpl<Real>>,
+                     Binding<SparseLinearCostTpl<Real>>>;
+
+    using ConstraintVariant =
+        std::variant<Binding<DenseConstraintTpl<Real>>,
+                     Binding<SparseConstraintTpl<Real>>,
+                     Binding<DenseLinearConstraintTpl<Real>>,
+                     Binding<SparseLinearConstraintTpl<Real>>>;
 
    public:
     /**
@@ -146,13 +152,35 @@ class MathematicalProgram {
             Binding<CostType>(cost, data, getVariableIndices(x)));
     }
 
-    template <typename InputTraits>
+    /**
+     * @brief Add a dense linear cost to the program
+     *
+     * @param cost
+     * @param data
+     * @param x
+     */
     void addLinearCost(
-        const std::shared_ptr<LinearCostTpl<InputTraits>> &cost,
-        const std::shared_ptr<typename LinearCostTpl<InputTraits>::Data> &data,
+        const std::shared_ptr<DenseLinearCostTpl<Real>> &cost,
+        const std::shared_ptr<typename DenseLinearCostTpl<Real>::Data> &data,
         const Eigen::Ref<const VariableVector> &x) {
         // Create binding
-        cost_bindings_.emplace_back(Binding<LinearCostTpl<InputTraits>>(
+        cost_bindings_.emplace_back(Binding<DenseLinearCostTpl<Real>>(
+            cost, data, getVariableIndices(x)));
+    }
+
+    /**
+     * @brief Add a sparse linear cost to the program
+     *
+     * @param cost
+     * @param data
+     * @param x
+     */
+    void addLinearCost(
+        const std::shared_ptr<SparseLinearCostTpl<Real>> &cost,
+        const std::shared_ptr<typename SparseLinearCostTpl<Real>::Data> &data,
+        const Eigen::Ref<const VariableVector> &x) {
+        // Create binding
+        cost_bindings_.emplace_back(Binding<SparseLinearCostTpl<Real>>(
             cost, data, getVariableIndices(x)));
     }
 
@@ -183,24 +211,6 @@ class MathematicalProgram {
         // Return vector of all costs
         return vec;
     }
-
-    // std::vector<Binding<Cost>> &genericCosts() { return costs_generic_; }
-
-    // std::vector<Binding<LinearCost>> &linearCosts() { return costs_linear_; }
-
-    // std::vector<Binding<QuadraticCost>> &quadraticCosts() {
-    //     return costs_quadratic_;
-    // }
-
-    // std::vector<Binding<Cost>> getAllCosts() const {
-    //     std::vector<Binding<Cost>> vec;
-    //     vec.insert(vec.begin(), costs_generic_.begin(),
-    //     costs_generic_.end()); vec.insert(vec.end(), costs_linear_.begin(),
-    //     costs_linear_.end()); vec.insert(vec.end(), costs_quadratic_.begin(),
-    //     costs_quadratic_.end());
-    //     // Return vector of all costs
-    //     return vec;
-    // }
 
     // // constraints
     // void addConstraint(const std::shared_ptr<Constraint> &constraint,

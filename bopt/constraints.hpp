@@ -19,9 +19,9 @@ struct ConstraintDataTpl;
  * @brief Constraint of the form y = fₚ(x) ∈ ℝᵐ
  *
  */
-template <typename InputTraits>
-class ConstraintTpl : public EvaluatorTpl<InputTraits> {
-    using Base = EvaluatorTpl<InputTraits>;
+template <typename FunctionTraits>
+class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
+    using Base = EvaluatorTpl<FunctionTraits>;
 
     using Scalar = typename Base::Scalar;
 
@@ -37,12 +37,14 @@ class ConstraintTpl : public EvaluatorTpl<InputTraits> {
     using VectorConstInput = typename Base::VectorConstInput;
     using MatrixConstInput = typename Base::MatrixConstInput;
 
-    using Data = ConstraintDataTpl<InputTraits>;
+    using Data = ConstraintDataTpl<FunctionTraits>;
 
    public:
     const ConstraintType &type() const { return type_; }
 
-    virtual std::shared_ptr<Data> createData() = 0;
+    virtual std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
 
     /**
      * @brief Set the constraint to a particular type
@@ -143,16 +145,16 @@ class ConstraintTpl : public EvaluatorTpl<InputTraits> {
 };
 
 template <typename Scalar>
-using DenseConstraintTpl = ConstraintTpl<DenseInputTraits<Scalar>>;
+using DenseConstraintTpl = ConstraintTpl<DenseFunctionTraits<Scalar>>;
 
 template <typename Scalar>
-using SparseConstraintTpl = ConstraintTpl<SparseInputTraits<Scalar>>;
+using SparseConstraintTpl = ConstraintTpl<SparseFunctionTraits<Scalar>>;
 
 typedef ConstraintTpl<double> Constraint;
 
-template <typename InputTraitType>
-struct ConstraintDataTpl : public EvaluatorDataTpl<InputTraitType> {
-    using Base = EvaluatorDataTpl<InputTraitType>;
+template <typename FunctionTraits>
+struct ConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
+    using Base = EvaluatorDataTpl<FunctionTraits>;
 
     using Vector = typename Base::Vector;
     using Matrix = typename Base::Matrix;
@@ -163,9 +165,9 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<InputTraitType> {
     using VectorConstInput = typename Base::VectorConstInput;
     using MatrixConstInput = typename Base::MatrixConstInput;
 
-    ConstraintDataTpl(const ConstraintTpl<InputTraitType> &c)
-        : EvaluatorDataTpl<InputTraitType>(c) {
-        if constexpr (InputTraitType::type == "Sparse") {
+    ConstraintDataTpl(const ConstraintTpl<FunctionTraits> &c)
+        : EvaluatorDataTpl<FunctionTraits>(c) {
+        if constexpr (FunctionTraits::type == "Sparse") {
             // Sparse: allocate sparse objects properly
             lb.resize(c.getOuptutDimension());
             ub.resize(c.getOuptutDimension());
@@ -213,121 +215,125 @@ struct LinearConstraintDataTpl;
  * @brief Constraint of the form lb ≤ Ax ≤ ub
  *
  */
-template <typename InputTraits>
-class LinearConstraintTpl : public ConstraintTpl<InputTraits> {
-    using LinearConstraintData = LinearConstraintDataTpl<InputTraits>;
+template <typename FunctionTraits>
+class LinearConstraintTpl : public ConstraintTpl<FunctionTraits> {
+    using Data = LinearConstraintDataTpl<FunctionTraits>;
 
    public:
+    virtual std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
+
     /**
      * @brief Evaluates the vector coeffcient vector bₚ for the constraint lb ≤
      * Ax ≤ ub
      *
      * @param A Coefficient matrix Aₚ
      */
-    void evalCoefficients(LinearConstraintData &data) const {
-        evalCoefficientsImpl(data);
-    }
+    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
     virtual std::shared_ptr<Data> createData() = 0;
 
    protected:
     LinearConstraintTpl(const Index &dim_input, const Index &dim_output)
-        : ConstraintTpl<Scalar>(dim_input, dim_output) {
+        : ConstraintTpl<FunctionTraits>(dim_input, dim_output) {
         this->setName("linear_constraint");
     }
 
     LinearConstraintTpl(
-        const std::shared_ptr<ConstraintTpl<Scalar>> &constraint)
-        : ConstraintTpl<Scalar>(constraint) {
+        const std::shared_ptr<ConstraintTpl<FunctionTraits>> &constraint)
+        : ConstraintTpl<FunctionTraits>(constraint) {
         this->setName("linear_constraint");
     }
 
-    virtual void evalCoefficientsImpl(LinearConstraintData &data) const {}
+    virtual void evalCoefficientsImpl(Data &data) const {}
 
    private:
 };
 
 template <typename Scalar>
-using DenseLinearConstraint = LinearConstraintTpl<DenseInputTraits<Scalar>>;
+using DenseLinearConstraintTpl =
+    LinearConstraintTpl<DenseFunctionTraits<Scalar>>;
 
 template <typename Scalar>
-using SparseLinearConstraint = LinearConstraintTpl<SparseInputTraits<Scalar>>;
+using SparseLinearConstraintTpl =
+    LinearConstraintTpl<SparseFunctionTraits<Scalar>>;
 
-template <typename Scalar>
-struct LinearConstraintDataTpl : public ConstraintDataTpl<Scalar> {
-    LinearConstraintDataTpl(const LinearConstraintTpl<Scalar> &c)
-        : ConstraintDataTpl<Scalar>(c),
-          A(MatrixX<Scalar>::Zero(c.getOuptutDimension(),
-                                  c.getInputTangentSpaceDimension())),
-          A_s(c.getOuptutDimension(), c.getInputTangentSpaceDimension()) {
-        c.setCoefficientSparsityPatterns(*this);
+template <typename FunctionTraits>
+struct LinearConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
+    using Matrix = typename FunctionTraits::Vector;
+
+    LinearConstraintDataTpl(const LinearConstraintTpl<FunctionTraits> &c)
+        : EvaluatorDataTpl<FunctionTraits>(c) {
+        if constexpr (FunctionTraits::type == "Sparse") {
+            // Sparse: allocate sparse objects properly
+            A.resize(c.getOutputDimension(), c.getInputDimension());
+        } else {
+            A(Matrix::Zero(c.getOutputDimension(), c.getInputDimension()));
+        }
     }
 
-    MatrixX<Scalar> A;
-    SparseMatrix<Scalar> A_s;
+    Matrix A;
 };
 
-typedef LinearConstraintDataTpl<double> LinearConstraintData;
+/**
+ * @brief Constraint of the form lower_bound() <= x <= upper_bound()
+ *
+ */
+template <typename FunctionTraits>
+class BoundingBoxConstraintTpl : public ConstraintTpl<FunctionTraits> {
+   public:
+    using Base = ConstraintTpl<FunctionTraits>;
 
-// /**
-//  * @brief Constraint of the form lower_bound() <= x <= upper_bound()
-//  *
-//  */
-// template <typename Scalar>
-// class BoundingBoxConstraintTpl : public LinearConstraintTpl<Scalar> {
-//    public:
-//     BoundingBoxConstraintTpl(
-//         const Index &dim_input,
-//         const Eigen::Ref<const VectorX<Scalar>> &lower_bound,
-//         const Eigen::Ref<const VectorX<Scalar>> &upper_bound)
-//         : LinearConstraintTpl<Scalar>(dim_input, dim_input),
-//           lb_(lower_bound),
-//           ub_(upper_bound) {}
+    using Scalar = typename Base::Scalar;
 
-//     BoundingBoxConstraintTpl(const Index &dim_input, const Scalar
-//     &lower_bound,
-//                              const Scalar &upper_bound)
-//         : LinearConstraintTpl<Scalar>(dim_input, dim_input),
-//           lb_(VectorX<Scalar>::Constant(dim_input, lower_bound)),
-//           ub_(VectorX<Scalar>::Constant(dim_input, upper_bound)) {}
+    using InputVector = typename Base::InputVector;
+    using InputVectorConstRef = typename Base::InputVectorConstRef;
 
-//     static std::shared_ptr<BoundingBoxConstraintTpl> create(
-//         const Index &dim_input,
-//         const Eigen::Ref<const VectorX<Scalar>> &lower_bound,
-//         const Eigen::Ref<const VectorX<Scalar>> &upper_bound) {
-//         return std::make_shared<BoundingBoxConstraintTpl>(
-//             dim_input, lower_bound, upper_bound);
-//     }
+    using Vector = typename Base::Vector;
+    using Matrix = typename Base::Matrix;
 
-//     static std::shared_ptr<BoundingBoxConstraintTpl> create(
-//         const Index &dim_input, const Scalar &lower_bound,
-//         const Scalar &upper_bound) {
-//         return std::make_shared<BoundingBoxConstraintTpl>(
-//             dim_input, lower_bound, upper_bound);
-//     }
+    using VectorInput = typename Base::VectorInput;
+    using MatrixInput = typename Base::MatrixInput;
 
-//    protected:
-//     void evalImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
-//                   EvaluatorDataTpl<Scalar> &data) const override {
-//         data.y = x;
-//     }
+    using VectorConstInput = typename Base::VectorConstInput;
+    using MatrixConstInput = typename Base::MatrixConstInput;
 
-//     void evalJacobiansImpl(const Eigen::Ref<const VectorX<Scalar>> &x,
-//                            EvaluatorDataTpl<Scalar> &data, bool compute_x,
-//                            bool compute_p) const override {
-//         data.Jx.setIdentity();
-//     }
+    using Data = typename Base::Data;
 
-//     void evalBoundsImpl(ConstraintDataTpl<Scalar> &data) const override {
-//         data.lb = lb_;
-//         data.ub = ub_;
-//     }
+    BoundingBoxConstraintTpl(const Index &dim_input,
+                             const InputVectorConstRef &lower_bound,
+                             const InputVectorConstRef &upper_bound)
+        : ConstraintTpl<Scalar>(dim_input, dim_input),
+          lb_(lower_bound),
+          ub_(upper_bound) {}
 
-//    private:
-//     /// Constant bounds that are set at initialisation
-//     VectorX<Scalar> lb_;
-//     VectorX<Scalar> ub_;
-// };
+    BoundingBoxConstraintTpl(const Index &dim_input, const Scalar &lower_bound,
+                             const Scalar &upper_bound)
+        : ConstraintTpl<Scalar>(dim_input, dim_input),
+          lb_(InputVector::Constant(dim_input, lower_bound)),
+          ub_(InputVector::Constant(dim_input, upper_bound)) {}
+
+   protected:
+    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
+        data.y = x;
+    }
+
+    void evalJacobiansImpl(const InputVectorConstRef &x, Data &data,
+                           bool compute_x, bool compute_p) const override {
+        data.Jx.setIdentity();
+    }
+
+    void evalBoundsImpl(ConstraintDataTpl<Scalar> &data) const override {
+        data.lb = lb_;
+        data.ub = ub_;
+    }
+
+   private:
+    /// Constant bounds that are set at initialisation
+    InputVector lb_;
+    InputVector ub_;
+};
 
 // typedef BoundingBoxConstraintTpl<double> BoundingBoxConstraint;
 

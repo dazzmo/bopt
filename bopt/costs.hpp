@@ -15,24 +15,15 @@ struct CostDataTpl;
  * @brief Cost function y = fₚ(x) ∈ ℝ
  *
  */
-template <typename InputTraits>
+template <typename FunctionTraits>
 class CostTpl {
    public:
-    using Scalar = typename InputTraits::Scalar;
+    using Scalar = typename FunctionTraits::Scalar;
 
-    using InputVector = Eigen::VectorX<Scalar>;
-    using InputVectorConstRef = Eigen::Ref<const InputVector>;
+    using InputVector = typename FunctionTraits::InputVector;
+    using InputVectorConstRef = typename FunctionTraits::InputVectorConstRef;
 
-    using Vector = typename InputTraits::Vector;
-    using Matrix = typename InputTraits::Matrix;
-
-    using VectorInput = typename InputTraits::VectorInput;
-    using MatrixInput = typename InputTraits::MatrixInput;
-
-    using VectorConstInput = typename InputTraits::VectorConstInput;
-    using MatrixConstInput = typename InputTraits::MatrixConstInput;
-
-    using Data = CostDataTpl<InputTraits>;
+    using Data = CostDataTpl<FunctionTraits>;
 
     /**
      * @brief Sets the name of the cost.
@@ -42,8 +33,8 @@ class CostTpl {
     const std::string &name() const { return name_; }
     void setName(const std::string &name) { name_ = name; }
 
-    virtual std::shared_ptr<Data> createData() const {
-        return std::make_shared<Data>(*this);
+    std::shared_ptr<Data> createData() const {
+        return std::shared_ptr<Data>(this->createDataImpl());
     }
 
     /**
@@ -181,7 +172,7 @@ class CostTpl {
           description_(description),
           ptr_(nullptr) {}
 
-    CostTpl(const std::shared_ptr<CostTpl<InputTraits>> &ptr)
+    CostTpl(const std::shared_ptr<CostTpl<FunctionTraits>> &ptr)
         : dim_input_(ptr->getInputDimension()),
           dim_tangent_space_(ptr->getInputDimension()),
           num_parameters_(ptr->getNumberOfParameters()),
@@ -190,6 +181,11 @@ class CostTpl {
           parameters_(ptr->parameters()),
           description_(ptr->description()),
           ptr_(ptr) {}
+
+    virtual Data *createDataImpl() const {
+        auto data = new Data(*this);
+        return data;
+    }
 
     /**
      * @brief Sets the dimension of the tangent space for the input variables.
@@ -256,26 +252,20 @@ class CostTpl {
 };
 
 template <typename Scalar>
-using DenseCostTpl = CostTpl<DenseInputTraits<Scalar>>;
+using DenseCostTpl = CostTpl<DenseFunctionTraits<Scalar>>;
 
 template <typename Scalar>
-using SparseCostTpl = CostTpl<SparseInputTraits<Scalar>>;
+using SparseCostTpl = CostTpl<SparseFunctionTraits<Scalar>>;
 
-template <typename InputTraits>
+template <typename FunctionTraits>
 struct CostDataTpl {
-    using Scalar = typename InputTraits::Scalar;
+    using Scalar = typename FunctionTraits::Scalar;
 
-    using Vector = typename InputTraits::Vector;
-    using Matrix = typename InputTraits::Matrix;
+    using Vector = typename FunctionTraits::OutputVector;
+    using Matrix = typename FunctionTraits::OutputMatrix;
 
-    using VectorInput = typename InputTraits::VectorInput;
-    using MatrixInput = typename InputTraits::MatrixInput;
-
-    using VectorConstInput = typename InputTraits::VectorConstInput;
-    using MatrixConstInput = typename InputTraits::MatrixConstInput;
-
-    CostDataTpl(const CostTpl<InputTraits> &c) {
-        if constexpr (InputTraits::type == "Sparse") {
+    CostDataTpl(const CostTpl<FunctionTraits> &c) {
+        if constexpr (FunctionTraits::type == "Sparse") {
             // Sparse: allocate sparse objects properly
             gx.resize(c.getInputTangentSpaceDimension());
             gp.resize(c.getNumberOfParameters());
@@ -313,10 +303,8 @@ struct CostDataTpl {
     Matrix Hpp;
 };
 
-typedef CostDataTpl<double> CostData;
-
-template <typename InputTraits>
-std::ostream &operator<<(std::ostream &os, const CostTpl<InputTraits> &c) {
+template <typename FunctionTraits>
+std::ostream &operator<<(std::ostream &os, const CostTpl<FunctionTraits> &c) {
     os << "cost:\n";
     os << "name: " << c.name() << '\n';
     os << "scaling factor: " << c.scaling_factor() << '\n';
@@ -331,15 +319,16 @@ struct LinearCostDataTpl;
  * @brief Linear cost of the form fₚ(x) = aₚᵀx + bₚ
  *
  */
-template <typename InputTraits>
-class LinearCostTpl : public CostTpl<InputTraits> {
+template <typename FunctionTraits>
+class LinearCostTpl : public CostTpl<FunctionTraits> {
    public:
-    using Base = CostTpl<InputTraits>;
-    using Data = typename Base::Data;
-    using LinearCostData = LinearCostDataTpl<InputTraits>;
+    using Base = CostTpl<FunctionTraits>;
+    using EvaluatorData = typename Base::Data;
 
-    virtual std::shared_ptr<LinearCostData> createLinearCostData() {
-        return std::make_shared<LinearCostData>(*this);
+    using Data = LinearCostDataTpl<FunctionTraits>;
+
+    std::shared_ptr<Data> createData() const {
+        return std::shared_ptr<Data>(this->createDataImpl());
     }
 
     /**
@@ -352,46 +341,46 @@ class LinearCostTpl : public CostTpl<InputTraits> {
     void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
    protected:
-    LinearCostTpl(const Index &dim_input) : CostTpl<InputTraits>(dim_input) {
+    LinearCostTpl(const Index &dim_input) : CostTpl<FunctionTraits>(dim_input) {
         this->setName("linear_cost");
     }
 
-    LinearCostTpl(const std::shared_ptr<CostTpl<InputTraits>> &cost)
-        : CostTpl<InputTraits>(cost) {
+    LinearCostTpl(const std::shared_ptr<CostTpl<FunctionTraits>> &cost)
+        : CostTpl<FunctionTraits>(cost) {
         this->setName("linear_cost");
     }
 
     virtual void evalCoefficientsImpl(Data &data) const {}
 
+    Data *createDataImpl() const override {
+        auto data = new Data(*this);
+        return data;
+    }
+
    private:
 };
 
 template <typename Scalar>
-using DenseLinearCostTpl = LinearCostTpl<DenseInputTraits<Scalar>>;
+using DenseLinearCostTpl = LinearCostTpl<DenseFunctionTraits<Scalar>>;
 
 template <typename Scalar>
-using SparseLinearCostTpl = LinearCostTpl<SparseInputTraits<Scalar>>;
+using SparseLinearCostTpl = LinearCostTpl<SparseFunctionTraits<Scalar>>;
 
 /**
  * @brief Contains the data associated with a linear cost
  *
- * @tparam InputTraits
+ * @tparam FunctionTraits
  */
-template <typename InputTraits>
-struct LinearCostDataTpl {
-    using Scalar = typename InputTraits::Scalar;
+template <typename FunctionTraits>
+struct LinearCostDataTpl : public CostDataTpl<FunctionTraits> {
+    using Scalar = typename FunctionTraits::Scalar;
 
-    using Vector = typename InputTraits::Vector;
-    using Matrix = typename InputTraits::Matrix;
+    using Vector = typename FunctionTraits::OutputVector;
+    using Matrix = typename FunctionTraits::OutputMatrix;
 
-    using VectorInput = typename InputTraits::VectorInput;
-    using MatrixInput = typename InputTraits::MatrixInput;
-
-    using VectorConstInput = typename InputTraits::VectorConstInput;
-    using MatrixConstInput = typename InputTraits::MatrixConstInput;
-
-    LinearCostDataTpl(const LinearCostTpl<InputTraits> &c) {
-        if constexpr (InputTraits::type == "Sparse") {
+    LinearCostDataTpl(const LinearCostTpl<FunctionTraits> &c)
+        : CostDataTpl<FunctionTraits>(c) {
+        if constexpr (FunctionTraits::type == "Sparse") {
             // Sparse: allocate sparse objects properly
             a.resize(c.getInputDimension());
         } else {
@@ -405,8 +394,6 @@ struct LinearCostDataTpl {
     /// Constant term b
     Scalar b;
 };
-
-typedef LinearCostDataTpl<double> LinearCostData;
 
 // /**
 //  * @brief Types of hessians
@@ -423,7 +410,7 @@ typedef LinearCostDataTpl<double> LinearCostData;
 //  *
 //  */
 // template <typename Scalar>
-// class QuadraticCostTpl : public CostTpl<InputTraits> {
+// class QuadraticCostTpl : public CostTpl<FunctionTraits> {
 //    public:
 //     using QuadraticCostData = QuadraticCostDataTpl<Scalar>;
 
@@ -448,14 +435,14 @@ typedef LinearCostDataTpl<double> LinearCostData;
 //     }
 
 //    protected:
-//     QuadraticCostTpl<InputTraits>(const Index &dim_input)
-//         : CostTpl<InputTraits>(dim_input) {
+//     QuadraticCostTpl<FunctionTraits>(const Index &dim_input)
+//         : CostTpl<FunctionTraits>(dim_input) {
 //         this->setName("quadratic_cost");
 //     }
 
-//     QuadraticCostTpl<InputTraits>(const std::shared_ptr<CostTpl<InputTraits>>
-//     &cost)
-//         : CostTpl<InputTraits>(cost) {
+//     QuadraticCostTpl<FunctionTraits>(const
+//     std::shared_ptr<CostTpl<FunctionTraits>> &cost)
+//         : CostTpl<FunctionTraits>(cost) {
 //         this->setName("quadratic_cost");
 //     }
 
@@ -473,7 +460,7 @@ typedef LinearCostDataTpl<double> LinearCostData;
 
 // template <typename Scalar>
 // struct QuadraticCostDataTpl : public CostDataTpl<Scalar> {
-//     QuadraticCostDataTpl(const QuadraticCostTpl<InputTraits> &c)
+//     QuadraticCostDataTpl(const QuadraticCostTpl<FunctionTraits> &c)
 //         : CostDataTpl<Scalar>(c),
 //           A(MatrixX<Scalar>::Zero(c.getInputDimension(),
 //                                   c.getInputDimension())),

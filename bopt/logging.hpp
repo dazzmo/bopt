@@ -5,4 +5,6 @@
 #define GLOG_USE_GLOG_EXPORT
 #include <glog/logging.h>
 
+// todo - add logger class
+
 #endif /* CORE_LOGGING_HPP */

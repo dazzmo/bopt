@@ -38,8 +38,7 @@ struct qpoases_options : public solver_options<double>,
 };
 
 struct QPData {
-    typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic,
-                          Eigen::RowMajor>
+    typedef Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
         MatrixXdRowMajor;
 
     QPData(const MathematicalProgram& program) {
@@ -85,8 +84,6 @@ struct QPData {
 
 class qpoases_solver : public solver<double> {
    public:
-    QPData data;
-
     qpoases_solver() = default;
     qpoases_solver(MathematicalProgram& program);
 
@@ -101,15 +98,17 @@ class qpoases_solver : public solver<double> {
     bool first_solve_ = true;
     int n_solves_ = 0;
 
-    std::vector<LinearConstraintData> linear_constraint_data_;
-    std::vector<QuadraticCostData> quadratic_cost_data_;
-    std::vector<LinearCostData> linear_cost_data_;
-    std::vector<ConstraintData> bounding_box_constraint_data_;
+    // std::vector<LinearConstraintData> linear_constraint_data_;
+    // std::vector<QuadraticCostData> quadratic_cost_data_;
+    // std::vector<LinearCostData> linear_cost_data_;
+    // std::vector<ConstraintData> bounding_box_constraint_data_;
 
     std::unique_ptr<qpOASES::SQProblem> qp_;
 
     qpoases_options options_;
     qpoases_info info_;
+
+    QPData data_;
 };
 
 }  // namespace solvers

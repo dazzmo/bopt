@@ -41,21 +41,16 @@ class BasicSparseCost : public bopt::SparseCostTpl<double> {
     }
 };
 
-class LinearCost : public bopt::DenseLinearCostTpl<double> {
+class LinearCost : public bopt::SparseLinearCostTpl<double> {
    public:
-    LinearCost() : bopt::DenseLinearCostTpl<double>(1) {}
-    using Base = bopt::DenseLinearCostTpl<double>;
+    LinearCost() : bopt::SparseLinearCostTpl<double>(1) {}
+    using Base = bopt::SparseLinearCostTpl<double>;
+    using EvaluatorData = typename Base::EvaluatorData;
     using Data = typename Base::Data;
-    using LinearData = typename Base::LinearCostData;
 
    protected:
-    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
+    void evalImpl(const InputVectorConstRef &x, EvaluatorData &data) const override {
         data.y = 1.0;
-    }
-
-    void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
-                           bool compute_x, bool compute_p) const override {
-        data.gx << -1.0;
     }
 };
 
@@ -74,11 +69,11 @@ TEST(Program, AddCosts) {
 
     auto c2 = std::make_shared<LinearCost>();
     auto d2 = c2->createData();
-    p.addLinearCost<bopt::DenseInputTraits<double>>(c2, d2, x);
+    p.addLinearCost(c2, d2, x);
 
-    auto c = p.getCosts<bopt::DenseCostTpl<double>>();
+    auto c = p.getCosts<bopt::SparseCostTpl<double>>();
 
-    EXPECT_EQ(c.size(), 1);
+    EXPECT_EQ(c.size(), 2);
 }
 
 int main(int argc, char **argv) {
