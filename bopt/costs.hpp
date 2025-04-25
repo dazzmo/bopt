@@ -53,7 +53,7 @@ class CostTpl {
      * @param data
      */
     void eval(const InputVectorConstRef &x, Data &data) const {
-        BOPT_ASSERT(x.rows() == getInputDimension());
+        assert(x.rows() == getInputDimension());
         evalImpl(x, data);
     }
 
@@ -67,7 +67,7 @@ class CostTpl {
      */
     void evalGradients(const InputVectorConstRef &x, Data &data,
                        bool compute_x = true, bool compute_p = false) const {
-        BOPT_ASSERT(x.rows() == getInputDimension());
+        assert(x.rows() == getInputDimension());
         evalGradientsImpl(x, data, compute_x, compute_p);
     }
 
@@ -82,7 +82,7 @@ class CostTpl {
     void evalSparseGradients(const InputVectorConstRef &x, Data &data,
                              bool compute_x = true,
                              bool compute_p = false) const {
-        BOPT_ASSERT(x.rows() == getInputDimension());
+        assert(x.rows() == getInputDimension());
         evalSparseGradientsImpl(x, data, compute_x, compute_p);
     }
 
@@ -156,7 +156,7 @@ class CostTpl {
      * @param p
      */
     void setParameters(const InputVectorConstRef &p) {
-        BOPT_ASSERT(p.size() == getNumberOfParameters());
+        assert(p.size() == getNumberOfParameters());
         parameters_ = p;
         if (ptr_) ptr_->setParameters(p);
     }
@@ -395,109 +395,82 @@ struct LinearCostDataTpl : public CostDataTpl<FunctionTraits> {
     Scalar b;
 };
 
-// /**
-//  * @brief Types of hessians
-//  *
-//  */
-// enum class HessianType { kPositiveDefinite, kPositiveSemiDefinite, Indefinite
-// };
+/**
+ * @brief Types of hessians
+ *
+ */
+enum class HessianType { kPositiveDefinite, kPositiveSemiDefinite, Indefinite };
 
-// template <typename Scalar>
-// struct QuadraticCostDataTpl;
+template <typename FunctionTraits>
+struct QuadraticCostDataTpl;
 
-// /**
-//  * @brief Quadratic cost of the form fₚ(x) = (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
-//  *
-//  */
-// template <typename Scalar>
-// class QuadraticCostTpl : public CostTpl<FunctionTraits> {
-//    public:
-//     using QuadraticCostData = QuadraticCostDataTpl<Scalar>;
+/**
+ * @brief Quadratic cost of the form fₚ(x) = (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
+ *
+ */
+template <typename FunctionTraits>
+class QuadraticCostTpl : public CostTpl<FunctionTraits> {
+   public:
+    using Data = QuadraticCostDataTpl<FunctionTraits>;
 
-//     /**
-//      * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) =
-//      * (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
-//      *
-//      * @param A Lower triangular matrix Aₚ
-//      * @param b Vector bₚ
-//      * @param c Constant cₚ
-//      */
-//     void evalCoefficients(QuadraticCostData &data) const {
-//         evalCoefficientsImpl(data);
-//     }
+    std::shared_ptr<Data> createData() const {
+        return std::shared_ptr<Data>(this->createDataImpl());
+    }
 
-//     void evalSparseCoefficients(QuadraticCostData &data) const {
-//         evalSparseCoefficientsImpl(data);
-//     }
+    /**
+     * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) =
+     * (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
+     *
+     * @param A Lower triangular matrix Aₚ
+     * @param b Vector bₚ
+     * @param c Constant cₚ
+     */
+    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
-//     void setCoefficientSparsityPatterns(QuadraticCostData &data) const {
-//         setCoefficientSparsityPatternsImpl(data);
-//     }
+   protected:
+    QuadraticCostTpl<FunctionTraits>(const Index &dim_input)
+        : CostTpl<FunctionTraits>(dim_input) {
+        this->setName("quadratic_cost");
+    }
 
-//    protected:
-//     QuadraticCostTpl<FunctionTraits>(const Index &dim_input)
-//         : CostTpl<FunctionTraits>(dim_input) {
-//         this->setName("quadratic_cost");
-//     }
+    QuadraticCostTpl<FunctionTraits>(
+        const std::shared_ptr<CostTpl<FunctionTraits>> &cost)
+        : CostTpl<FunctionTraits>(cost) {
+        this->setName("quadratic_cost");
+    }
 
-//     QuadraticCostTpl<FunctionTraits>(const
-//     std::shared_ptr<CostTpl<FunctionTraits>> &cost)
-//         : CostTpl<FunctionTraits>(cost) {
-//         this->setName("quadratic_cost");
-//     }
+    virtual Data *createDataImpl() const { return new Data(*this); }
 
-//     virtual void evalCoefficientsImpl(QuadraticCostData &data) const {}
+    virtual void evalCoefficientsImpl(Data &data) const {}
 
-//     virtual void evalSparseCoefficientsImpl(QuadraticCostData &data) const {}
+   private:
+};
 
-//     virtual void setCoefficientSparsityPatternsImpl(
-//         QuadraticCostData &data) const {}
+typedef QuadraticCostTpl<double> QuadraticCost;
 
-//    private:
-// };
+template <typename FunctionTraits>
+struct QuadraticCostDataTpl : public CostDataTpl<FunctionTraits> {
+    using Scalar = typename FunctionTraits::Scalar;
 
-// typedef QuadraticCostTpl<double> QuadraticCost;
+    using Vector = typename FunctionTraits::OutputVector;
+    using Matrix = typename FunctionTraits::OutputMatrix;
 
-// template <typename Scalar>
-// struct QuadraticCostDataTpl : public CostDataTpl<Scalar> {
-//     QuadraticCostDataTpl(const QuadraticCostTpl<FunctionTraits> &c)
-//         : CostDataTpl<Scalar>(c),
-//           A(MatrixX<Scalar>::Zero(c.getInputDimension(),
-//                                   c.getInputDimension())),
-//           b(VectorX<Scalar>::Zero(c.getInputDimension())),
-//           c(0),
-//           A_s(SparseMatrix<Scalar>(c.getInputDimension(),
-//                                    c.getInputDimension())),
-//           b_s(SparseVector<Scalar>(c.getInputDimension())) {
-//         c.setCoefficientSparsityPatterns(*this);
-//     }
+    QuadraticCostDataTpl(const QuadraticCostTpl<FunctionTraits> &c)
+        : CostDataTpl<FunctionTraits>(c) {
+        if constexpr (FunctionTraits::type == "Sparse") {
+            // Sparse: allocate sparse objects properly
+            A.resize(c.getInputDimension(), c.getInputDimension());
+            b.resize(c.getInputDimension(), c.getInputDimension());
+        } else {
+            // Dense
+            A = Matrix::Zero(c.getInputDimension(), c.getInputDimension());
+            b = Vector::Zero(c.getInputDimension());
+        }
+    }
 
-//     /// Dense coefficient matrix A (lower triangular)
-//     MatrixX<Scalar> A;
-//     /// Dense coefficient vector b
-//     VectorX<Scalar> b;
-//     /// Constant term c
-//     Scalar c;
-
-//     /// Sparse coefficient matrix A (lower triangular)
-//     SparseMatrix<Scalar> A_s;
-//     /// Sparse coefficient vector b
-//     SparseVector<Scalar> b_s;
-// };
-
-// typedef QuadraticCostDataTpl<double> QuadraticCostData;
-
-// class LeastSquaresCost : public QuadraticCost {
-//    public:
-//     LeastSquaresCost(const std::shared_ptr<LinearCost> &linear_cost) {}
-
-//    protected:
-//     void evalImpl(const Eigen::Ref<const VectorXd> &x, double &out) {
-//         // linear_cost_->eval(x, out);
-//         // setA(linear_cost_->a().transpose() * linear_cost_->a());
-//     }
-
-//    private:
-// };
+    Matrix A;
+    Vector b;
+    Scalar c;
+};
 
 }  // namespace bopt

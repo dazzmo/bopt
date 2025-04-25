@@ -4,15 +4,18 @@
 
 namespace bopt {
 
+using Real = double;
+using Index = unsigned long long;
+
 /**
  * @brief Infinity
- * 
+ *
  */
 constexpr double kInf = std::numeric_limits<double>::infinity();
 
 /**
  * @brief Machine precision epsilon
- * 
+ *
  */
 constexpr double kEpsilon = std::numeric_limits<double>::epsilon();
 

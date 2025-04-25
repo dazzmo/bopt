@@ -37,7 +37,7 @@ class MathematicalProgram {
     /**
      * @brief Default constructor for the mathematical program.
      */
-    MathematicalProgram() : name_(""), n_constraints_(0) {}
+    MathematicalProgram() : name_(""), numConstraints_(0) {}
 
     /**
      * @brief Constructs a mathematical program with a specified name.
@@ -45,7 +45,7 @@ class MathematicalProgram {
      * @param name Name of the mathematical program.
      */
     MathematicalProgram(const std::string &name)
-        : name_(name), n_constraints_(0) {}
+        : name_(name), numConstraints_(0) {}
 
     /**
      * @brief Gets the name of the mathematical program.
@@ -59,21 +59,32 @@ class MathematicalProgram {
      *
      * @return bopt_index Number of decision variables.
      */
-    bopt_index n_variables() const { return variables_.size(); }
+    bopt_index numVariables() const { return variables_.size(); }
 
     /**
      * @brief Gets the number of cost functions in the program.
      *
      * @return bopt_index Number of cost functions.
      */
-    // todo bopt_index n_costs() const { return getAllCosts().size(); }
+    bopt_index numCosts() const { return cost_bindings_.size(); }
 
     /**
      * @brief Gets the number of constraints in the program.
      *
      * @return bopt_index Number of constraints.
      */
-    bopt_index n_constraints() const { return n_constraints_; }
+    bopt_index numConstraints() const {
+        // Iterate through each constraint and count the number
+        Index m = 0;
+        for (const auto &constraint : constraint_bindings_) {
+            std::visit(
+                [&](auto &&binding) {
+                    m += binding.get()->getOutputDimension();
+                },
+                constraint);
+        }
+        return m;
+    }
 
     /**
      * @brief Gets the initial values of the decision variables.
@@ -182,6 +193,55 @@ class MathematicalProgram {
     }
 
     /**
+     * @brief Add a constraint to the program, bound to the provided variables.
+     *
+     * @param constraint
+     * @param x
+     */
+    template <typename ConstraintType>
+    void addConstraint(
+        const std::shared_ptr<ConstraintType> &constraint,
+        const std::shared_ptr<typename ConstraintType::Data> &data,
+        const Eigen::Ref<const VariableVector> &x) {
+        // Create binding
+        constraint_bindings_.emplace_back(
+            Binding<ConstraintType>(constraint, data, getVariableIndices(x)));
+    }
+
+    /**
+     * @brief Add a dense linear cost to the program
+     *
+     * @param cost
+     * @param data
+     * @param x
+     */
+    void addLinearConstraint(
+        const std::shared_ptr<DenseLinearConstraintTpl<Real>> &constraint,
+        const std::shared_ptr<typename DenseLinearConstraintTpl<Real>::Data>
+            &data,
+        const Eigen::Ref<const VariableVector> &x) {
+        // Create binding
+        this->addConstraint<DenseLinearConstraintTpl<Real>>(constraint, data,
+                                                            x);
+    }
+
+    /**
+     * @brief Add a sparse linear constraint to the program
+     *
+     * @param constraint
+     * @param data
+     * @param x
+     */
+    void addLinearConstraint(
+        const std::shared_ptr<SparseLinearConstraintTpl<Real>> &constraint,
+        const std::shared_ptr<typename SparseLinearConstraintTpl<Real>::Data>
+            &data,
+        const Eigen::Ref<const VariableVector> &x) {
+        this->addConstraint<SparseLinearConstraintTpl<Real>>(constraint, data,
+                                                             x);
+    }
+
+    /**
      * @brief Get all cost bindings of a specific type, note that this will
      * return all bindings which are of this type, as well as any bindings that
      * have a base of this given type.
@@ -209,23 +269,33 @@ class MathematicalProgram {
         return vec;
     }
 
-    // // constraints
-    // void addConstraint(const std::shared_ptr<Constraint> &constraint,
-    //                    const Eigen::Ref<const VariableVector> &x) {
-    //     n_constraints_ += constraint->getOuptutDimension();
-    //     // Create binding
-    //     constraints_generic_.push_back(
-    //         Binding<Constraint>(constraint, getVariableIndices(x)));
-    // }
+    /**
+     * @brief Get all constraint bindings of a specific type, note that this
+     * will return all bindings which are of this type, as well as any bindings
+     * that have a base of this given type.
+     *
+     * @tparam BindingType
+     * @return std::vector<Binding<BindingType>>
+     */
+    template <typename BindingType>
+    std::vector<Binding<BindingType>> getConstraints() {
+        std::vector<Binding<BindingType>> vec;
 
-    // void addLinearConstraint(
-    //     const std::shared_ptr<LinearConstraint> &constraint,
-    //     const Eigen::Ref<const VariableVector> &x) {
-    //     n_constraints_ += constraint->getOuptutDimension();
-    //     // Create binding
-    //     constraints_linear_.push_back(
-    //         Binding<LinearConstraint>(constraint, getVariableIndices(x)));
-    // }
+        for (const auto &constraint : constraint_bindings_) {
+            std::visit(
+                [&](auto &&binding) {
+                    using T = std::decay_t<decltype(binding)>;
+                    if constexpr (std::is_base_of_v<BindingType,
+                                                    typename T::Evaluator>) {
+                        vec.push_back(binding);
+                    }
+                },
+                constraint);
+        }
+
+        // Return vector of all costs
+        return vec;
+    }
 
     // void addBoundingBoxConstraint(
     //     const std::shared_ptr<BoundingBoxConstraint> &constraint,
@@ -271,7 +341,7 @@ class MathematicalProgram {
     // Name
     std::string name_;
 
-    Index n_constraints_;
+    Index numConstraints_;
 
     VectorXd x_;
     // Decision variables initial value
@@ -283,27 +353,9 @@ class MathematicalProgram {
     std::vector<Variable> variables_;
     std::unordered_map<Variable::Id, Eigen::Index> variable_index_map_;
 
-    // constraint bindings
-    // std::vector<Binding<Constraint>> constraints_generic_ = {};
-    // std::vector<Binding<LinearConstraint>> constraints_linear_ = {};
-    // std::vector<Binding<BoundingBoxConstraint>> constraints_bounding_box_ =
-    // {};
-
-    // cost bindings
     std::vector<CostVariant> cost_bindings_ = {};
-    // std::vector<Binding<Cost>> costs_generic_ = {};
-    // std::vector<Binding<LinearCost>> costs_linear_ = {};
+    std::vector<ConstraintVariant> constraint_bindings_ = {};
 };
-
-//    template <typename T>
-//    void addConstraint(const Binding<T>& binding) {
-//        constraint_bindings_.emplace_back(binding);
-//    }
-
-//    template <typename T>
-//    void addConstraint(const T& constraint) {
-//        addConstraint(Binding<T>(constraint));
-//    }
 
 std::ostream &operator<<(std::ostream &os, const MathematicalProgram &program);
 

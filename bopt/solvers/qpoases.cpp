@@ -8,8 +8,8 @@ qpoases_solver::qpoases_solver(MathematicalProgram& program)
     LOG(INFO) << "qpoases_solver::qpoases_solver";
 
     // Create problem
-    int nx = program.n_variables();
-    int ng = program.n_constraints();
+    int nx = program.numVariables();
+    int ng = program.numConstraints();
 
     qp_ = std::make_unique<qpOASES::SQProblem>(nx, ng);
 
@@ -135,16 +135,16 @@ void qpoases_solver::solve(MathematicalProgram& program) {
     //             }
     //         } else {
     //             c.evalCoefficients(cdata);
-    //             data.A.middleRows(row, c.getOuptutDimension()) = cdata.A;
+    //             data.A.middleRows(row, c.getOutputDimension()) = cdata.A;
     //         }
 
     //         // Evaluate bounds
     //         c.evalBounds(cdata);
-    //         data.lbA.middleRows(row, c.getOuptutDimension()) = cdata.lb;
-    //         data.ubA.middleRows(row, c.getOuptutDimension()) = cdata.ub;
+    //         data.lbA.middleRows(row, c.getOutputDimension()) = cdata.lb;
+    //         data.ubA.middleRows(row, c.getOutputDimension()) = cdata.ub;
 
     //         // Increment
-    //         row += c.getOuptutDimension();
+    //         row += c.getOutputDimension();
     //         i++;
     //     }
     // }

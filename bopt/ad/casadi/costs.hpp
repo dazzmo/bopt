@@ -31,7 +31,7 @@ class CostTpl : public bopt::CostTpl<Scalar> {
             const sym_vector_t &p, bool codegen = false, bool dense = true,
             bool sparse = true)
         : bopt::CostTpl<Scalar>(x.rows(), "casadi generated cost") {
-        BOPT_ASSERT(expression.is_scalar());
+        assert(expression.is_scalar());
 
         // Set up variables
         this->setTangentSpaceDimension(x.rows());

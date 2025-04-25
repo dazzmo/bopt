@@ -132,7 +132,7 @@ class LinearConstraintTpl : public bopt::LinearConstraintTpl<Scalar> {
         sym_t A, b;
         // Check expression is linear
         sym_t::linear_coeff(expression, x, A, b, true);
-        BOPT_ASSERT(b.is_zero());
+        assert(b.is_zero());
 
         // Create function
         A_ = function_t("dense_A", {p}, {sym_t::densify(A)});

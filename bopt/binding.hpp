@@ -42,7 +42,7 @@ class Binding {
     Binding(const std::shared_ptr<Evaluator> &ptr, const DataPtr &data,
             const std::vector<Eigen::Index> &indices)
         : evaluator_(ptr), data_(data), indices_(nullptr) {
-        BOPT_ASSERT(ptr->getInputDimension() == indices.size());
+        assert(ptr->getInputDimension() == indices.size());
         this->indices_ = std::make_shared<variable_indices>(indices);
     }
 

@@ -23,6 +23,7 @@ template <typename FunctionTraits>
 class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
     using Base = EvaluatorTpl<FunctionTraits>;
 
+   public:
     using Scalar = typename Base::Scalar;
 
     using InputVector = typename Base::InputVector;
@@ -33,7 +34,6 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
 
     using Data = ConstraintDataTpl<FunctionTraits>;
 
-   public:
     const ConstraintType &type() const { return type_; }
 
     std::shared_ptr<Data> createData() const {
@@ -81,7 +81,7 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
      * @return false
      */
     bool isSatisfied(Data &data, const double &epsilon = kEpsilon) const {
-        for (int i = 0; i < this->getOuptutDimension(); ++i) {
+        for (int i = 0; i < this->getOutputDimension(); ++i) {
             if (data.lb[i] - data.y[i] > epsilon ||
                 data.ub[i] - data.y[i] < -epsilon)
                 return false;
@@ -162,19 +162,19 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
         : EvaluatorDataTpl<FunctionTraits>(c) {
         if constexpr (FunctionTraits::type == "Sparse") {
             // Sparse: allocate sparse objects properly
-            lb.resize(c.getOuptutDimension());
-            ub.resize(c.getOuptutDimension());
-            Jlb_p.resize(c.getOuptutDimension(), c.getNumberOfParameters());
-            Jub_p.resize(c.getOuptutDimension(), c.getNumberOfParameters());
+            lb.resize(c.getOutputDimension());
+            ub.resize(c.getOutputDimension());
+            Jlb_p.resize(c.getOutputDimension(), c.getNumberOfParameters());
+            Jub_p.resize(c.getOutputDimension(), c.getNumberOfParameters());
             Hlb_pp.resize(c.getNumberOfParameters(), c.getNumberOfParameters());
             Hub_pp.resize(c.getNumberOfParameters(), c.getNumberOfParameters());
         } else {
             // Dense
-            lb(Vector::Zero(c.getOuptutDimension()));
-            ub(Vector::Zero(c.getOuptutDimension()));
-            Jlb_p(Matrix::Zero(c.getOuptutDimension(),
+            lb(Vector::Zero(c.getOutputDimension()));
+            ub(Vector::Zero(c.getOutputDimension()));
+            Jlb_p(Matrix::Zero(c.getOutputDimension(),
                                c.getNumberOfParameters()));
-            Jub_p(Matrix::Zero(c.getOuptutDimension(),
+            Jub_p(Matrix::Zero(c.getOutputDimension(),
                                c.getNumberOfParameters()));
             Hlb_pp(Matrix::Zero(c.getNumberOfParameters(),
                                 c.getNumberOfParameters()));
@@ -254,7 +254,8 @@ using SparseLinearConstraintTpl =
 
 template <typename FunctionTraits>
 struct LinearConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
-    using Matrix = typename FunctionTraits::Vector;
+    
+    using Matrix = typename FunctionTraits::OutputMatrix;
 
     LinearConstraintDataTpl(const LinearConstraintTpl<FunctionTraits> &c)
         : EvaluatorDataTpl<FunctionTraits>(c) {

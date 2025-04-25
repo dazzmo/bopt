@@ -11,6 +11,8 @@ namespace bopt {
 // New
 using Real = double;
 
+using Index = unsigned long long;
+
 using bopt_int = long long;
 using bopt_double = double;
 using bopt_index = std::size_t;

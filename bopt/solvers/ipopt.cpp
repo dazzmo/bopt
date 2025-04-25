@@ -8,7 +8,7 @@ namespace solvers {
 ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
     : Ipopt::TNLP(),
       program_(program),
-      cache_(program.n_variables(), program.n_constraints()) {
+      cache_(program.numVariables(), program.numConstraints()) {
     // Create data
     costs_ = program.getAllCosts();
     constraints_ = program.getAllConstraints();
@@ -47,7 +47,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
             }
         } else {
             // Dense output - currently use block insert
-            for (Index row = 0; row < c.getOuptutDimension(); ++row) {
+            for (Index row = 0; row < c.getOutputDimension(); ++row) {
                 for (Index col = 0; col < c.getInputTangentSpaceDimension(); ++col) {
                     triplets.push_back(Eigen::Triplet<double>(
                         idx + row, b.indices().indices()[col]));
@@ -55,7 +55,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
             }
         }
         i++;
-        idx += c.getOuptutDimension();
+        idx += c.getOutputDimension();
     }
     cache_.constraint_jacobian.setFromTriplets(triplets.begin(),
                                                triplets.end());
@@ -153,8 +153,8 @@ bool ipopt_program_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
                                           Index& nnz_h_lag,
                                           IndexStyleEnum& index_style) {
     VLOG(10) << "get_nlp_info()";
-    n = program().n_variables();
-    m = program().n_constraints();
+    n = program().numVariables();
+    m = program().numConstraints();
 
     VLOG(10) << "n = " << n;
     VLOG(10) << "m = " << m;
@@ -270,7 +270,7 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
 
         // Evaluate constraint
         binding.get()->eval(xi, cdata);
-        cache_.constraint_vector.middleRows(idx, con.getOuptutDimension()) = cdata.y;
+        cache_.constraint_vector.middleRows(idx, con.getOutputDimension()) = cdata.y;
 
         i++;
         VLOG(10) << "gi : " << cdata.y.transpose();
@@ -334,7 +334,7 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
                 }
             } else {
                 binding.get()->evalJacobians(xi, cdata, true, false);
-                for (Index row = 0; row < con.getOuptutDimension(); ++row) {
+                for (Index row = 0; row < con.getOutputDimension(); ++row) {
                     for (Index col = 0; col < con.getInputTangentSpaceDimension(); ++col) {
                         cache_.constraint_jacobian.valuePtr()[jac_nnz_map_.at(
                             {idx + row, indices[col]})] = cdata.Jx(row, col);
@@ -343,7 +343,7 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
             }
 
             i++;
-            idx += con.getOuptutDimension();
+            idx += con.getOutputDimension();
         }
 
         // Update caches
@@ -429,7 +429,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             const auto& indices = binding.indices().indices();
             const auto& xi = cache_.primal_vector(indices);
             const auto& li =
-                cache_.dual_vector.middleRows(idx, con.getOuptutDimension());
+                cache_.dual_vector.middleRows(idx, con.getOutputDimension());
 
             ConstraintData& cdata = constraint_data_[i];
 
@@ -458,7 +458,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             }
 
             i++;
-            idx += con.getOuptutDimension();
+            idx += con.getOutputDimension();
         }
 
         // Update caches
@@ -504,12 +504,12 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
         Constraint& con = *binding.get();
         ConstraintData& cdata = constraint_data_[i];
         con.evalBounds(cdata);
-        cache_.constraint_lower_bound.middleRows(cnt, con.getOuptutDimension())
+        cache_.constraint_lower_bound.middleRows(cnt, con.getOutputDimension())
             << cdata.lb;
-        cache_.constraint_upper_bound.middleRows(cnt, con.getOuptutDimension())
+        cache_.constraint_upper_bound.middleRows(cnt, con.getOutputDimension())
             << cdata.ub;
         i++;
-        cnt += con.getOuptutDimension();
+        cnt += con.getOutputDimension();
     }
 
     VLOG(10) << cache_.constraint_lower_bound.transpose();

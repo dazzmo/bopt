@@ -43,7 +43,7 @@ class solver {
    public:
     // todo - make this const?
     solver(const MathematicalProgram& program) {
-        primal_solution_ = Eigen::VectorXd::Zero(program.n_variables());
+        primal_solution_ = Eigen::VectorXd::Zero(program.numVariables());
     }
     ~solver() {}
 

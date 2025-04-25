@@ -43,20 +43,20 @@ struct QPData {
 
     QPData(const MathematicalProgram& program) {
         // Create matrix data
-        H.resize(program.n_variables(), program.n_variables());
+        H.resize(program.numVariables(), program.numVariables());
         H.setZero();
 
-        g.resize(program.n_variables());
+        g.resize(program.numVariables());
         g.setZero();
 
-        A.resize(program.n_constraints(), program.n_variables());
+        A.resize(program.numConstraints(), program.numVariables());
         A.setZero();
 
-        lbA.resize(program.n_constraints());
-        ubA.resize(program.n_constraints());
+        lbA.resize(program.numConstraints());
+        ubA.resize(program.numConstraints());
 
-        lbx.resize(program.n_variables());
-        ubx.resize(program.n_variables());
+        lbx.resize(program.numVariables());
+        ubx.resize(program.numVariables());
 
         lbx = program.variableLowerBounds();
         ubx = program.variableUpperBounds();

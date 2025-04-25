@@ -18,8 +18,6 @@ namespace bopt {
 template <typename Scalar>
 struct EvaluatorDataTpl;
 
-using Index = Eigen::Index;
-
 template <typename ScalarType>
 struct FunctionTraits {
     using Scalar = ScalarType;
@@ -79,7 +77,7 @@ class EvaluatorTpl {
         : ptr_(ptr),
           dim_input_(ptr->getInputDimension()),
           dim_tangent_space_(ptr->getInputTangentSpaceDimension()),
-          dim_output_(ptr->getOuptutDimension()),
+          dim_output_(ptr->getOutputDimension()),
           num_parameters_(ptr->getNumberOfParameters()),
           parameters_(InputVector::Zero(ptr->getNumberOfParameters())),
           description_(ptr->description()) {}
@@ -96,8 +94,8 @@ class EvaluatorTpl {
      * @param data
      */
     void eval(const InputVectorConstRef &x, Data &data) const {
-        BOPT_ASSERT(x.rows() == getInputDimension());
-        BOPT_ASSERT(data.y.rows() == getOuptutDimension());
+        assert(x.rows() == getInputDimension());
+        assert(data.y.rows() == getOutputDimension());
         // Ensure vector is valid
         // CHECK(x.allFinite() && !x.hasNaN() && x.size());
         evalImpl(x, data);
@@ -115,7 +113,7 @@ class EvaluatorTpl {
      */
     void evalJacobians(const InputVectorConstRef &x, Data &data,
                        bool compute_x = true, bool compute_p = false) const {
-        BOPT_ASSERT(x.rows() == getInputDimension());
+        assert(x.rows() == getInputDimension());
         evalJacobiansImpl(x, data, compute_x, compute_p);
     }
 
@@ -134,8 +132,8 @@ class EvaluatorTpl {
                       const InputVectorConstRef &lambda, Data &data,
                       bool compute_xx = true, bool compute_xp = false,
                       bool compute_pp = false) const {
-        BOPT_ASSERT(x.rows() == getInputDimension());
-        BOPT_ASSERT(lambda.rows() == getOuptutDimension());
+        assert(x.rows() == getInputDimension());
+        assert(lambda.rows() == getOutputDimension());
         evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
     }
 
@@ -161,7 +159,7 @@ class EvaluatorTpl {
      *
      * @return const Index&
      */
-    const Index &getOuptutDimension() const { return dim_output_; }
+    const Index &getOutputDimension() const { return dim_output_; }
 
     /**
      * @brief Dimension of the parameter vector p.
@@ -184,7 +182,7 @@ class EvaluatorTpl {
      * @param p
      */
     void setParameters(const InputVectorConstRef &p) {
-        BOPT_ASSERT(p.size() == getNumberOfParameters());
+        assert(p.size() == getNumberOfParameters());
         parameters_ = p;
     }
 
@@ -290,7 +288,7 @@ std::ostream &operator<<(std::ostream &os,
     os << "Evaluator\n";
     os << "description: " << e.description() << '\n';
     os << "input dim: " << e.getInputDimension() << '\n';
-    os << "output dim: " << e.getOuptutDimension();
+    os << "output dim: " << e.getOutputDimension();
     return os;
 }
 
@@ -302,10 +300,10 @@ struct EvaluatorDataTpl {
     EvaluatorDataTpl(const EvaluatorTpl<InputTraitType> &e) {
         if constexpr (InputTraitType::type == "Sparse") {
             // Sparse: allocate sparse objects properly
-            y.resize(e.getOuptutDimension());
-            Jx.resize(e.getOuptutDimension(),
+            y.resize(e.getOutputDimension());
+            Jx.resize(e.getOutputDimension(),
                       e.getInputTangentSpaceDimension());
-            Jp.resize(e.getOuptutDimension(), e.getNumberOfParameters());
+            Jp.resize(e.getOutputDimension(), e.getNumberOfParameters());
             Hxx.resize(e.getInputTangentSpaceDimension(),
                        e.getInputTangentSpaceDimension());
             Hxp.resize(e.getInputTangentSpaceDimension(),
@@ -314,11 +312,11 @@ struct EvaluatorDataTpl {
             // Optionally set values to zero explicitly if needed
         } else {
             // Dense
-            y = Vector::Zero(e.getOuptutDimension());
-            Jx = Matrix::Zero(e.getOuptutDimension(),
+            y = Vector::Zero(e.getOutputDimension());
+            Jx = Matrix::Zero(e.getOutputDimension(),
                               e.getInputTangentSpaceDimension());
             Jp =
-                Matrix::Zero(e.getOuptutDimension(), e.getNumberOfParameters());
+                Matrix::Zero(e.getOutputDimension(), e.getNumberOfParameters());
             Hxx = Matrix::Zero(e.getInputTangentSpaceDimension(),
                                e.getInputTangentSpaceDimension());
             Hxp = Matrix::Zero(e.getInputTangentSpaceDimension(),

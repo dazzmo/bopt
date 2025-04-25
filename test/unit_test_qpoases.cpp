@@ -5,7 +5,6 @@
 
 #include "bopt/logging.hpp"
 #include "bopt/program.hpp"
-
 #include "bopt/solvers/qpoases.hpp"
 
 class BasicCost : public bopt::DenseCostTpl<double> {
