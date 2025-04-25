@@ -69,8 +69,8 @@ class EvaluatorTpl {
     using InputVector = typename FunctionTraits::InputVector;
     using InputVectorConstRef = typename FunctionTraits::InputVectorConstRef;
 
-    using Vector = typename FunctionTraits::Vector;
-    using Matrix = typename FunctionTraits::Matrix;
+    using Vector = typename FunctionTraits::OutputVector;
+    using Matrix = typename FunctionTraits::OutputMatrix;
 
     /// @brief The standard type of data to be used for the evaluation functions
     using Data = EvaluatorDataTpl<FunctionTraits>;
@@ -84,8 +84,8 @@ class EvaluatorTpl {
           parameters_(InputVector::Zero(ptr->getNumberOfParameters())),
           description_(ptr->description()) {}
 
-    virtual std::shared_ptr<Data> createData() const {
-        return std::make_shared<Data>(*this);
+    std::shared_ptr<Data> createData() const {
+        return std::shared_ptr<Data>(this->createDataImpl());
     };
 
     /**
@@ -198,6 +198,8 @@ class EvaluatorTpl {
           num_parameters_(0),
           parameters_(InputVector::Zero(0)),
           description_(description) {}
+
+    virtual Data *createDataImpl() const { return new Data(*this); }
 
     /**
      * @brief Sets the dimension of the evaluator output.

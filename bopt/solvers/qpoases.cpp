@@ -16,6 +16,7 @@ qpoases_solver::qpoases_solver(MathematicalProgram& program)
     // Store bindings of each set of constraints relevant to the problem
     dense_linear_costs_ = program.getCosts<DenseLinearCostTpl<Real>>();
     sparse_linear_costs_ = program.getCosts<SparseLinearCostTpl<Real>>();
+    sparse_linear_costs_ = program.getCosts<SparseLinearCostTpl<Real>>();
 
     // std::vector<Binding<SparseLinearConstraintTpl<double>>> sparse_lin_con_;
 
@@ -41,30 +42,28 @@ void qpoases_solver::solve(MathematicalProgram& program) {
 
     /** Linear costs **/
     {
-        bopt::profiler profiler("qpoases: linear costs");
         VLOG(10) << "qpoases:linear costs";
+        bopt::profiler profiler("qpoases: linear costs");
         // Dense costs
         for (auto& binding : dense_linear_costs_) {
             const auto& c = binding.get();
-            const auto& d = binding.auxiliaryData();
-            // const auto& data = binding.data();
+            const auto& d = binding.data();
             const auto& indices = binding.indices().indices();
-            c->evalCoefficients(d);
+            c->evalCoefficients(*d);
             data_.g(indices) += d->a;
         }
         // Sparse costs
         for (auto& binding : sparse_linear_costs_) {
             const auto& c = binding.get();
-            const auto& data = binding.data();
+            const auto& d = binding.data();
             const auto& indices = binding.indices().indices();
+            c->evalCoefficients(*d);
 
-            c->evalGradients(x, *data, true, false);
-
-            for (int k = 0; k < data->gx.outerSize(); ++k) {
-                for (SparseFunctionTraits<Real>::Vector::InnerIterator it(
-                         data->gx, k);
+            for (int k = 0; k < d->a.outerSize(); ++k) {
+                for (SparseFunctionTraits<Real>::OutputVector::InnerIterator it(
+                         d->a, k);
                      it; ++it) {
-                    data.g(indices[it.row()]) += it.value();
+                    data_.g(indices[it.row()]) += it.value();
                 }
             }
         }
@@ -156,27 +155,28 @@ void qpoases_solver::solve(MathematicalProgram& program) {
     // todo - set this only once?
     qp_->setOptions(options_);
 
-    VLOG(10) << "H: " << data.H;
-    VLOG(10) << "g: " << data.g;
-    VLOG(10) << "A: " << data.A;
-    VLOG(10) << "lbA: " << data.lbA;
-    VLOG(10) << "ubA: " << data.ubA;
-    VLOG(10) << "lbx: " << data.lbx;
-    VLOG(10) << "ubx: " << data.ubx;
+    VLOG(10) << "H: " << data_.H;
+    VLOG(10) << "g: " << data_.g;
+    VLOG(10) << "A: " << data_.A;
+    VLOG(10) << "lbA: " << data_.lbA;
+    VLOG(10) << "ubA: " << data_.ubA;
+    VLOG(10) << "lbx: " << data_.lbx;
+    VLOG(10) << "ubx: " << data_.ubx;
 
     // Solve
     if (info_.number_of_solves > 0 && options_.perform_hotstart) {
         bopt::profiler profiler("qpoases: solve");
         // Use previous solution to hot-start the program
         // qpOASES::SymDenseMat(nx, nx, 0, data.H.data());
-        qp_->hotstart(data.H.data(), data.g.data(), data.A.data(),
-                      data.lbx.data(), data.ubx.data(), data.lbA.data(),
-                      data.ubA.data(), nWSR);
+        qp_->hotstart(data_.H.data(), data_.g.data(), data_.A.data(),
+                      data_.lbx.data(), data_.ubx.data(), data_.lbA.data(),
+                      data_.ubA.data(), nWSR);
     } else {
         bopt::profiler profiler("qpoases: solve");
         // Initialise the program and solve it
-        qp_->init(data.H.data(), data.g.data(), data.A.data(), data.lbx.data(),
-                  data.ubx.data(), data.lbA.data(), data.ubA.data(), nWSR);
+        qp_->init(data_.H.data(), data_.g.data(), data_.A.data(),
+                  data_.lbx.data(), data_.ubx.data(), data_.lbA.data(),
+                  data_.ubA.data(), nWSR);
     }
 
     // Collect information

@@ -31,19 +31,13 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
     using Vector = typename Base::Vector;
     using Matrix = typename Base::Matrix;
 
-    using VectorInput = typename Base::VectorInput;
-    using MatrixInput = typename Base::MatrixInput;
-
-    using VectorConstInput = typename Base::VectorConstInput;
-    using MatrixConstInput = typename Base::MatrixConstInput;
-
     using Data = ConstraintDataTpl<FunctionTraits>;
 
    public:
     const ConstraintType &type() const { return type_; }
 
-    virtual std::shared_ptr<Data> createData() const {
-        return std::make_shared<Data>(*this);
+    std::shared_ptr<Data> createData() const {
+        return std::shared_ptr<Data>(this->createDataImpl());
     }
 
     /**
@@ -124,6 +118,11 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
           type_(ConstraintType::Equality),
           ptr_(constraint) {}
 
+    virtual Data *createDataImpl() const {
+        Data *data = new Data(*this);
+        return data;
+    }
+
     virtual void evalBoundsImpl(Data &data) const {
         if (ptr_) ptr_->evalBounds(data);
     }
@@ -158,12 +157,6 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
 
     using Vector = typename Base::Vector;
     using Matrix = typename Base::Matrix;
-
-    using VectorInput = typename Base::VectorInput;
-    using MatrixInput = typename Base::MatrixInput;
-
-    using VectorConstInput = typename Base::VectorConstInput;
-    using MatrixConstInput = typename Base::MatrixConstInput;
 
     ConstraintDataTpl(const ConstraintTpl<FunctionTraits> &c)
         : EvaluatorDataTpl<FunctionTraits>(c) {
@@ -217,9 +210,9 @@ struct LinearConstraintDataTpl;
  */
 template <typename FunctionTraits>
 class LinearConstraintTpl : public ConstraintTpl<FunctionTraits> {
+   public:
     using Data = LinearConstraintDataTpl<FunctionTraits>;
 
-   public:
     virtual std::shared_ptr<Data> createData() const {
         return std::make_shared<Data>(*this);
     }

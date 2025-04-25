@@ -164,8 +164,7 @@ class MathematicalProgram {
         const std::shared_ptr<typename DenseLinearCostTpl<Real>::Data> &data,
         const Eigen::Ref<const VariableVector> &x) {
         // Create binding
-        cost_bindings_.emplace_back(Binding<DenseLinearCostTpl<Real>>(
-            cost, data, getVariableIndices(x)));
+        this->addCost<DenseLinearCostTpl<Real>>(cost, data, x);
     }
 
     /**
@@ -179,9 +178,7 @@ class MathematicalProgram {
         const std::shared_ptr<SparseLinearCostTpl<Real>> &cost,
         const std::shared_ptr<typename SparseLinearCostTpl<Real>::Data> &data,
         const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        cost_bindings_.emplace_back(Binding<SparseLinearCostTpl<Real>>(
-            cost, data, getVariableIndices(x)));
+        this->addCost<SparseLinearCostTpl<Real>>(cost, data, x);
     }
 
     /**

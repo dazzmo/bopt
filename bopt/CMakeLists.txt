@@ -9,7 +9,7 @@ option(WITH_IPOPT "Build with IPOPT functionality" OFF)
 
 # Collect source files
 SET(${PROJECT_NAME}_SOURCES
-# profiler.cpp
+profiler.cpp
 # common.cpp
 # evaluator.cpp
 program.cpp
