@@ -40,6 +40,7 @@ struct solver_options {
  */
 template <class ValueType>
 class solver {
+   protected:
    public:
     // todo - make this const?
     solver(const MathematicalProgram& program) {
@@ -49,7 +50,9 @@ class solver {
 
     void solve() {}
 
-    const Eigen::VectorXd& getPrimalSolution() const { return primal_solution_; }
+    const Eigen::VectorXd& getPrimalSolution() const {
+        return primal_solution_;
+    }
 
     // void evaluate_constraint()
    protected:

@@ -127,6 +127,14 @@ class MathematicalProgram {
         return v;
     }
 
+    VariableVector addVariables(const std::string &name, const Index &n) {
+        VariableVector x(n);
+        for (Index i = 0; i < n; ++i) {
+            x[i] = addVariable(name + std::to_string(i));
+        }
+        return x;
+    }
+
     const std::vector<Variable> &getAllVariables() const { return variables_; }
 
     Eigen::Index getVariableIndex(const Variable &v) const {

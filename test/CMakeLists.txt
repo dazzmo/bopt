@@ -16,6 +16,7 @@ unit_test_evaluator.cpp
 unit_test_variable.cpp
 unit_test_program.cpp
 unit_test_qpoases.cpp
+unit_test_clp.cpp
 unit_test_ipopt.cpp
 unit_test_gurobi.cpp
 )

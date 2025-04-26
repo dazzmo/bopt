@@ -1,6 +1,7 @@
 option(WITH_QPOASES "Build with qpOASES functionality" OFF)
-option(WITH_GUROBI "Build with qpOASES functionality" OFF)
+option(WITH_GUROBI "Build with GUROBI functionality" OFF)
 option(WITH_IPOPT "Build with IPOPT functionality" OFF)
+option(WITH_CLP "Build with Clp functionality" OFF)
 
 # Optional solvers to include 
 
@@ -23,6 +24,15 @@ if(WITH_GUROBI)
   target_sources(${PROJECT_NAME} PRIVATE gurobi.cpp)
   target_compile_definitions(${PROJECT_NAME} PUBLIC BOPT_WITH_GUROBI)
 endif(WITH_GUROBI)
+
+# CLP
+if(WITH_CLP)
+  message(STATUS "Including Clp as a numeric optimization solver")
+  find_package(Clp REQUIRED)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${CLP_INCLUDE_DIRS})
+  target_link_libraries(${PROJECT_NAME} PUBLIC ${CLP_LIBRARIES})
+  target_compile_definitions(${PROJECT_NAME} PUBLIC BOPT_WITH_CLP)
+endif(WITH_CLP)
 
 # IPOPT
 if(WITH_IPOPT)
