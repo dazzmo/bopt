@@ -501,8 +501,12 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
         auto& d = *binding.data();
         const auto& indices = binding.indices().indices();
         c.evalBounds(d);
-        cache_.variables_lower_bound(indices) = d.lb;
-        cache_.variables_upper_bound(indices) = d.ub;
+
+        cache_.variables_lower_bound(indices).array() =
+            cache_.variables_lower_bound(indices).array().max(d.lb.array());
+
+        cache_.variables_upper_bound(indices).array() =
+            cache_.variables_upper_bound(indices).array().min(d.ub.array());
     }
 
     VLOG(10) << cache_.variables_lower_bound.transpose();
@@ -558,7 +562,7 @@ void ipopt_program_instance::finalize_solution(
     Ipopt::IpoptCalculatedQuantities* ip_cq) {
     VLOG(10) << "finalize_solution()";
     for (Index i = 0; i < n; ++i) {
-        VLOG(10) << x[i];
+        std::cout << x[i] << std::endl;
     }
 }
 

@@ -98,17 +98,14 @@ class qpoases_solver : public solver<double> {
     bool first_solve_ = true;
     int n_solves_ = 0;
 
-    std::vector<Binding<DenseLinearCostTpl<Real>>> dense_linear_costs_;
-    std::vector<Binding<SparseLinearCostTpl<Real>>> sparse_linear_costs_;
+    std::vector<Binding<DenseLinearCost>> dense_linear_costs_;
+    std::vector<Binding<SparseLinearCost>> sparse_linear_costs_;
 
-    // std::vector<Binding<DenseQuadraticCostTpl<Real>>> dense_quadratic_costs_;
-    // std::vector<Binding<SparseQuadraticCostTpl<Real>>>
-    // sparse_quadratic_costs_;
+    std::vector<Binding<DenseQuadraticCost>> dense_quadratic_costs_;
+    std::vector<Binding<SparseQuadraticCost>> sparse_quadratic_costs_;
 
-    std::vector<Binding<DenseLinearConstraintTpl<Real>>>
-        dense_linear_constraints_;
-    std::vector<Binding<SparseLinearConstraintTpl<Real>>>
-        sparse_linear_constraints_;
+    std::vector<Binding<DenseLinearConstraint>> dense_linear_constraints_;
+    std::vector<Binding<SparseLinearConstraint>> sparse_linear_constraints_;
 
     // std::vector<LinearCostData> linear_cost_data_;
     // std::vector<ConstraintData> bounding_box_constraint_data_;

@@ -28,17 +28,24 @@ qpoases_solver::~qpoases_solver() = default;
 void qpoases_solver::solve(MathematicalProgram& program) {
     data_.clear();
     /** Bounding box constraints **/
-    // {
-    //     bopt::profiler profiler("qpoases: bounding box constraints");
-    //     int i = 0;
-    //     for (auto& binding : program.boundingBoxConstraints()) {
-    //         ConstraintData& cdata = bounding_box_constraint_data_[i];
-    //         // todo - manage between program constraint and bounding box
-    //         binding.get()->evalBounds(cdata);
-    //         data.lbx(binding.indices().indices()) << cdata.lb;
-    //         data.ubx(binding.indices().indices()) << cdata.ub;
-    //     }
-    // }
+    {
+        // Variable bounds
+        data_.lbx = program.variableLowerBounds();
+        data_.ubx = program.variableUpperBounds();
+
+        for (auto& binding : program.getBoundingBoxConstraints()) {
+            const auto& c = *binding.get();
+            auto& d = *binding.data();
+            const auto& indices = binding.indices().indices();
+            c.evalBounds(d);
+
+            data_.lbx(indices).array() =
+                data_.lbx(indices).array().max(d.lb.array());
+
+            data_.ubx(indices).array() =
+                data_.ubx(indices).array().min(d.ub.array());
+        }
+    }
 
     /** Linear costs **/
     {
@@ -70,84 +77,91 @@ void qpoases_solver::solve(MathematicalProgram& program) {
     }
 
     /** Quadratic costs **/
-    // {
-    //     bopt::profiler profiler("qpoases: quadratic costs");
-    //     VLOG(10) << "qpoases:quadratic costs";
-    //     int i = 0;
-    //     for (auto& binding : program.quadraticCosts()) {
-    //         auto& c = *binding.get();
-    //         const auto& indices = binding.indices().indices();
+    {
+        VLOG(10) << "qpoases:quadratic costs";
+        bopt::profiler profiler("qpoases: quadratic costs");
+        // Dense costs
+        for (auto& binding : dense_quadratic_costs_) {
+            const auto& c = binding.get();
+            const auto& d = binding.data();
+            const auto& indices = binding.indices().indices();
+            c->evalCoefficients(*d);
 
-    //         // Create vector
-    //         QuadraticCostData& cdata = quadratic_cost_data_[i];
-    //         if (cdata.A_s.nonZeros()) {
-    //             c.evalSparseCoefficients(cdata);
-    //             // A
-    //             for (int k = 0; k < cdata.A_s.outerSize(); ++k) {
-    //                 for (SparseMatrix<double>::InnerIterator it(cdata.A_s,
-    //                 k);
-    //                      it; ++it) {
-    //                     data.H(indices[it.row()], indices[it.col()]) +=
-    //                         it.value();
-    //                 }
-    //             }
-    //             // b
-    //             for (int k = 0; k < cdata.b_s.outerSize(); ++k) {
-    //                 for (SparseVector<double>::InnerIterator it(cdata.b_s,
-    //                 k);
-    //                      it; ++it) {
-    //                     data.g(indices[it.row()]) += it.value();
-    //                 }
-    //             }
-    //         } else {
-    //             c.evalCoefficients(cdata);
-    //             data.H(indices, indices) += cdata.A;
-    //             data.g(indices) += cdata.b;
-    //         }
-    //         i++;
-    //     }
-    // }
+            // A
+            data_.H(indices, indices) += d->A;
+            // b
+            data_.g(indices) += d->b;
+        }
+        // Sparse costs
+        for (auto& binding : sparse_quadratic_costs_) {
+            const auto& c = binding.get();
+            const auto& d = binding.data();
+            const auto& indices = binding.indices().indices();
+            c->evalCoefficients(*d);
 
-    // /** Linear constraints **/
-    // {
-    //     bopt::profiler profiler("qpoases: linear constraints");
+            // A
+            for (int k = 0; k < d->A.outerSize(); ++k) {
+                for (SparseMatrix<double>::InnerIterator it(d->A, k); it;
+                     ++it) {
+                    data_.H(indices[it.row()], indices[it.col()]) += it.value();
+                }
+            }
+            // b
+            for (int k = 0; k < d->b.outerSize(); ++k) {
+                for (SparseVector<double>::InnerIterator it(d->b, k); it;
+                     ++it) {
+                    data_.g(indices[it.row()]) += it.value();
+                }
+            }
+        }
+    }
 
-    //     VLOG(10) << "qpoases:linear constraints";
-    //     int row = 0;
-    //     int i = 0;
-    //     for (auto& binding : program.linearConstraints()) {
-    //         auto& c = *binding.get();
-    //         const auto& indices = binding.indices().indices();
+    /** Linear constraints **/
+    {
+        VLOG(10) << "linear constraints";
+        bopt::profiler profiler("qpoases: linear constraints");
 
-    //         // Create vector
-    //         LinearConstraintData& cdata = linear_constraint_data_[i];
-    //         // todo - if sparse
-    //         if (cdata.A_s.nonZeros()) {
-    //             c.evalSparseCoefficients(cdata);
-    //             // A
-    //             for (int k = 0; k < cdata.A_s.outerSize(); ++k) {
-    //                 for (SparseMatrix<double>::InnerIterator it(cdata.A_s,
-    //                 k);
-    //                      it; ++it) {
-    //                     data.A(row + it.row(), indices[it.col()]) =
-    //                     it.value();
-    //                 }
-    //             }
-    //         } else {
-    //             c.evalCoefficients(cdata);
-    //             data.A.middleRows(row, c.getOutputDimension()) = cdata.A;
-    //         }
+        Index c_idx = 0;
 
-    //         // Evaluate bounds
-    //         c.evalBounds(cdata);
-    //         data.lbA.middleRows(row, c.getOutputDimension()) = cdata.lb;
-    //         data.ubA.middleRows(row, c.getOutputDimension()) = cdata.ub;
+        // Dense constraints
+        for (auto& binding : dense_linear_constraints_) {
+            const auto& c = binding.get();
+            const auto& d = binding.data();
+            const auto& indices = binding.indices().indices();
 
-    //         // Increment
-    //         row += c.getOutputDimension();
-    //         i++;
-    //     }
-    // }
+            const Index m = c->getOutputDimension();
+
+            c->evalCoefficients(*d);
+            c->evalBounds(*d);
+
+            data_.A.middleRows(c_idx, m) = d->A;
+            data_.lbA.middleRows(c_idx, m) = d->lb;
+            data_.ubA.middleRows(c_idx, m) = d->ub;
+            c_idx += m;
+        }
+
+        // Dense constraints
+        for (auto& binding : sparse_linear_constraints_) {
+            const auto& c = binding.get();
+            const auto& d = binding.data();
+            const auto& indices = binding.indices().indices();
+
+            const Index m = c->getOutputDimension();
+
+            c->evalCoefficients(*d);
+            c->evalBounds(*d);
+
+            for (int k = 0; k < d->A.outerSize(); ++k) {
+                for (SparseMatrix<double>::InnerIterator it(d->A, k); it;
+                     ++it) {
+                    data_.A(c_idx + it.row(), indices[it.col()]) = it.value();
+                }
+            }
+            data_.lbA.middleRows(c_idx, m) = d->lb;
+            data_.ubA.middleRows(c_idx, m) = d->ub;
+            c_idx += m;
+        }
+    }
 
     int nWSR = options_.nWSR;
 

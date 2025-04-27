@@ -37,7 +37,7 @@ struct SparseFunctionTraits : public FunctionTraits<ScalarType> {
     using OutputVector = Eigen::SparseVector<Scalar>;
     using OutputMatrix = Eigen::SparseMatrix<Scalar>;
 
-    static constexpr const char *type = "Sparse";
+    static constexpr std::string_view type = "Sparse";
 };
 
 template <typename ScalarType>
@@ -51,7 +51,7 @@ struct DenseFunctionTraits : public FunctionTraits<ScalarType> {
     using OutputVector = Eigen::VectorX<Scalar>;
     using OutputMatrix = Eigen::MatrixX<Scalar>;
 
-    static constexpr const char *type = "Dense";
+    static constexpr std::string_view type = "Dense";
 };
 
 /**
@@ -280,8 +280,8 @@ class EvaluatorTpl {
     /// @brief Dimension of the input vector
     Index dim_input_;
     Index dim_tangent_space_;
-    Index num_parameters_;
     Index dim_output_;
+    Index num_parameters_;
 
     InputVector parameters_;
     std::string description_;

@@ -88,7 +88,7 @@ class ClpSolver {
             VLOG(10) << "Clp:linear constraints";
             bopt::profiler profiler("Clp: linear constraints");
 
-            Index idx = 0;
+            Index c_idx = 0;
 
             // Dense constraints
             for (auto& binding : dense_linear_constraints_) {
@@ -109,33 +109,35 @@ class ClpSolver {
                     matrix->appendRow(row.getNumElements(), row.getIndices(),
                                       row.denseVector());
                 }
-                Alb.middleRows(idx, m) = d->lb;
-                Aub.middleRows(idx, m) = d->ub;
-                idx += m;
+                Alb.middleRows(c_idx, m) = d->lb;
+                Aub.middleRows(c_idx, m) = d->ub;
+                c_idx += m;
             }
 
-            // // Sparse constraints
-            // for (auto& binding : sparse_linear_constraints_) {
-            //     const auto& c = binding.get();
-            //     const auto& d = binding.data();
-            //     const auto& indices = binding.indices().indices();
-            //     c->evalCoefficients(*d);
-            //     c->evalBounds(*d);
+            // Sparse constraints
+            for (auto& binding : sparse_linear_constraints_) {
+                const auto& c = binding.get();
+                auto& d = binding.data();
+                const auto& indices = binding.indices().indices();
 
-            //     for (int k = 0; k < d->A.outerSize(); ++k) {
-            //         CoinIndexedVector row;
-            //         for (SparseFunctionTraits<Real>::OutputVector::InnerIterator
-            //                  it(d->A, k);
-            //              it; ++it) {
-            //             row.insert(indices[it.row()], it.value());
-            //         }
-            //     }
-            //     matrix->appendRow(row.getNumElements(), row.getIndices(),
-            //                       row.denseVector());
-            //     Alb.middleRows(idx, m) = d->lb;
-            //     Aub.middleRows(idx, m) = d->ub;
-            //     idx += m;
-            // }
+                const Index m = c->getOutputDimension();
+
+                c->evalCoefficients(*d);
+                c->evalBounds(*d);
+
+                CoinIndexedVector row;
+                for (int k = 0; k < d->A.outerSize(); ++k) {
+                    for (SparseMatrix<double>::InnerIterator it(d->A, k); it;
+                         ++it) {
+                        row.insert(indices[it.col()], it.value());
+                    }
+                }
+                matrix->appendRow(row.getNumElements(), row.getIndices(),
+                                  row.denseVector());
+                Alb.middleRows(c_idx, m) = d->lb;
+                Aub.middleRows(c_idx, m) = d->ub;
+                c_idx += m;
+            }
         }
 
         std::cout << matrix->getNumElements() << std::endl;

@@ -16,7 +16,7 @@ TEST(Program, SimpleProgram) {
     // Create variables
 
     bopt::MathematicalProgram p("program");
-    auto x = p.addVariable("x", 0.0);
+    auto x = p.addVariable("x", 0.0, 1.1, 5.0);
     auto y = p.addVariable("y", 0.0);
     auto z = p.addVariable("z", 0.0);
 
@@ -43,19 +43,20 @@ TEST(Program, SimpleProgram) {
     auto d1 = c1->createData();
     p.addConstraint(c1, d1, v);
 
+    // todo - solution changes with sparsity
     auto f = std::make_shared<bopt::DenseCost>(
         std::make_shared<bopt::casadi::DenseCost>(
-            xs * ys * zs, sym::vertcat({xs, ys, zs}), sym(), false));
+            xs * ys + zs, sym::vertcat({xs, ys, zs}), sym(), false));
     auto df = f->createData();
     p.addCost(f, df, v);
 
-    p.addBoundingBoxConstraint(v, Eigen::Vector3d(0.0, 0.0, 0.0),
-                               Eigen::Vector3d(1.0, 1.0, 1.0));
+    p.addBoundingBoxConstraint(v, Eigen::Vector3d(1.0, 0.0, 0.0),
+                               Eigen::Vector3d(1.5, 1.0, 1.0));
 
     auto nlp = bopt::solvers::ipopt_solver(p);
     nlp.options()->SetStringValue("hessian_approximation", "exact");
 
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < 50; ++i) {
         nlp.solve();
     }
     std::cout << nlp.getPrimalSolution();
