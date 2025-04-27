@@ -272,7 +272,25 @@ class MathematicalProgram {
         this->addConstraint<SparseLinearConstraint>(constraint, data, x);
     }
 
-    // todo add bounding box constraint
+    void addBoundingBoxConstraint(
+        const std::shared_ptr<DenseBoundingBoxConstraint> &constraint,
+        const std::shared_ptr<typename DenseBoundingBoxConstraint::Data> &data,
+        const Eigen::Ref<const VariableVector> &x) {
+        // Create binding
+        bb_constraint_bindings_.push_back(Binding<DenseBoundingBoxConstraint>(
+            constraint, data, getVariableIndices(x)));
+    }
+
+    void addBoundingBoxConstraint(const Eigen::Ref<const VariableVector> &x,
+                                  const Eigen::Ref<const Eigen::VectorXd> &lb,
+                                  const Eigen::Ref<const Eigen::VectorXd> &ub) {
+        // Create binding
+        auto constraint =
+            std::make_shared<DenseBoundingBoxConstraint>(x.rows(), lb, ub);
+        auto data = constraint->createData();
+        bb_constraint_bindings_.push_back(Binding<DenseBoundingBoxConstraint>(
+            constraint, data, getVariableIndices(x)));
+    }
 
     /**
      * @brief Get all cost bindings of a specific type, note that this will
@@ -311,7 +329,7 @@ class MathematicalProgram {
      * @return std::vector<Binding<BindingType>>
      */
     template <typename BindingType>
-    std::vector<Binding<BindingType>> getConstraints() {
+    std::vector<Binding<BindingType>> getConstraints() const {
         std::vector<Binding<BindingType>> vec;
 
         for (const auto &constraint : constraint_bindings_) {
@@ -330,14 +348,10 @@ class MathematicalProgram {
         return vec;
     }
 
-    // void addBoundingBoxConstraint(
-    //     const std::shared_ptr<BoundingBoxConstraint> &constraint,
-    //     const Eigen::Ref<const VariableVector> &x) {
-    //     // Create binding
-    //     constraints_bounding_box_.push_back(
-    //         Binding<BoundingBoxConstraint>(constraint,
-    //         getVariableIndices(x)));
-    // }
+    std::vector<Binding<DenseBoundingBoxConstraint>> getBoundingBoxConstraints()
+        const {
+        return bb_constraint_bindings_;
+    }
 
    protected:
    private:
@@ -358,6 +372,8 @@ class MathematicalProgram {
 
     std::vector<CostVariant> cost_bindings_ = {};
     std::vector<ConstraintVariant> constraint_bindings_ = {};
+    std::vector<Binding<DenseBoundingBoxConstraint>> bb_constraint_bindings_ =
+        {};
 };
 
 std::ostream &operator<<(std::ostream &os, const MathematicalProgram &program);

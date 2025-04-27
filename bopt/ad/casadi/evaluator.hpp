@@ -72,22 +72,6 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
         }
     }
 
-    // Sparsity patterns
-    Data *createDataImpl() const override {
-        auto data = new Data(*this);
-
-        // Update the sparsity patterns
-        if constexpr (FunctionTraits::type == "Sparse") {
-            set_eigen_sparsity(data->Jx, J.sparsity_out(0));
-            set_eigen_sparsity(data->Jp, J.sparsity_out(1));
-            set_eigen_sparsity(data->Hxx, H.sparsity_out(0));
-            set_eigen_sparsity(data->Hxp, H.sparsity_out(1));
-            set_eigen_sparsity(data->Hpp, H.sparsity_out(2));
-        }
-
-        return data;
-    }
-
    protected:
     /**
      * @brief Implementation of the evaluator
@@ -141,6 +125,17 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
         }
 
         H({x.data(), lambda.data(), this->parameters().data()}, out);
+    }
+
+    // Sparsity patterns
+    void setDataSparsityImpl(Data &data) const override {
+        if constexpr (FunctionTraits::type == "Sparse") {
+            set_eigen_sparsity(data.Jx, J.sparsity_out(0));
+            set_eigen_sparsity(data.Jp, J.sparsity_out(1));
+            set_eigen_sparsity(data.Hxx, H.sparsity_out(0));
+            set_eigen_sparsity(data.Hxp, H.sparsity_out(1));
+            set_eigen_sparsity(data.Hpp, H.sparsity_out(2));
+        }
     }
 
    private:

@@ -73,19 +73,15 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
     }
 
    protected:
-    virtual Data *createDataImpl() const override {
-        auto data = new Data(*this);
-
-        // Update the sparsity patterns
+    void setDataSparsityImpl(Data &data) const override {
+        Base::setDataSparsityImpl(data);
         if constexpr (FunctionTraits::type == "Sparse") {
-            set_eigen_sparsity(data->Jlb_p, J_bnd.sparsity_out(0));
-            set_eigen_sparsity(data->Jub_p, J_bnd.sparsity_out(1));
+            set_eigen_sparsity(data.Jlb_p, J_bnd.sparsity_out(0));
+            set_eigen_sparsity(data.Jub_p, J_bnd.sparsity_out(1));
 
-            set_eigen_sparsity(data->Hlb_pp, H_bnd.sparsity_out(0));
-            set_eigen_sparsity(data->Hub_pp, H_bnd.sparsity_out(1));
+            set_eigen_sparsity(data.Hlb_pp, H_bnd.sparsity_out(0));
+            set_eigen_sparsity(data.Hub_pp, H_bnd.sparsity_out(1));
         }
-
-        return data;
     }
 
     void evalBoundsImpl(Data &data) const override {

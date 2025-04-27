@@ -341,6 +341,7 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
             const auto& xi = cache_.primal_vector(indices);
 
             c.evalJacobians(xi, d, true, false);
+
             for (int k = 0; k < d.Jx.outerSize(); ++k) {
                 for (SparseMatrix<Real>::InnerIterator it(d.Jx, k); it; ++it) {
                     cache_.constraint_jacobian.valuePtr()[jac_nz_map_.at(
@@ -393,6 +394,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
 
         // Costs
         // Dense costs
+        VLOG(10) << "dense cost";
         for (auto& binding : dense_costs_) {
             auto& c = *binding.get();
             auto& d = *binding.data();
@@ -402,8 +404,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             c.evalHessians(xi, d, true, false, false);
             for (Index row = 0; row < c.getInputTangentSpaceDimension();
                  ++row) {
-                for (Index col = 0; col < c.getInputTangentSpaceDimension();
-                     ++col) {
+                for (Index col = 0; col < row; ++col) {
                     cache_.lagrangian_hessian.valuePtr()[lag_hes_nz_map_.at(
                         {indices[row], indices[col]})] +=
                         obj_factor * d.Hxx(row, col);
@@ -412,6 +413,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
         }
 
         // Sparse costs
+        VLOG(10) << "sparse cost";
         // todo - maybe make a function for this to avoid code repetition
         for (auto& binding : sparse_costs_) {
             auto& c = *binding.get();
@@ -432,6 +434,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
         // Constraints
         Index c_idx = 0;
         // Dense constraints
+        VLOG(10) << "dense constraint";
         for (auto& binding : dense_constraints_) {
             auto& c = *binding.get();
             auto& d = *binding.data();
@@ -444,8 +447,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
 
             for (Index row = 0; row < c.getInputTangentSpaceDimension();
                  ++row) {
-                for (Index col = 0; col < c.getInputTangentSpaceDimension();
-                     ++col) {
+                for (Index col = 0; col < row; ++col) {
                     cache_.lagrangian_hessian.valuePtr()[lag_hes_nz_map_.at(
                         {indices[row], indices[col]})] = d.Hxx(row, col);
                 }
@@ -454,6 +456,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
         }
 
         // Sparse constraints
+        VLOG(10) << "sparse constraint";
         // todo - maybe make a function for this to avoid code repetition
         for (auto& binding : sparse_constraints_) {
             auto& c = *binding.get();
@@ -491,6 +494,16 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
     // Variable bounds
     cache_.variables_lower_bound = program().variableLowerBounds();
     cache_.variables_upper_bound = program().variableUpperBounds();
+
+    auto bb = program_.getBoundingBoxConstraints();
+    for (auto& binding : bb) {
+        const auto& c = *binding.get();
+        auto& d = *binding.data();
+        const auto& indices = binding.indices().indices();
+        c.evalBounds(d);
+        cache_.variables_lower_bound(indices) = d.lb;
+        cache_.variables_upper_bound(indices) = d.ub;
+    }
 
     VLOG(10) << cache_.variables_lower_bound.transpose();
     VLOG(10) << cache_.variables_upper_bound.transpose();

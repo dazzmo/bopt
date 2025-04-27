@@ -83,7 +83,8 @@ class EvaluatorTpl {
           description_(ptr->description()) {}
 
     std::shared_ptr<Data> createData() const {
-        return std::shared_ptr<Data>(this->createDataImpl());
+        auto ptr = std::shared_ptr<Data>(this->createDataImpl());
+        setDataSparsityImpl(*ptr);
     };
 
     /**
@@ -186,6 +187,14 @@ class EvaluatorTpl {
         parameters_ = p;
     }
 
+    /**
+     * @brief Set the sparsity of any entries within the provided data
+     * structure.
+     *
+     * @param data
+     */
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
+
    protected:
     EvaluatorTpl(const Index &n_inputs, const Index &n_outputs,
                  const std::string &description = "")
@@ -223,6 +232,10 @@ class EvaluatorTpl {
     void setParameterDimension(const Index &dim) {
         num_parameters_ = dim;
         parameters_ = InputVector::Zero(dim);
+    }
+
+    virtual void setDataSparsityImpl(Data &data) const {
+        if (ptr_) ptr_->setDataSparsity(data);
     }
 
     /**

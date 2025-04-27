@@ -125,8 +125,12 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
     const ConstraintType &type() const { return type_; }
 
     std::shared_ptr<Data> createData() const {
-        return std::shared_ptr<Data>(this->createDataImpl());
+        auto ptr = std::shared_ptr<Data>(this->createDataImpl());
+        this->setDataSparsityImpl(*ptr);
+        return ptr;
     }
+
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
 
     /**
      * @brief Set the constraint to a particular type
@@ -204,6 +208,14 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
     virtual Data *createDataImpl() const {
         Data *data = new Data(*this);
         return data;
+    }
+
+    virtual void setDataSparsityImpl(Data &data) const {
+        if (ptr_) {
+            ptr_->setDataSparsity(data);
+        } else {
+            Base::setDataSparsityImpl(data);
+        }
     }
 
     virtual void evalBoundsImpl(Data &data) const {
@@ -407,38 +419,34 @@ class BoundingBoxConstraintTpl : public ConstraintTpl<FunctionTraits> {
     using Vector = typename Base::Vector;
     using Matrix = typename Base::Matrix;
 
-    using VectorInput = typename Base::VectorInput;
-    using MatrixInput = typename Base::MatrixInput;
-
-    using VectorConstInput = typename Base::VectorConstInput;
-    using MatrixConstInput = typename Base::MatrixConstInput;
-
     using Data = typename Base::Data;
+    using EvaluatorData = typename Base::EvaluatorData;
 
     BoundingBoxConstraintTpl(const Index &dim_input,
                              const InputVectorConstRef &lower_bound,
                              const InputVectorConstRef &upper_bound)
-        : ConstraintTpl<Scalar>(dim_input, dim_input),
+        : ConstraintTpl<FunctionTraits>(dim_input, dim_input),
           lb_(lower_bound),
           ub_(upper_bound) {}
 
     BoundingBoxConstraintTpl(const Index &dim_input, const Scalar &lower_bound,
                              const Scalar &upper_bound)
-        : ConstraintTpl<Scalar>(dim_input, dim_input),
+        : ConstraintTpl<FunctionTraits>(dim_input, dim_input),
           lb_(InputVector::Constant(dim_input, lower_bound)),
           ub_(InputVector::Constant(dim_input, upper_bound)) {}
 
    protected:
-    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
+    void evalImpl(const InputVectorConstRef &x,
+                  EvaluatorData &data) const override {
         data.y = x;
     }
 
-    void evalJacobiansImpl(const InputVectorConstRef &x, Data &data,
+    void evalJacobiansImpl(const InputVectorConstRef &x, EvaluatorData &data,
                            bool compute_x, bool compute_p) const override {
         data.Jx.setIdentity();
     }
 
-    void evalBoundsImpl(ConstraintDataTpl<Scalar> &data) const override {
+    void evalBoundsImpl(Data &data) const override {
         data.lb = lb_;
         data.ub = ub_;
     }
