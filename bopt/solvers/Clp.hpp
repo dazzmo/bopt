@@ -114,24 +114,28 @@ class ClpSolver {
                 idx += m;
             }
 
-            //     // // Sparse constraints
-            //     // for (auto& binding : sparse_linear_constraints_) {
-            //     //     const auto& c = binding.get();
-            //     //     const auto& d = binding.data();
-            //     //     const auto& indices = binding.indices().indices();
-            //     //     c->evalCoefficients(*d);
+            // // Sparse constraints
+            // for (auto& binding : sparse_linear_constraints_) {
+            //     const auto& c = binding.get();
+            //     const auto& d = binding.data();
+            //     const auto& indices = binding.indices().indices();
+            //     c->evalCoefficients(*d);
+            //     c->evalBounds(*d);
 
-            //     //     for (int k = 0; k < d->a.outerSize(); ++k) {
-            //     //         CoinPackedVector row;
-            //     //         for
-            //     (SparseFunctionTraits<Real>::OutputVector::InnerIterator
-            //     //                  it(d->a, k);
-            //     //              it; ++it) {
-            //     //             row.insert(indices[it.row()], it.value());
-            //     //         }
-            //     //     }
-            //     //     matrix->appendRow(row);
-            //     // }
+            //     for (int k = 0; k < d->A.outerSize(); ++k) {
+            //         CoinIndexedVector row;
+            //         for (SparseFunctionTraits<Real>::OutputVector::InnerIterator
+            //                  it(d->A, k);
+            //              it; ++it) {
+            //             row.insert(indices[it.row()], it.value());
+            //         }
+            //     }
+            //     matrix->appendRow(row.getNumElements(), row.getIndices(),
+            //                       row.denseVector());
+            //     Alb.middleRows(idx, m) = d->lb;
+            //     Aub.middleRows(idx, m) = d->ub;
+            //     idx += m;
+            // }
         }
 
         std::cout << matrix->getNumElements() << std::endl;

@@ -100,7 +100,8 @@ class ipopt_program_instance : public Ipopt::TNLP {
 
     typedef std::pair<int, int> SparseMatrixIndices;
 
-    // Hash for pairs of ints (to allow hashtable for (x,y) indices in sparse matrices)
+    // Hash for pairs of ints (to allow hashtable for (x,y) indices in sparse
+    // matrices)
     struct hash_pair {
         std::size_t operator()(const SparseMatrixIndices& p) const {
             std::size_t seed = 0;
@@ -110,8 +111,12 @@ class ipopt_program_instance : public Ipopt::TNLP {
         }
     };
 
-    std::unordered_map<SparseMatrixIndices, int, hash_pair> jac_nnz_map_;
-    std::unordered_map<SparseMatrixIndices, int, hash_pair> lag_hes_nnz_map_;
+    /// @brief Lookup map from the non-zero entry (x, y) to its index in the nonzero
+    /// vector
+    std::unordered_map<SparseMatrixIndices, int, hash_pair> jac_nz_map_;
+    /// @brief Lookup map from the non-zero entry (x, y) to its index in the nonzero
+    /// vector
+    std::unordered_map<SparseMatrixIndices, int, hash_pair> lag_hes_nz_map_;
 
     MathematicalProgram& program_;
     MathematicalProgram& program() { return program_; }

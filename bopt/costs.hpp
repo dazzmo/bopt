@@ -25,6 +25,16 @@ class CostTpl {
 
     using Data = CostDataTpl<FunctionTraits>;
 
+    CostTpl(const std::shared_ptr<CostTpl<FunctionTraits>> &ptr)
+        : dim_input_(ptr->getInputDimension()),
+          dim_tangent_space_(ptr->getInputDimension()),
+          num_parameters_(ptr->getNumberOfParameters()),
+          name_(ptr->name()),
+          scaling_factor_(ptr->scaling_factor()),
+          parameters_(ptr->parameters()),
+          description_(ptr->description()),
+          ptr_(ptr) {}
+
     /**
      * @brief Sets the name of the cost.
      *
@@ -171,16 +181,6 @@ class CostTpl {
           parameters_(InputVector::Zero(0)),
           description_(description),
           ptr_(nullptr) {}
-
-    CostTpl(const std::shared_ptr<CostTpl<FunctionTraits>> &ptr)
-        : dim_input_(ptr->getInputDimension()),
-          dim_tangent_space_(ptr->getInputDimension()),
-          num_parameters_(ptr->getNumberOfParameters()),
-          name_(ptr->name()),
-          scaling_factor_(ptr->scaling_factor()),
-          parameters_(ptr->parameters()),
-          description_(ptr->description()),
-          ptr_(ptr) {}
 
     virtual Data *createDataImpl() const {
         auto data = new Data(*this);

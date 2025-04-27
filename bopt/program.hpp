@@ -199,6 +199,35 @@ class MathematicalProgram {
     }
 
     /**
+     * @brief Add a dense linear cost to the program
+     *
+     * @param cost
+     * @param data
+     * @param x
+     */
+    void addQuadraticCost(
+        const std::shared_ptr<DenseQuadraticCost> &cost,
+        const std::shared_ptr<typename DenseQuadraticCost::Data> &data,
+        const Eigen::Ref<const VariableVector> &x) {
+        // Create binding
+        this->addCost<DenseQuadraticCost>(cost, data, x);
+    }
+
+    /**
+     * @brief Add a sparse Quadratic cost to the program
+     *
+     * @param cost
+     * @param data
+     * @param x
+     */
+    void addQuadraticCost(
+        const std::shared_ptr<SparseQuadraticCost> &cost,
+        const std::shared_ptr<typename SparseQuadraticCost::Data> &data,
+        const Eigen::Ref<const VariableVector> &x) {
+        this->addCost<SparseQuadraticCost>(cost, data, x);
+    }
+
+    /**
      * @brief Add a constraint to the program, bound to the provided variables.
      *
      * @param constraint
@@ -308,36 +337,6 @@ class MathematicalProgram {
     //     constraints_bounding_box_.push_back(
     //         Binding<BoundingBoxConstraint>(constraint,
     //         getVariableIndices(x)));
-    // }
-
-    // std::vector<Binding<Constraint>> &getConstraints() {
-    //     return constraints_generic_;
-    // }
-
-    // std::vector<Binding<LinearConstraint>> &linearConstraints() {
-    //     return constraints_linear_;
-    // }
-
-    // std::vector<Binding<BoundingBoxConstraint>> &boundingBoxConstraints() {
-    //     return constraints_bounding_box_;
-    // }
-
-    // /**
-    //  * @brief Returns a vector of all constraint bindings.
-    //  *
-    //  * @note This does not include BoundingBox constraints, or any
-    //  matrix-based
-    //  * constraints
-    //  * @return std::vector<Binding<Constraint>>
-    //  */
-    // std::vector<Binding<Constraint>> getAllConstraints() const {
-    //     std::vector<Binding<Constraint>> vec;
-    //     vec.insert(vec.begin(), constraints_generic_.begin(),
-    //                constraints_generic_.end());
-    //     vec.insert(vec.end(), constraints_linear_.begin(),
-    //                constraints_linear_.end());
-    //     // Return vector of all costs
-    //     return vec;
     // }
 
    protected:

@@ -70,7 +70,7 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
           lb_(InputVector::Zero(0)),
           ub_(InputVector::Zero(0)),
           ptr_(nullptr) {
-        assert(bounds == ConstraintBounds::CUSTOM);
+        assert(bounds != ConstraintBounds::CUSTOM);
     }
 
     /**
