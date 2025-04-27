@@ -257,6 +257,9 @@ using DenseCostTpl = CostTpl<DenseFunctionTraits<Scalar>>;
 template <typename Scalar>
 using SparseCostTpl = CostTpl<SparseFunctionTraits<Scalar>>;
 
+using DenseCost = DenseCostTpl<Real>;
+using SparseCost = SparseCostTpl<Real>;
+
 template <typename FunctionTraits>
 struct CostDataTpl {
     using Scalar = typename FunctionTraits::Scalar;
@@ -366,6 +369,9 @@ using DenseLinearCostTpl = LinearCostTpl<DenseFunctionTraits<Scalar>>;
 template <typename Scalar>
 using SparseLinearCostTpl = LinearCostTpl<SparseFunctionTraits<Scalar>>;
 
+using DenseLinearCost = DenseLinearCostTpl<Real>;
+using SparseLinearCost = SparseLinearCostTpl<Real>;
+
 /**
  * @brief Contains the data associated with a linear cost
  *
@@ -446,7 +452,14 @@ class QuadraticCostTpl : public CostTpl<FunctionTraits> {
    private:
 };
 
-typedef QuadraticCostTpl<double> QuadraticCost;
+template <typename Scalar>
+using DenseQuadraticCostTpl = QuadraticCostTpl<DenseFunctionTraits<Scalar>>;
+
+template <typename Scalar>
+using SparseQuadraticCostTpl = QuadraticCostTpl<SparseFunctionTraits<Scalar>>;
+
+using DenseQuadraticCost = DenseQuadraticCostTpl<Real>;
+using SparseQuadraticCost = SparseQuadraticCostTpl<Real>;
 
 template <typename FunctionTraits>
 struct QuadraticCostDataTpl : public CostDataTpl<FunctionTraits> {

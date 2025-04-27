@@ -5,7 +5,7 @@
 namespace bopt {
 namespace casadi {
 
-function_t codegen(const function_t &f) {
+Function codegen(const Function &f) {
     // Create a codegen file folder
     std::filesystem::create_directories(BOPT_CASADI_CODEGEN_DIRECTORY);
 
@@ -18,7 +18,7 @@ function_t codegen(const function_t &f) {
         std::cerr << e.what() << '\n';
         // Return to existing path
         std::filesystem::current_path(path);
-        return function_t();
+        return Function();
     }
 
     // Create hash
@@ -38,7 +38,7 @@ function_t codegen(const function_t &f) {
     }
 
     // Provide dynamic library handler for the provided shared library
-    function_t ret = ::casadi::external(f.name(), name + ".so");
+    Function ret = ::casadi::external(f.name(), name + ".so");
 
     // Return back to normal path
     std::filesystem::current_path(path);
@@ -85,23 +85,23 @@ void set_eigen_sparsity(Eigen::SparseVector<double> &out,
     }
 }
 
-function_t create_function(const std::string &name,
-                           const std::vector<sym_t> &in,
-                           const std::vector<sym_t> &out, bool densify,
-                           bool codegen) {
+Function create_function(const std::string &name,
+                         const std::vector<SymbolicVector> &in,
+                         const std::vector<SymbolicVector> &out, bool densify,
+                         bool codegen) {
     // Create vector of temporary outputs
-    std::vector<sym_t> out_ = {};
+    std::vector<SymbolicVector> out_ = {};
     if (densify) {
         // If outputs are requested to be dense, make them dense
-        for (const sym_t &out_i : out) {
-            out_.push_back(sym_t::densify(out_i));
+        for (const SymbolicVector &out_i : out) {
+            out_.push_back(SymbolicVector::densify(out_i));
         }
     } else {
         out_ = out;
     }
 
     // Create function
-    function_t f = function_t(name, in, out_);
+    Function f = Function(name, in, out_);
 
     // If function is to be code-generated, do so.
     if (codegen) {

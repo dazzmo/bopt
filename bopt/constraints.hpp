@@ -12,6 +12,25 @@ enum class ConstraintType {
     Inequality
 };
 
+/**
+ * @brief Constraint bounds typical of many constraint types
+ *
+ */
+enum class ConstraintBounds {
+    /// Constraint of the form 0 = c(x) = 0
+    ZERO,
+    /// Constraint of the form 0 <= c(x) = inf
+    POSITIVE,
+    /// Constraint of the form -inf <= c(x) <= 0
+    NEGATIVE,
+    /// Constraint of the form 0 < c(x) < inf
+    STRICTLY_POSITIVE,
+    /// Constraint of the form -inf < c(x) < 0
+    STRICTLY_NEGATIVE,
+    /// Constraint of the form lb <= c(x) <= ub
+    CUSTOM
+};
+
 template <typename Scalar>
 struct ConstraintDataTpl;
 
@@ -34,6 +53,74 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
 
     using EvaluatorData = typename Base::Data;
     using Data = ConstraintDataTpl<FunctionTraits>;
+
+    /**
+     * @brief Construct a constraint from an existing evaluator and specifying
+     * the bound type
+     *
+     * @param evaluator
+     */
+    ConstraintTpl(
+        const std::shared_ptr<EvaluatorTpl<FunctionTraits>> &evaluator,
+        const ConstraintBounds &bounds)
+        : EvaluatorTpl<FunctionTraits>(evaluator),
+          name_(""),
+          type_(ConstraintType::Equality),
+          bounds_(bounds),
+          lb_(InputVector::Zero(0)),
+          ub_(InputVector::Zero(0)),
+          ptr_(nullptr) {
+        assert(bounds == ConstraintBounds::CUSTOM);
+    }
+
+    /**
+     * @brief Construct a constraint from an existing evaluator, adding fixed
+     * bounds from scalar values
+     *
+     * @param evaluator
+     */
+    ConstraintTpl(
+        const std::shared_ptr<EvaluatorTpl<FunctionTraits>> &evaluator,
+        const Scalar &lb, const Scalar &ub)
+        : EvaluatorTpl<FunctionTraits>(evaluator),
+          name_(""),
+          type_(ConstraintType::Equality),
+          bounds_(ConstraintBounds::CUSTOM),
+          lb_(InputVector::Constant(evaluator->getOutputDimension(), lb)),
+          ub_(InputVector::Constant(evaluator->getOutputDimension(), ub)),
+          ptr_(nullptr) {}
+
+    /**
+     * @brief Construct a constraint from an existing evaluator and fixed bound
+     * vectors
+     *
+     * @param evaluator
+     */
+    ConstraintTpl(
+        const std::shared_ptr<EvaluatorTpl<FunctionTraits>> &evaluator,
+        const InputVectorConstRef &lb, const InputVectorConstRef &ub)
+        : EvaluatorTpl<FunctionTraits>(evaluator),
+          name_(""),
+          type_(ConstraintType::Equality),
+          bounds_(ConstraintBounds::CUSTOM),
+          lb_(lb),
+          ub_(ub),
+          ptr_(nullptr) {}
+
+    /**
+     * @brief Construct a constraint from an existing constraint
+     *
+     * @param evaluator
+     */
+    ConstraintTpl(
+        const std::shared_ptr<ConstraintTpl<FunctionTraits>> &constraint)
+        : EvaluatorTpl<FunctionTraits>(constraint),
+          name_(""),
+          type_(ConstraintType::Equality),
+          bounds_(constraint->getBounds()),
+          lb_(InputVector::Zero(0)),
+          ub_(InputVector::Zero(0)),
+          ptr_(constraint) {}
 
     const ConstraintType &type() const { return type_; }
 
@@ -90,36 +177,29 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
         return true;
     }
 
+    void setBounds(const ConstraintBounds &bounds) { bounds_ = bounds; }
+
+    void setBounds(const Scalar &lb, const Scalar &ub) {
+        bounds_ = ConstraintBounds::CUSTOM;
+        lb_.setConstant(lb);
+        ub_.setConstant(ub);
+    }
+
+    void setBounds(const InputVectorConstRef &lb,
+                   const InputVectorConstRef &ub) {
+        bounds_ = ConstraintBounds::CUSTOM;
+        lb_ = lb;
+        ub_ = ub;
+    }
+
    protected:
-    ConstraintTpl(const Index &dim_input, const Index &dim_output)
+    ConstraintTpl(const Index &dim_input, const Index &dim_output,
+                  const ConstraintBounds &bounds = ConstraintBounds::ZERO)
         : EvaluatorTpl<FunctionTraits>(dim_input, dim_output),
           name_(""),
           type_(ConstraintType::Equality),
+          bounds_(bounds),
           ptr_(nullptr) {}
-
-    /**
-     * @brief Construct a constraint from an existing evaluator
-     *
-     * @param evaluator
-     */
-    ConstraintTpl(
-        const std::shared_ptr<EvaluatorTpl<FunctionTraits>> &evaluator)
-        : EvaluatorTpl<FunctionTraits>(evaluator),
-          name_(""),
-          type_(ConstraintType::Equality),
-          ptr_(nullptr) {}
-
-    /**
-     * @brief Construct a constraint from an existing constraint
-     *
-     * @param evaluator
-     */
-    ConstraintTpl(
-        const std::shared_ptr<ConstraintTpl<FunctionTraits>> &constraint)
-        : EvaluatorTpl<FunctionTraits>(constraint),
-          name_(""),
-          type_(ConstraintType::Equality),
-          ptr_(constraint) {}
 
     virtual Data *createDataImpl() const {
         Data *data = new Data(*this);
@@ -127,7 +207,38 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
     }
 
     virtual void evalBoundsImpl(Data &data) const {
-        if (ptr_) ptr_->evalBounds(data);
+        if (ptr_) {
+            ptr_->evalBounds(data);
+        } else {
+            // Based off given type
+            switch (bounds_) {
+                case ConstraintBounds::ZERO:
+                    data.lb.setZero();
+                    data.ub.setZero();
+                    break;
+                case ConstraintBounds::POSITIVE:
+                    data.lb.setZero();
+                    data.ub.setConstant(kInf);
+                    break;
+                case ConstraintBounds::NEGATIVE:
+                    data.lb.setConstant(-kInf);
+                    data.ub.setZero();
+                    break;
+                case ConstraintBounds::STRICTLY_POSITIVE:
+                    data.lb.setConstant(kEpsilon);
+                    data.ub.setConstant(kInf);
+                    break;
+                case ConstraintBounds::STRICTLY_NEGATIVE:
+                    data.lb.setConstant(-kInf);
+                    data.ub.setConstant(-kEpsilon);
+                    break;
+                case ConstraintBounds::CUSTOM:
+                    data.lb = lb_;
+                    data.ub = ub_;
+                default:
+                    break;
+            }
+        }
     }
 
     virtual void evalBoundJacobiansImpl(Data &data) const {
@@ -142,8 +253,12 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
    private:
     std::string name_;
     ConstraintType type_;
-
+    ConstraintBounds bounds_;
     std::shared_ptr<ConstraintTpl> ptr_;
+    /// @brief Manually set constraint lower bounds
+    InputVector lb_;
+    /// @brief Manually set constraint upper bounds
+    InputVector ub_;
 };
 
 template <typename Scalar>
@@ -152,12 +267,14 @@ using DenseConstraintTpl = ConstraintTpl<DenseFunctionTraits<Scalar>>;
 template <typename Scalar>
 using SparseConstraintTpl = ConstraintTpl<SparseFunctionTraits<Scalar>>;
 
-typedef ConstraintTpl<double> Constraint;
+using DenseConstraint = DenseConstraintTpl<Real>;
+using SparseConstraint = SparseConstraintTpl<Real>;
 
 template <typename FunctionTraits>
 struct ConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
     using Base = EvaluatorDataTpl<FunctionTraits>;
 
+    using DenseVector = typename Base::DenseVector;
     using Vector = typename Base::Vector;
     using Matrix = typename Base::Matrix;
 
@@ -165,18 +282,17 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
         : EvaluatorDataTpl<FunctionTraits>(c) {
         const Index p = c.getNumberOfParameters();
         const Index m = c.getOutputDimension();
+
+        lb = DenseVector::Zero(m);
+        ub = DenseVector::Zero(m);
         if constexpr (FunctionTraits::type == "Sparse") {
             // Sparse: allocate sparse objects properly
-            lb.resize(m);
-            ub.resize(m);
             Jlb_p.resize(m, p);
             Jub_p.resize(m, p);
             Hlb_pp.resize(p, p);
             Hub_pp.resize(p, p);
         } else {
             // Dense
-            lb = Vector::Zero(m);
-            ub = Vector::Zero(m);
             Jlb_p = Matrix::Zero(m, p);
             Jub_p = Matrix::Zero(m, p);
             Hlb_pp = Matrix::Zero(p, p);
@@ -185,9 +301,9 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
     }
 
     /// Lower bound of the constraint
-    Vector lb;
+    DenseVector lb;
     /// Upper bound of the constraint
-    Vector ub;
+    DenseVector ub;
 
     /// Jacobian of the lower bound with respect to the parameters
     Matrix Jlb_p;
@@ -199,8 +315,6 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<FunctionTraits> {
     /// Hessian of the upper bound vector product with respect to the parameters
     Matrix Hub_pp;
 };
-
-typedef ConstraintDataTpl<double> ConstraintData;
 
 template <typename Scalar>
 struct LinearConstraintDataTpl;
@@ -254,6 +368,9 @@ using DenseLinearConstraintTpl =
 template <typename Scalar>
 using SparseLinearConstraintTpl =
     LinearConstraintTpl<SparseFunctionTraits<Scalar>>;
+
+using DenseLinearConstraint = DenseLinearConstraintTpl<Real>;
+using SparseLinearConstraint = SparseLinearConstraintTpl<Real>;
 
 template <typename FunctionTraits>
 struct LinearConstraintDataTpl : public ConstraintDataTpl<FunctionTraits> {
@@ -332,7 +449,16 @@ class BoundingBoxConstraintTpl : public ConstraintTpl<FunctionTraits> {
     InputVector ub_;
 };
 
-// typedef BoundingBoxConstraintTpl<double> BoundingBoxConstraint;
+template <typename Scalar>
+using DenseBoundingBoxConstraintTpl =
+    BoundingBoxConstraintTpl<DenseFunctionTraits<Scalar>>;
+
+template <typename Scalar>
+using SparseBoundingBoxConstraintTpl =
+    BoundingBoxConstraintTpl<SparseFunctionTraits<Scalar>>;
+
+using DenseBoundingBoxConstraint = DenseBoundingBoxConstraintTpl<Real>;
+using SparseBoundingBoxConstraint = SparseBoundingBoxConstraintTpl<Real>;
 
 // template <typename Scalar>
 // struct MatrixConstraintDataTpl;

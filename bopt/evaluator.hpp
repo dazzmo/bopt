@@ -274,14 +274,6 @@ class EvaluatorTpl {
     std::string description_;
 };
 
-typedef EvaluatorTpl<double> Evaluator;
-
-template <typename Scalar>
-using DenseEvaluatorTpl = EvaluatorTpl<DenseFunctionTraits<Scalar>>;
-
-template <typename Scalar>
-using SparseEvaluatorTpl = EvaluatorTpl<SparseFunctionTraits<Scalar>>;
-
 template <typename FunctionTraits>
 std::ostream &operator<<(std::ostream &os,
                          const EvaluatorTpl<FunctionTraits> &e) {
@@ -292,15 +284,26 @@ std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
+template <typename Scalar>
+using DenseEvaluatorTpl = EvaluatorTpl<DenseFunctionTraits<Scalar>>;
+
+template <typename Scalar>
+using SparseEvaluatorTpl = EvaluatorTpl<SparseFunctionTraits<Scalar>>;
+
+using DenseEvaluator = DenseEvaluatorTpl<Real>;
+using SparseEvaluator = SparseEvaluatorTpl<Real>;
+
 template <typename InputTraitType>
 struct EvaluatorDataTpl {
+    using DenseVector = typename InputTraitType::InputVector;
     using Vector = typename InputTraitType::OutputVector;
     using Matrix = typename InputTraitType::OutputMatrix;
 
     EvaluatorDataTpl(const EvaluatorTpl<InputTraitType> &e) {
+        y = DenseVector::Zero(e.getOutputDimension());
+
         if constexpr (InputTraitType::type == "Sparse") {
             // Sparse: allocate sparse objects properly
-            y.resize(e.getOutputDimension());
             Jx.resize(e.getOutputDimension(),
                       e.getInputTangentSpaceDimension());
             Jp.resize(e.getOutputDimension(), e.getNumberOfParameters());
@@ -312,7 +315,6 @@ struct EvaluatorDataTpl {
             // Optionally set values to zero explicitly if needed
         } else {
             // Dense
-            y = Vector::Zero(e.getOutputDimension());
             Jx = Matrix::Zero(e.getOutputDimension(),
                               e.getInputTangentSpaceDimension());
             Jp =
@@ -329,7 +331,7 @@ struct EvaluatorDataTpl {
     }
 
     /// Evaluator output vector y
-    Vector y;
+    DenseVector y;
 
     /// Matrix for ∂y/∂x
     Matrix Jx;

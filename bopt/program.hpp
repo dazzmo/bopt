@@ -23,15 +23,13 @@ namespace bopt {
 class MathematicalProgram {
    private:
     using CostVariant =
-        std::variant<Binding<DenseCostTpl<Real>>, Binding<SparseCostTpl<Real>>,
-                     Binding<DenseLinearCostTpl<Real>>,
-                     Binding<SparseLinearCostTpl<Real>>>;
+        std::variant<Binding<DenseCost>, Binding<SparseCost>,
+                     Binding<DenseLinearCost>, Binding<SparseLinearCost>>;
 
     using ConstraintVariant =
-        std::variant<Binding<DenseConstraintTpl<Real>>,
-                     Binding<SparseConstraintTpl<Real>>,
-                     Binding<DenseLinearConstraintTpl<Real>>,
-                     Binding<SparseLinearConstraintTpl<Real>>>;
+        std::variant<Binding<DenseConstraint>, Binding<SparseConstraint>,
+                     Binding<DenseLinearConstraint>,
+                     Binding<SparseLinearConstraint>>;
 
    public:
     /**
@@ -179,11 +177,11 @@ class MathematicalProgram {
      * @param x
      */
     void addLinearCost(
-        const std::shared_ptr<DenseLinearCostTpl<Real>> &cost,
-        const std::shared_ptr<typename DenseLinearCostTpl<Real>::Data> &data,
+        const std::shared_ptr<DenseLinearCost> &cost,
+        const std::shared_ptr<typename DenseLinearCost::Data> &data,
         const Eigen::Ref<const VariableVector> &x) {
         // Create binding
-        this->addCost<DenseLinearCostTpl<Real>>(cost, data, x);
+        this->addCost<DenseLinearCost>(cost, data, x);
     }
 
     /**
@@ -194,10 +192,10 @@ class MathematicalProgram {
      * @param x
      */
     void addLinearCost(
-        const std::shared_ptr<SparseLinearCostTpl<Real>> &cost,
-        const std::shared_ptr<typename SparseLinearCostTpl<Real>::Data> &data,
+        const std::shared_ptr<SparseLinearCost> &cost,
+        const std::shared_ptr<typename SparseLinearCost::Data> &data,
         const Eigen::Ref<const VariableVector> &x) {
-        this->addCost<SparseLinearCostTpl<Real>>(cost, data, x);
+        this->addCost<SparseLinearCost>(cost, data, x);
     }
 
     /**
@@ -224,13 +222,11 @@ class MathematicalProgram {
      * @param x
      */
     void addLinearConstraint(
-        const std::shared_ptr<DenseLinearConstraintTpl<Real>> &constraint,
-        const std::shared_ptr<typename DenseLinearConstraintTpl<Real>::Data>
-            &data,
+        const std::shared_ptr<DenseLinearConstraint> &constraint,
+        const std::shared_ptr<typename DenseLinearConstraint::Data> &data,
         const Eigen::Ref<const VariableVector> &x) {
         // Create binding
-        this->addConstraint<DenseLinearConstraintTpl<Real>>(constraint, data,
-                                                            x);
+        this->addConstraint<DenseLinearConstraint>(constraint, data, x);
     }
 
     /**
@@ -241,13 +237,13 @@ class MathematicalProgram {
      * @param x
      */
     void addLinearConstraint(
-        const std::shared_ptr<SparseLinearConstraintTpl<Real>> &constraint,
-        const std::shared_ptr<typename SparseLinearConstraintTpl<Real>::Data>
-            &data,
+        const std::shared_ptr<SparseLinearConstraint> &constraint,
+        const std::shared_ptr<typename SparseLinearConstraint::Data> &data,
         const Eigen::Ref<const VariableVector> &x) {
-        this->addConstraint<SparseLinearConstraintTpl<Real>>(constraint, data,
-                                                             x);
+        this->addConstraint<SparseLinearConstraint>(constraint, data, x);
     }
+
+    // todo add bounding box constraint
 
     /**
      * @brief Get all cost bindings of a specific type, note that this will

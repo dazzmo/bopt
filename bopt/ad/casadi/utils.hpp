@@ -10,9 +10,10 @@ namespace casadi {
 #define BOPT_CASADI_CODEGEN_DIRECTORY "./cg"
 #endif
 
-typedef ::casadi::SX sym_t;
-typedef ::casadi::SX sym_vector_t;
-typedef ::casadi::Function function_t;
+typedef ::casadi::SX Symbol;
+typedef ::casadi::SX SymbolicVector;
+typedef ::casadi::SX SymbolicMatrix;
+typedef ::casadi::Function Function;
 
 /**
  * @brief Generates a dynamically linkable library for the function f and loads
@@ -22,7 +23,7 @@ typedef ::casadi::Function function_t;
  * @return ::casadi::Function
  *
  */
-function_t codegen(const function_t &f);
+Function codegen(const Function &f);
 
 void set_eigen_sparsity(Eigen::SparseMatrix<double> &out,
                         const ::casadi::Sparsity &sparsity);
@@ -40,12 +41,12 @@ void set_eigen_sparsity(Eigen::SparseVector<double> &out,
  * @param out
  * @param densify
  * @param codegen
- * @return function_t
+ * @return Function
  */
-function_t create_function(const std::string &name,
-                           const std::vector<sym_t> &in,
-                           const std::vector<sym_t> &out, bool densify = false,
-                           bool codegen = false);
+Function create_function(const std::string &name,
+                         const std::vector<SymbolicVector> &in,
+                         const std::vector<SymbolicVector> &out,
+                         bool densify = false, bool codegen = false);
 
 }  // namespace casadi
 }  // namespace bopt

@@ -92,11 +92,11 @@ class ipopt_program_instance : public Ipopt::TNLP {
    private:
     ipopt_data cache_;
 
-    std::vector<Binding<Cost>> costs_;
-    std::vector<Binding<Constraint>> constraints_;
+    std::vector<Binding<DenseCostTpl<Real>>> dense_costs_;
+    std::vector<Binding<SparseCostTpl<Real>>> sparse_costs_;
 
-    std::vector<CostData> cost_data_;
-    std::vector<ConstraintData> constraint_data_;
+    std::vector<Binding<DenseConstraintTpl<Real>>> dense_constraints_;
+    std::vector<Binding<SparseConstraintTpl<Real>>> sparse_constraints_;
 
     typedef std::pair<int, int> SparseMatrixIndices;
 
