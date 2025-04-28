@@ -30,7 +30,8 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
         : bopt::ConstraintTpl<FunctionTraits>(
               std::make_shared<EvaluatorTpl<FunctionTraits>>(expression, x, p,
                                                              codegen),
-              ConstraintBounds::CUSTOM) {
+              ConstraintBounds::CUSTOM),
+          has_bound_functions_(true) {
         std::vector<SymbolicVector> in;
         in = {p};
 
@@ -72,6 +73,14 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
         }
     }
 
+    ConstraintTpl(const SymbolicVector &expression, const SymbolicVector &x,
+                  const SymbolicVector &p, const ConstraintBounds &bounds,
+                  bool codegen = false)
+        : bopt::ConstraintTpl<FunctionTraits>(
+              std::make_shared<EvaluatorTpl<FunctionTraits>>(expression, x, p,
+                                                             codegen),
+              bounds) {}
+
    protected:
     void setDataSparsityImpl(Data &data) const override {
         Base::setDataSparsityImpl(data);
@@ -85,22 +94,30 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
     }
 
     void evalBoundsImpl(Data &data) const override {
-        std::vector<Scalar *> out(2);
-        out[0] = data.lb.data();
-        out[1] = data.ub.data();
-        f_bnd({this->parameters().data()}, out);
+        if (has_bound_functions_) {
+            std::vector<Scalar *> out(2);
+            out[0] = data.lb.data();
+            out[1] = data.ub.data();
+            f_bnd({this->parameters().data()}, out);
+        } else {
+            Base::evalBoundsImpl(data);
+        }
     }
 
     void evalBoundJacobiansImpl(Data &data) const override {
-        std::vector<Scalar *> out(2);
-        if constexpr (FunctionTraits::type == "Sparse") {
-            out[0] = data.Jlb_p.valuePtr();
-            out[1] = data.Jub_p.valuePtr();
+        if (has_bound_functions_) {
+            std::vector<Scalar *> out(2);
+            if constexpr (FunctionTraits::type == "Sparse") {
+                out[0] = data.Jlb_p.valuePtr();
+                out[1] = data.Jub_p.valuePtr();
+            } else {
+                out[0] = data.Jlb_p.data();
+                out[1] = data.Jub_p.data();
+            }
+            J_bnd({this->parameters().data()}, out);
         } else {
-            out[0] = data.Jlb_p.data();
-            out[1] = data.Jub_p.data();
+            Base::evalBoundJacobiansImpl(data);
         }
-        J_bnd({this->parameters().data()}, out);
     }
 
     void evalBoundHessiansImpl(const InputVectorConstRef &lambda,
@@ -117,6 +134,7 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
     }
 
    private:
+    bool has_bound_functions_{false};
     Function f_bnd;
     Function J_bnd;
     Function H_bnd;
