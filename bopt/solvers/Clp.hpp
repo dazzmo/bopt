@@ -5,7 +5,7 @@
 
 #include <coin/ClpSimplex.hpp>
 
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
 #include "coin/CoinBuild.hpp"

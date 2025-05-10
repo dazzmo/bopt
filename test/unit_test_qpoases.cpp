@@ -3,7 +3,7 @@
 
 #include <Eigen/Core>
 
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/program.hpp"
 #include "bopt/solvers/qpoases.hpp"
 

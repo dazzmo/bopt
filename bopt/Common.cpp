@@ -1,4 +1,4 @@
-#include "bopt/common.hpp"
+#include "bopt/Common.hpp"
 
 namespace bopt {
 

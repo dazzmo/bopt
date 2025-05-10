@@ -3,8 +3,8 @@
 
 #include <Eigen/Core>
 
-#include "bopt/evaluator.hpp"
-#include "bopt/logging.hpp"
+#include "bopt/Evaluator.hpp"
+#include "bopt/Logging.hpp"
 // #include "bopt/profiler.hpp"
 
 class DenseEvaluator : public bopt::DenseEvaluatorTpl<double> {

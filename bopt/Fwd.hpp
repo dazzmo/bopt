@@ -8,7 +8,7 @@
 #include <functional>
 #include <iostream>
 
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 
 namespace bopt {}  // namespace bopt
 

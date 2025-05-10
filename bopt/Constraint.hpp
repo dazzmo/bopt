@@ -1,7 +1,7 @@
 #pragma once
 
-#include "bopt/evaluator.hpp"
-#include "bopt/logging.hpp"
+#include "bopt/Evaluator.hpp"
+#include "bopt/Logging.hpp"
 
 namespace bopt {
 
@@ -39,7 +39,7 @@ struct ConstraintDataTpl;
  *
  */
 template <typename FunctionTraits>
-class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
+class ConstraintTpl : public EvaluatorTpl<FunctionTraits, Eigen::Dynamic> {
     using Base = EvaluatorTpl<FunctionTraits>;
 
    public:
@@ -69,9 +69,7 @@ class ConstraintTpl : public EvaluatorTpl<FunctionTraits> {
           bounds_(bounds),
           lb_(InputVector::Zero(0)),
           ub_(InputVector::Zero(0)),
-          ptr_(nullptr) {
-        assert(bounds != ConstraintBounds::CUSTOM);
-    }
+          ptr_(nullptr) {}
 
     /**
      * @brief Construct a constraint from an existing evaluator, adding fixed

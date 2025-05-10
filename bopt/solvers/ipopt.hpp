@@ -5,7 +5,7 @@
 #include <coin-or/IpIpoptApplication.hpp>
 #include <coin-or/IpTNLP.hpp>
 
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
 #include "bopt/solvers/base.hpp"

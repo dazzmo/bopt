@@ -5,7 +5,7 @@
 
 #include "bopt/binding.hpp"
 #include "bopt/constraints.hpp"
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/profiler.hpp"
 
 class DummyConstraint : public bopt::constraint_tpl<double> {

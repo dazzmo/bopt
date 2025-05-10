@@ -1,7 +1,7 @@
 #pragma once
 
 #include "bopt/ad/casadi/utils.hpp"
-#include "bopt/evaluator.hpp"
+#include "bopt/Evaluator.hpp"
 
 namespace bopt {
 namespace casadi {
@@ -130,11 +130,11 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
     // Sparsity patterns
     void setDataSparsityImpl(Data &data) const override {
         if constexpr (FunctionTraits::type == "Sparse") {
-            set_eigen_sparsity(data.Jx, J.sparsity_out(0));
-            set_eigen_sparsity(data.Jp, J.sparsity_out(1));
-            set_eigen_sparsity(data.Hxx, H.sparsity_out(0));
-            set_eigen_sparsity(data.Hxp, H.sparsity_out(1));
-            set_eigen_sparsity(data.Hpp, H.sparsity_out(2));
+            setupSparseEigenMatrix(data.Jx, J.sparsity_out(0));
+            setupSparseEigenMatrix(data.Jp, J.sparsity_out(1));
+            setupSparseEigenMatrix(data.Hxx, H.sparsity_out(0));
+            setupSparseEigenMatrix(data.Hxp, H.sparsity_out(1));
+            setupSparseEigenMatrix(data.Hpp, H.sparsity_out(2));
         }
     }
 

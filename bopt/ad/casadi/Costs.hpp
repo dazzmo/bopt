@@ -89,11 +89,11 @@ class CostTpl : public bopt::CostTpl<FunctionTraits> {
 
         // Update the sparsity patterns
         if constexpr (FunctionTraits::type == "Sparse") {
-            set_eigen_sparsity(data->gx, g.sparsity_out(0));
-            set_eigen_sparsity(data->gp, g.sparsity_out(1));
-            set_eigen_sparsity(data->Hxx, H.sparsity_out(0));
-            set_eigen_sparsity(data->Hxp, H.sparsity_out(1));
-            set_eigen_sparsity(data->Hpp, H.sparsity_out(2));
+            setupSparseEigenMatrix(data->gx, g.sparsity_out(0));
+            setupSparseEigenMatrix(data->gp, g.sparsity_out(1));
+            setupSparseEigenMatrix(data->Hxx, H.sparsity_out(0));
+            setupSparseEigenMatrix(data->Hxp, H.sparsity_out(1));
+            setupSparseEigenMatrix(data->Hpp, H.sparsity_out(2));
         }
 
         return data;

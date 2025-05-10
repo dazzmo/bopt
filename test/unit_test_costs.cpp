@@ -4,7 +4,7 @@
 #include <Eigen/Core>
 
 #include "bopt/costs.hpp"
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 // #include "bopt/profiler.hpp"
 
 class BasicCost : public bopt::DenseCostTpl<double> {

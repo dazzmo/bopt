@@ -1,77 +1,30 @@
 #pragma once
 
-#include <Eigen/Core>
-#include <Eigen/Sparse>
-#include <optional>
-#include <unsupported/Eigen/AutoDiff>
-
-#include "bopt/assert.hpp"
-#include "bopt/common.hpp"
-// #include "bopt/evaluator/base.hpp"
-// #include "bopt/evaluator/differentiable.hpp"
-// #include "bopt/evaluator/linear.hpp"
-// #include "bopt/evaluator/quadratic.hpp"
+#include "bopt/Common.hpp"
+#include "bopt/FunctionTraits.hpp"
 
 namespace bopt {
 
 // Forward declarations
-template <typename Scalar>
+template <typename FunctionTraits, int OutputSize>
 struct EvaluatorDataTpl;
-
-template <typename ScalarType>
-struct FunctionTraits {
-    using Scalar = ScalarType;
-
-    using InputVector = Eigen::VectorX<Scalar>;
-    using InputVectorConstRef = Eigen::Ref<const InputVector>;
-};
-
-template <typename ScalarType>
-struct SparseFunctionTraits : public FunctionTraits<ScalarType> {
-    using Base = FunctionTraits<ScalarType>;
-
-    using Scalar = typename Base::Scalar;
-    using InputVector = typename Base::InputVector;
-    using InputVectorConstRef = typename Base::InputVectorConstRef;
-
-    using OutputVector = Eigen::SparseVector<Scalar>;
-    using OutputMatrix = Eigen::SparseMatrix<Scalar>;
-
-    static constexpr std::string_view type = "Sparse";
-};
-
-template <typename ScalarType>
-struct DenseFunctionTraits : public FunctionTraits<ScalarType> {
-    using Base = FunctionTraits<ScalarType>;
-
-    using Scalar = typename Base::Scalar;
-    using InputVector = typename Base::InputVector;
-    using InputVectorConstRef = typename Base::InputVectorConstRef;
-
-    using OutputVector = Eigen::VectorX<Scalar>;
-    using OutputMatrix = Eigen::MatrixX<Scalar>;
-
-    static constexpr std::string_view type = "Dense";
-};
 
 /**
  * @brief Evaluator class related the evaluation of a function y = fₚ(x)
  *
  * @tparam Scalar
  */
-template <typename FunctionTraits>
+template <typename FunctionTraits, int OutputSize = Eigen::Dynamic>
 class EvaluatorTpl {
    public:
     using Scalar = typename FunctionTraits::Scalar;
 
+    using DenseVector = typename FunctionTraits::DenseVector;
     using InputVector = typename FunctionTraits::InputVector;
     using InputVectorConstRef = typename FunctionTraits::InputVectorConstRef;
 
-    using Vector = typename FunctionTraits::OutputVector;
-    using Matrix = typename FunctionTraits::OutputMatrix;
-
     /// @brief The standard type of data to be used for the evaluation functions
-    using Data = EvaluatorDataTpl<FunctionTraits>;
+    using Data = EvaluatorDataTpl<FunctionTraits, OutputSize>;
 
     EvaluatorTpl(const std::shared_ptr<EvaluatorTpl<FunctionTraits>> &ptr)
         : ptr_(ptr),
@@ -95,13 +48,7 @@ class EvaluatorTpl {
      * @param data
      */
     void eval(const InputVectorConstRef &x, Data &data) const {
-        assert(x.rows() == getInputDimension());
-        assert(data.y.rows() == getOutputDimension());
-        // Ensure vector is valid
-        // CHECK(x.allFinite() && !x.hasNaN() && x.size());
         evalImpl(x, data);
-        // Ensure output is valid
-        // CHECK(data.y.allFinite() && !data.y.hasNaN() && data.y.size());
     }
 
     /**
@@ -114,7 +61,6 @@ class EvaluatorTpl {
      */
     void evalJacobians(const InputVectorConstRef &x, Data &data,
                        bool compute_x = true, bool compute_p = false) const {
-        assert(x.rows() == getInputDimension());
         evalJacobiansImpl(x, data, compute_x, compute_p);
     }
 
@@ -133,49 +79,47 @@ class EvaluatorTpl {
                       const InputVectorConstRef &lambda, Data &data,
                       bool compute_xx = true, bool compute_xp = false,
                       bool compute_pp = false) const {
-        assert(x.rows() == getInputDimension());
-        assert(lambda.rows() == getOutputDimension());
         evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
     }
 
     /**
      * @brief Dimension of the input variable vector, commonly denoted as x.
      *
-     * @return const Index&
+     * @return const Size&
      */
-    const Index &getInputDimension() const { return dim_input_; }
+    const Size &getInputDimension() const { return dim_input_; }
 
     /**
      * @brief Dimension of the tangent space for the input vector, typically
      * this is equal to getInputDimension().
      *
-     * @return const Index&
+     * @return const Size&
      */
-    const Index &getInputTangentSpaceDimension() const {
+    const Size &getInputTangentSpaceDimension() const {
         return dim_tangent_space_;
     }
 
     /**
      * @brief Dimension of the output vector y.
      *
-     * @return const Index&
+     * @return const Size&
      */
-    const Index &getOutputDimension() const { return dim_output_; }
+    const Size &getOutputDimension() const { return dim_output_; }
 
     /**
      * @brief Dimension of the parameter vector p.
      *
-     * @return const Index&
+     * @return const Size&
      */
-    const Index &getNumberOfParameters() const { return num_parameters_; }
+    const Size &getNumberOfParameters() const { return num_parameters_; }
 
-    const std::string &description() const { return description_; }
+    const String &getDescription() const { return description_; }
 
-    void setDescription(const std::string &description) {
+    void setDescription(const String &description) {
         description_ = description;
     }
 
-    const InputVector &parameters() const { return parameters_; }
+    const DenseVector &getParameters() const { return parameters_; }
 
     /**
      * @brief Set the parameter vector p (getNumberOfParameters() x 1).
@@ -197,7 +141,7 @@ class EvaluatorTpl {
 
    protected:
     EvaluatorTpl(const Index &n_inputs, const Index &n_outputs,
-                 const std::string &description = "")
+                 const String &description = "")
         : ptr_(nullptr),
           dim_input_(n_inputs),
           dim_tangent_space_(n_inputs),
@@ -283,80 +227,26 @@ class EvaluatorTpl {
     Index dim_output_;
     Index num_parameters_;
 
-    InputVector parameters_;
-    std::string description_;
+    DenseVector parameters_;
+    String description_;
 };
 
-template <typename FunctionTraits>
+template <typename FunctionTraits, int OutputSize>
 std::ostream &operator<<(std::ostream &os,
-                         const EvaluatorTpl<FunctionTraits> &e) {
+                         const EvaluatorTpl<FunctionTraits, OutputSize> &e) {
     os << "Evaluator\n";
-    os << "description: " << e.description() << '\n';
-    os << "input dim: " << e.getInputDimension() << '\n';
-    os << "output dim: " << e.getOutputDimension();
+    os << "Description: " << e.description() << '\n';
+    os << "Input Size: " << e.getInputDimension() << '\n';
+    os << "Output Size: " << e.getOutputDimension();
     return os;
 }
 
-template <typename Scalar>
+template <typename Scalar, typename OutputSize>
 using DenseEvaluatorTpl = EvaluatorTpl<DenseFunctionTraits<Scalar>>;
+using DenseEvaluator = DenseEvaluatorTpl<Real>;
 
 template <typename Scalar>
 using SparseEvaluatorTpl = EvaluatorTpl<SparseFunctionTraits<Scalar>>;
-
-using DenseEvaluator = DenseEvaluatorTpl<Real>;
 using SparseEvaluator = SparseEvaluatorTpl<Real>;
-
-template <typename InputTraitType>
-struct EvaluatorDataTpl {
-    using DenseVector = typename InputTraitType::InputVector;
-    using Vector = typename InputTraitType::OutputVector;
-    using Matrix = typename InputTraitType::OutputMatrix;
-
-    EvaluatorDataTpl(const EvaluatorTpl<InputTraitType> &e) {
-        y = DenseVector::Zero(e.getOutputDimension());
-
-        if constexpr (InputTraitType::type == "Sparse") {
-            // Sparse: allocate sparse objects properly
-            Jx.resize(e.getOutputDimension(),
-                      e.getInputTangentSpaceDimension());
-            Jp.resize(e.getOutputDimension(), e.getNumberOfParameters());
-            Hxx.resize(e.getInputTangentSpaceDimension(),
-                       e.getInputTangentSpaceDimension());
-            Hxp.resize(e.getInputTangentSpaceDimension(),
-                       e.getNumberOfParameters());
-            Hpp.resize(e.getNumberOfParameters(), e.getNumberOfParameters());
-            // Optionally set values to zero explicitly if needed
-        } else {
-            // Dense
-            Jx = Matrix::Zero(e.getOutputDimension(),
-                              e.getInputTangentSpaceDimension());
-            Jp =
-                Matrix::Zero(e.getOutputDimension(), e.getNumberOfParameters());
-            Hxx = Matrix::Zero(e.getInputTangentSpaceDimension(),
-                               e.getInputTangentSpaceDimension());
-            Hxp = Matrix::Zero(e.getInputTangentSpaceDimension(),
-                               e.getNumberOfParameters());
-            Hpp = Matrix::Zero(e.getNumberOfParameters(),
-                               e.getNumberOfParameters());
-        }
-
-        // Perform initialisation depending on what type we have?
-    }
-
-    /// Evaluator output vector y
-    DenseVector y;
-
-    /// Matrix for ∂y/∂x
-    Matrix Jx;
-    /// Matrix for ∂y/∂p
-    Matrix Jp;
-
-    /// Matrix for lower-triangular matrix ∂²(λᵀy)/∂x²
-    Matrix Hxx;
-    /// Matrix for lower-triangular matrix ∂²(λᵀy)/∂x∂p
-    Matrix Hxp;
-    /// Matrix for lower-triangular matrix ∂²(λᵀy)/∂p²
-    Matrix Hpp;
-};
 
 }  // namespace bopt

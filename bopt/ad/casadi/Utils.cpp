@@ -46,7 +46,7 @@ Function codegen(const Function &f) {
     return ret;
 }
 
-void set_eigen_sparsity(Eigen::SparseMatrix<double> &out,
+void setupSparseEigenMatrix(Eigen::SparseMatrix<double> &out,
                         const ::casadi::Sparsity &sparsity) {
     // Use casadi information
     std::vector<casadi_int> output_row, output_col;
@@ -63,7 +63,7 @@ void set_eigen_sparsity(Eigen::SparseMatrix<double> &out,
     out.makeCompressed();
 }
 
-void set_eigen_sparsity(Eigen::SparseVector<double> &out,
+void setupSparseEigenMatrix(Eigen::SparseVector<double> &out,
                         const ::casadi::Sparsity &sparsity) {
     // todo - make sure that sparsity pattern is a column vector
     // Use casadi information

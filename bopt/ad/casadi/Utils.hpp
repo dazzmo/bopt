@@ -25,10 +25,10 @@ typedef ::casadi::Function Function;
  */
 Function codegen(const Function &f);
 
-void set_eigen_sparsity(Eigen::SparseMatrix<double> &out,
+void setupSparseEigenMatrix(Eigen::SparseMatrix<double> &out,
                         const ::casadi::Sparsity &sparsity);
 
-void set_eigen_sparsity(Eigen::SparseVector<double> &out,
+void setupSparseEigenMatrix(Eigen::SparseVector<double> &out,
                         const ::casadi::Sparsity &sparsity);
 
 /**

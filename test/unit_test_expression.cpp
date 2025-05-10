@@ -4,7 +4,7 @@
 #include <Eigen/Core>
 
 #include "bopt/expressions/expression.hpp"
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/profiler.hpp"
 
 class ScalarExpression1 : public bopt::scalar_evaluator_tpl<double> {

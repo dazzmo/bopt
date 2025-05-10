@@ -1,11 +1,8 @@
 #pragma once
 
 #include <Eigen/Core>
-
+#include "bopt/Types.hpp"
 namespace bopt {
-
-using Real = double;
-using Index = unsigned long long;
 
 /**
  * @brief Infinity

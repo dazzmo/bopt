@@ -2,11 +2,11 @@
 
 #include <variant>
 
+#include "bopt/Common.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/binding.hpp"
-#include "bopt/common.hpp"
 #include "bopt/constraints.hpp"
 #include "bopt/costs.hpp"
-#include "bopt/logging.hpp"
 // #include "bopt/profiler.hpp"
 
 namespace bopt {
@@ -42,36 +42,35 @@ class MathematicalProgram {
      *
      * @param name Name of the mathematical program.
      */
-    MathematicalProgram(const std::string &name)
-        : name_(name), numConstraints_(0) {}
+    MathematicalProgram(const String &name) : name_(name), numConstraints_(0) {}
 
     /**
      * @brief Gets the name of the mathematical program.
      *
-     * @return const std::string& Reference to the program's name.
+     * @return const String& Reference to the program's name.
      */
-    const std::string &name() const { return name_; }
+    const String &name() const { return name_; }
 
     /**
      * @brief Gets the number of decision variables in the program.
      *
-     * @return bopt_index Number of decision variables.
+     * @return Size Number of decision variables.
      */
-    bopt_index numVariables() const { return variables_.size(); }
+    Size numVariables() const { return variables_.size(); }
 
     /**
      * @brief Gets the number of cost functions in the program.
      *
-     * @return bopt_index Number of cost functions.
+     * @return Size Number of cost functions.
      */
-    bopt_index numCosts() const { return cost_bindings_.size(); }
+    Size numCosts() const { return cost_bindings_.size(); }
 
     /**
      * @brief Gets the number of constraints in the program.
      *
-     * @return bopt_index Number of constraints.
+     * @return Size Number of constraints.
      */
-    bopt_index numConstraints() const {
+    Size numConstraints() const {
         // Iterate through each constraint and count the number
         Index m = 0;
         for (const auto &constraint : constraint_bindings_) {
@@ -103,8 +102,7 @@ class MathematicalProgram {
 
     const VectorXd &variableUpperBounds() const { return x_ub_; }
 
-    Variable addVariable(const std::string &name,
-                         const double &initial_value = 0.0,
+    Variable addVariable(const String &name, const double &initial_value = 0.0,
                          const double &lower_bound = -kInf,
                          const double &upper_bound = kInf) {
         // Create variable
@@ -125,7 +123,7 @@ class MathematicalProgram {
         return v;
     }
 
-    VariableVector addVariables(const std::string &name, const Index &n) {
+    VariableVector addVariables(const String &name, const Index &n) {
         VariableVector x(n);
         for (Index i = 0; i < n; ++i) {
             x[i] = addVariable(name + std::to_string(i));
@@ -356,7 +354,7 @@ class MathematicalProgram {
    protected:
    private:
     // Name
-    std::string name_;
+    String name_;
 
     Index numConstraints_;
 

@@ -1,4 +1,4 @@
-#include "bopt/variable.hpp"
+#include "bopt/Variable.hpp"
 
 namespace bopt {
 

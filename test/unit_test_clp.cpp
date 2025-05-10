@@ -3,64 +3,59 @@
 
 #include <Eigen/Core>
 
-#include "bopt/logging.hpp"
+#include "bopt/ad/casadi.hpp"
+#include "bopt/Logging.hpp"
+#include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
 #include "bopt/solvers/Clp.hpp"
 
-class LinearCost : public bopt::DenseLinearCostTpl<double> {
-   public:
-    LinearCost() : bopt::DenseLinearCostTpl<double>(5) {}
-    using Base = bopt::DenseLinearCostTpl<double>;
-    using EvaluatorData = typename Base::EvaluatorData;
-    using Data = typename Base::Data;
-
-   protected:
-    void evalImpl(const InputVectorConstRef &x,
-                  EvaluatorData &data) const override {
-        data.y = x[0] + 5.0 * x[3] - x[2];
-    }
-
-    void evalCoefficientsImpl(Data &data) const override {
-        data.a << 1.0, 0.0, -1.0, 5.0, 0.0;
-    }
-};
-
-class LinearConstraint : public bopt::DenseLinearConstraintTpl<double> {
-   public:
-    LinearConstraint() : bopt::DenseLinearConstraintTpl<double>(5, 1) {}
-    using Base = bopt::DenseLinearConstraintTpl<double>;
-    using EvaluatorData = typename Base::EvaluatorData;
-    using ConstraintData = typename Base::ConstraintData;
-    using Data = typename Base::Data;
-
-   protected:
-    void evalImpl(const InputVectorConstRef &x,
-                  EvaluatorData &data) const override {
-        data.y << x[0] + x[1] + x[2] + x[3] + x[4];
-    }
-
-    void evalCoefficientsImpl(Data &data) const override { data.A.setOnes(); }
-
-    void evalBoundsImpl(ConstraintData &data) const override {
-        data.lb.setConstant(5.0);
-        data.ub.setConstant(5.0);
-    }
-};
-
 TEST(Program, SimpleProgram) {
+    using sym = ::casadi::SX;
+    using sym_vec = ::casadi::SXVector;
+
+    // Create variables
+
     bopt::MathematicalProgram p("program");
-    bopt::VariableVector x = p.addVariables("x", 5);
-    
-    auto c0 = std::make_shared<LinearCost>();
+    auto x = p.addVariable("x", 0.0, 0.0, 1.0);
+    auto y = p.addVariable("y", 0.0);
+    auto z = p.addVariable("z", 0.0);
+
+    // Add variables
+
+    bopt::VariableVector v(3);
+    v << x, y, z;
+
+    sym xs = sym::sym("x");
+    sym ys = sym::sym("y");
+    sym zs = sym::sym("z");
+
+    auto c0 = std::make_shared<bopt::casadi::DenseConstraint>(
+        xs + ys - zs, sym::vertcat({xs, ys, zs}), sym(), 1.0, 1.0, false);
     auto d0 = c0->createData();
-    p.addLinearCost(c0, d0, x);
+    p.addConstraint<bopt::DenseConstraint>(c0, d0, v);
 
-    auto c1 = std::make_shared<LinearConstraint>();
+    auto c1 = std::make_shared<bopt::casadi::DenseConstraint>(
+        ys + zs, sym::vertcat({xs, ys, zs}), sym(),
+        bopt::ConstraintBounds::POSITIVE, false);
     auto d1 = c1->createData();
-    p.addLinearConstraint(c1, d1, x);
+    c1->evalBounds(*d1);
 
-    auto lp = bopt::solvers::ClpSolver(p);
-    lp.solve(p);
+    p.addConstraint<bopt::DenseConstraint>(c1, d1, v);
+
+    // todo - solution changes with sparsity
+    auto f = std::make_shared<bopt::DenseLinearCost>(
+        std::make_shared<bopt::casadi::DenseLinearCost>(
+            xs + ys + zs, sym::vertcat({xs, ys, zs}), sym(), false));
+    auto df = f->createData();
+    p.addLinearCost(f, df, v);
+
+    p.addBoundingBoxConstraint(v, Eigen::Vector3d(0.0, 0.0, 0.0),
+                               Eigen::Vector3d(1.0, 1.0, 1.0));
+
+    auto nlp = bopt::solvers::ClpSolver(p);
+    for (int i = 0; i < 1; ++i) {
+        nlp.solve(p);
+    }
 }
 
 int main(int argc, char **argv) {

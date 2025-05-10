@@ -1,4 +1,4 @@
-#include "bopt/evaluator.hpp"
+#include "bopt/Evaluator.hpp"
 
 namespace bopt {
 

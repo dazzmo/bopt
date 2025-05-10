@@ -6,7 +6,7 @@
 #include <boost/numeric/ublas/matrix.hpp>
 #include <qpOASES.hpp>
 
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
 #include "bopt/solvers/base.hpp"

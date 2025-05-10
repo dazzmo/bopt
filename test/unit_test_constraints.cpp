@@ -4,7 +4,7 @@
 #include <Eigen/Core>
 
 #include "bopt/constraints.hpp"
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/profiler.hpp"
 
 class GenericConstraint : public bopt::constraint_tpl<double> {

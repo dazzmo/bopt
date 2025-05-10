@@ -3,10 +3,10 @@
 
 #include <memory>
 
-#include "bopt/common.hpp"
-#include "bopt/evaluator.hpp"
-#include "bopt/logging.hpp"
-#include "bopt/variable.hpp"
+#include "bopt/Common.hpp"
+#include "bopt/Evaluator.hpp"
+#include "bopt/Logging.hpp"
+#include "bopt/Variable.hpp"
 
 namespace bopt {
 

@@ -14,7 +14,7 @@
 #include <map>
 #include <string>
 
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 
 namespace bopt {
 
@@ -27,7 +27,7 @@ using namespace boost::accumulators;
  * constructor.
  *
  */
-class profiler {
+class Profiler {
    public:
     typedef std::chrono::steady_clock clock;
     typedef accumulator_set<double,
@@ -37,16 +37,16 @@ class profiler {
      * @brief Generates a report for all profilers
      *
      */
-    profiler();
+    Profiler();
 
     /**
      * @brief Create a new scoped profiler
      *
      * @param name
      */
-    profiler(const char* name);
+    Profiler(const char* name);
 
-    ~profiler();
+    ~Profiler();
 
    private:
     std::string name_;

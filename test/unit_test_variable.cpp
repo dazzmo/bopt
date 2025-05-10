@@ -3,9 +3,9 @@
 
 #include <Eigen/Core>
 
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 #include "bopt/profiler.hpp"
-#include "bopt/variable.hpp"
+#include "bopt/Variable.hpp"
 
 TEST(Variable, SingleVariable) {
     bopt::variable x("x");

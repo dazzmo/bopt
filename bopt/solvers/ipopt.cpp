@@ -1,6 +1,6 @@
 #include "bopt/solvers/ipopt.hpp"
 
-#include "bopt/logging.hpp"
+#include "bopt/Logging.hpp"
 
 namespace bopt {
 namespace solvers {
