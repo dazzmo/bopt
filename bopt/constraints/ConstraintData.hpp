@@ -34,6 +34,9 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<EvaluatorTraits> {
             Hlb_pp = Matrix::Zero(p, p);
             Hub_pp = Matrix::Zero(p, p);
         }
+
+        c.getEvaluator().setDataSparsity(*this);
+        c.getBoundEvaluator().setDataSparsity(*this);
     }
 
     /// @brief Lower bound cₗ
@@ -51,5 +54,26 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<EvaluatorTraits> {
     /// @brief Lower-triangular lower bound Hessian matrix ∂²(λᵀcᵤ)/∂p²
     HessianType Hub_pp;
 };
+
+/**
+ * @brief Whether the constraints of the system are satisfied to a given
+ * tolerance.
+ *
+ * @param value The current value of the constraint
+ * @param epsilon Tolerance
+ * @return true
+ * @return false
+ */
+template <typename EvaluatorTraits>
+bool isSatsified(const ConstraintDataTpl<EvaluatorTraits> &data,
+                 const Real epsilon = kEpsilon) {
+    Size m = data.y.size();
+    for (int i = 0; i < m; ++i) {
+        if (data.lb[i] - data.y[i] > epsilon ||
+            data.ub[i] - data.y[i] < -epsilon)
+            return false;
+    }
+    return true;
+}
 
 }  // namespace bopt

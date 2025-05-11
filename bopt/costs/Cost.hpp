@@ -13,11 +13,14 @@ namespace bopt {
  *
  */
 template <typename EvaluatorTraits>
-class CostTpl : public EvaluatorTpl<EvaluatorTraits, 1> {
+class CostTpl {
    public:
-    using Base = EvaluatorTpl<EvaluatorTraits, 1>;
+    using Evaluator = EvaluatorTpl<EvaluatorTraits, 1>;
     using Scalar = typename Base::Scalar;
     using EvaluatorData = typename Base::Data;
+
+    CostTpl(const std::shared_ptr<Evaluator> &evaluator)
+        : Base(cost), name_(""), weighting_(1.0) {}
 
     /**
      * @brief Name of the cost
@@ -42,6 +45,8 @@ class CostTpl : public EvaluatorTpl<EvaluatorTraits, 1> {
    private:
     String name_;
     Scalar weighting_;
+
+    std::shared_ptr<Evaluator> evaluator_;
 };
 
 template <typename Scalar>

@@ -20,8 +20,7 @@ template <typename ScalarType>
 struct EvaluatorTraits {
     using Scalar = ScalarType;
 
-    template <int Size = Eigen::Dynamic>
-    using DenseVector = typename MathTypes<Scalar>::Vector<Size>;
+    using DenseVector = typename MathTypes<Scalar>::VectorX;
 
     using InputVector = DenseVector;
     using InputVectorConstRef = Eigen::Ref<const InputVector>;

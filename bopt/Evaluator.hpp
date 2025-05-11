@@ -133,22 +133,12 @@ class EvaluatorTpl {
    protected:
     EvaluatorTpl(const Index &n_in, const Index &n_out,
                  const String &description = "")
-        : ptr_(nullptr),
-          n_in_(n_in),
+        : n_in_(n_in),
           dim_tangent_space_(n_in),
           n_out_(n_out),
           num_parameters_(0),
           parameters_(InputVector::Zero(0)),
           description_(description) {}
-
-    EvaluatorTpl(const std::shared_ptr<EvaluatorTpl<EvaluatorTraits>> &ptr)
-        : ptr_(ptr),
-          n_in_(ptr->numInputs()),
-          dim_tangent_space_(ptr->tangentSpaceDimension()),
-          n_out_(ptr->numOutputs()),
-          num_parameters_(ptr->numParameters()),
-          parameters_(DenseVector::Zero(ptr->numParameters())),
-          description_(ptr->getDescription()) {}
 
     /**
      * @brief Sets the dimension of the tangent space for the input variables.
@@ -169,9 +159,7 @@ class EvaluatorTpl {
         parameters_ = InputVector::Zero(dim);
     }
 
-    virtual void setDataSparsityImpl(Data &data) const {
-        if (ptr_) ptr_->setDataSparsity(data);
-    }
+    virtual void setDataSparsityImpl(Data &data) const {}
 
     /**
      * @brief Implementation of the evaluator
@@ -179,9 +167,7 @@ class EvaluatorTpl {
      * @param x
      * @param out
      */
-    virtual void evalImpl(const InputVectorConstRef &x, Data &data) const {
-        if (ptr_) ptr_->eval(x, data);
-    }
+    virtual void evalImpl(const InputVectorConstRef &x, Data &data) const {}
 
     /**
      * \copydoc EvaluatorTpl::evalJacobians(const Eigen::Ref<const
@@ -189,9 +175,7 @@ class EvaluatorTpl {
      *
      */
     virtual void evalJacobiansImpl(const InputVectorConstRef &x, Data &data,
-                                   bool compute_x, bool compute_p) const {
-        if (ptr_) ptr_->evalJacobians(x, data, compute_x, compute_p);
-    }
+                                   bool compute_x, bool compute_p) const {}
 
     /**
      * \copydoc EvaluatorTpl::evalHessians(const Eigen::Ref<const
@@ -202,20 +186,13 @@ class EvaluatorTpl {
     virtual void evalHessiansImpl(const InputVectorConstRef &x,
                                   const InputVectorConstRef &lambda, Data &data,
                                   bool compute_xx, bool compute_xp,
-                                  bool compute_pp) const {
-        if (ptr_)
-            ptr_->evalHessians(x, lambda, data, compute_xx, compute_xp,
-                               compute_pp);
-    }
+                                  bool compute_pp) const {}
 
    private:
-    /// @brief Shared pointer for evaluator instance (if made from a copy)
-    std::shared_ptr<EvaluatorTpl<EvaluatorTraits>> ptr_;
-
     /// @brief Dimension of the input vector
     Index n_in_;
-    Index dim_tangent_space_;
     Index n_out_;
+    Index dim_tangent_space_;
     Index num_parameters_;
 
     DenseVector parameters_;
@@ -243,5 +220,54 @@ using SparseEvaluatorTpl =
     EvaluatorTpl<SparseEvaluatorTraits<Scalar>, OutputSize>;
 template <typename OutputSize>
 using SparseEvaluator = SparseEvaluatorTpl<Real, OutputSize>;
+
+/**
+ * @brief Generic evaluator for polynomial-based expressions
+ *
+ * @tparam EvaluatorTraits
+ * @tparam Order
+ * @tparam DataType
+ */
+template <typename EvaluatorTraits, int OutputSize, class DataType>
+class PolynomialEvaluatorTpl
+    : public EvaluatorTpl<EvaluatorTraits, OutputSize> {
+    using Data = DataType;
+
+    void evalCoefficients(Data &data) const {
+        this->evalCoefficientsImpl(data);
+    }
+
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
+
+   private:
+    virtual void evalCoefficientsImpl(Data &data) const {}
+    virtual void setDataSparsityImpl(Data &data) const {}
+};
+
+template <typename EvaluatorTraits, int OutputSize>
+struct LinearEvaluatorDataTpl;
+
+template <typename EvaluatorTraits, int OutputSize>
+using LinearEvaluatorTpl =
+    PolynomialEvaluatorTpl<EvaluatorTraits, OutputSize,
+                           LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>>;
+
+/**
+ * @brief Evaluator for expressions of the form Ax + b
+ *
+ * @tparam EvaluatorTraits
+ */
+template <typename EvaluatorTraits>
+class LinearEvaluatorTpl : public EvaluatorTpl<EvaluatorTraits> {
+   public:
+};
+
+template <typename EvaluatorTraits>
+struct QuadraticEvaluatorDataTpl;
+
+template <typename EvaluatorTraits>
+using QuadraticEvaluatorTpl =
+    PolynomialEvaluatorTpl<EvaluatorTraits, 1,
+                           QuadraticEvaluatorDataTpl<EvaluatorTraits>>;
 
 }  // namespace bopt

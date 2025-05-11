@@ -1,7 +1,6 @@
 #pragma once
 
-#include "bopt/Evaluator.hpp"
-#include "bopt/Logging.hpp"
+#include "bopt/constraints/Bounds.hpp"
 
 namespace bopt {
 
@@ -24,67 +23,102 @@ enum class ConstraintBounds {
     CUSTOM
 };
 
-std::ostream &operator<<(std::ostream &os, const ConstraintBounds &b) {
-    return os;
-}
+// std::ostream &operator<<(std::ostream &os, const ConstraintBounds &b) {
+//     return os;
+// }
 
-template <typename Scalar>
-class Bounds {
+template <typename EvaluatorTraits>
+class BoundEvaluatorTpl {
    public:
-    using Type = ConstraintBounds;
-    using Vector = typename MathTypes<Scalar>::VectorX;
+    using Scalar = typename EvaluatorTraits::Scalar;
 
-    Bounds() : type_(), lb_(Vector::Zero(0)), ub_(Vector::Zero(0)) {}
+    using DenseVector = typename EvaluatorTraits::DenseVector;
+    using InputVector = typename EvaluatorTraits::InputVector;
+    using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
 
-    Bounds(const Size &size, const Type &type = Type::ZERO)
-        : type_(type), lb_(Vector::Zero(size)), ub_(Vector::Zero(size)) {
-        setBounds(type);
+    using Data = ConstraintDataTpl<EvaluatorTraits, OutputSize>;
+
+    BoundEvaluatorTpl(const Size &num_parameters,
+                      const ConstraintBounds &bounds = ConstraintBounds::CUSTOM)
+        : type_(bounds), parameters_(DenseVector::Zero(num_parameters)) {}
+
+    /**
+     * @brief Set the sparsity of any entries within the provided data
+     * structure.
+     *
+     * @param data
+     */
+    void setDataSparsity(Data &data) const { setDataSparsityImpl(data); }
+
+    /**
+     * @brief Evaluates the expression y = fₚ(x) using variables x and
+     * parameters p (set through \ref BoundsEvaluatorTpl::setParameters()).
+     *
+     * @param data
+     */
+    void eval(Data &data) const { evalImpl(data); }
+
+    /**
+     * @brief Computes the jacobians of the expression f.
+     *
+     * @param data
+     */
+    void evalJacobians(Data &data) const { evalJacobiansImpl(data); }
+
+    /**
+     * @brief Computes the lower-triangular hessians of the vector-product of
+     * the upper and lower bounds with the vector λ.
+     *
+     * @param lambda
+     * @param data
+     */
+    void evalHessians(const InputVectorConstRef &lambda, Data &data) const {
+        evalHessiansImpl(lambda, data);
     }
 
-    const Type &getType() const { return type_; }
-    const Vector &getLowerBound() const { return lb_; }
-    const Vector &getUpperBound() const { return ub_; }
+    const DenseVector &getParameters() const { return parameters_; }
+    void setParameters(const InputVectorConstRef &parameters) {
+        parameters_ = parameters;
+    }
 
-    void setBounds(const Scalar &lb, const Scalar &ub);
-    void setBounds(const ConstraintBounds &type);
-    void setBounds(const Eigen::Ref<const Vector> &lb,
-                   const const Eigen::Ref<const Vector> &ub);
+   protected:
+    BoundsEvaluatorTpl(const Index &n_in, const Index &n_out) : {}
 
-   private:
-    Type type_;
-    Vector lb_;
-    Vector ub_;
-};
+    virtual void setDataSparsityImpl(Data &data) const {}
 
-template <typename Scalar>
-void setBoundsFromType(Eigen::Ref<typename MathTypes<Scalar>::VectorX> &lb,
-                       Eigen::Ref<typename MathTypes<Scalar>::VectorX> &ub,
-                       const ConstraintBounds &bounds) {
-    // Based off given type
-    switch (bounds) {
-        case ConstraintBounds::ZERO:
+    /**
+     * @brief Implementation of the evaluator
+     *
+     * @param x
+     * @param out
+     */
+    virtual void evalImpl(Data &data) const {
+        if (type_ == ConstraintBounds::ZERO) {
             data.lb.setZero();
             data.ub.setZero();
-            break;
-        case ConstraintBounds::POSITIVE:
+        } else if (type_ == ConstraintBounds::POSITIVE) {
             data.lb.setZero();
             data.ub.setConstant(kInf);
-            break;
-        case ConstraintBounds::NEGATIVE:
+        } else if (type_ == ConstraintBounds::NEGATIVE) {
             data.lb.setConstant(-kInf);
             data.ub.setZero();
-            break;
-        case ConstraintBounds::STRICTLY_POSITIVE:
+        } else if (type_ == ConstraintBounds::STRICTLY_POSITIVE) {
             data.lb.setConstant(kEpsilon);
             data.ub.setConstant(kInf);
-            break;
-        case ConstraintBounds::STRICTLY_NEGATIVE:
+        } else if (type_ == ConstraintBounds::STRICTLY_NEGATIVE) {
             data.lb.setConstant(-kInf);
             data.ub.setConstant(-kEpsilon);
-            break;
-        default:
-            break;
+        }
     }
+
+    virtual void evalJacobiansImpl(Data &data) const {}
+
+    virtual void evalHessiansImpl(const InputVectorConstRef &lambda,
+                                  Data &data) const {}
+
+   private:
+    ConstraintBounds type_;
+    DenseVector parameters_;
 };
 
 }  // namespace bopt

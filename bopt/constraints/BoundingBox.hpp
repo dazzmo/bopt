@@ -24,19 +24,6 @@ class BoundingBoxConstraintTpl : public ConstraintTpl<EvaluatorTraits> {
     using Data = typename Base::Data;
     using EvaluatorData = typename Base::EvaluatorData;
 
-    BoundingBoxConstraintTpl(const Index &dim_input,
-                             const InputVectorConstRef &lower_bound,
-                             const InputVectorConstRef &upper_bound)
-        : ConstraintTpl<EvaluatorTraits>(dim_input, dim_input),
-          lb_(lower_bound),
-          ub_(upper_bound) {}
-
-    BoundingBoxConstraintTpl(const Index &dim_input, const Scalar &lower_bound,
-                             const Scalar &upper_bound)
-        : ConstraintTpl<EvaluatorTraits>(dim_input, dim_input),
-          lb_(InputVector::Constant(dim_input, lower_bound)),
-          ub_(InputVector::Constant(dim_input, upper_bound)) {}
-
    protected:
     void evalImpl(const InputVectorConstRef &x,
                   EvaluatorData &data) const override {
@@ -48,25 +35,7 @@ class BoundingBoxConstraintTpl : public ConstraintTpl<EvaluatorTraits> {
         if (compute_x) data.Jx.setIdentity();
     }
 
-    void evalBoundsImpl(Data &data) const override {
-        data.lb = lb_;
-        data.ub = ub_;
-    }
-
    private:
-    /// Constant bounds that are set at initialisation
-    InputVector lb_;
-    InputVector ub_;
 };
-
-template <typename Scalar>
-using DenseBoundingBoxConstraintTpl =
-    BoundingBoxConstraintTpl<DenseEvaluatorTraits<Scalar>>;
-using DenseBoundingBoxConstraint = DenseBoundingBoxConstraintTpl<Real>;
-
-template <typename Scalar>
-using SparseBoundingBoxConstraintTpl =
-    BoundingBoxConstraintTpl<SparseEvaluatorTraits<Scalar>>;
-using SparseBoundingBoxConstraint = SparseBoundingBoxConstraintTpl<Real>;
 
 }  // namespace bopt

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "bopt/ad/casadi/utils.hpp"
 #include "bopt/Evaluator.hpp"
+#include "bopt/ad/casadi/utils.hpp"
 
 namespace bopt {
 namespace casadi {
@@ -17,8 +17,6 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<EvaluatorTraits> {
     using InputVectorConstRef = typename Base::InputVectorConstRef;
 
     using Data = typename Base::Data;
-
-    // EvaluatorTpl(const std::string &hash) {}
 
     EvaluatorTpl(const SymbolicVector &expression, const SymbolicVector &x,
                  const SymbolicVector &p, bool codegen = false)
