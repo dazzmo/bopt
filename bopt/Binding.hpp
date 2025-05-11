@@ -14,7 +14,7 @@ namespace bopt {
  * @brief Class to bind an evaluator-based object to a sequence of input
  * variables as well as the data used to evaluate it.
  *
- * @tparam T
+ * @tparam EvaluatorType
  */
 template <typename EvaluatorType>
 class Binding {
@@ -28,7 +28,7 @@ class Binding {
     using DataPtr = std::shared_ptr<Data>;
 
    public:
-    Binding() : evaluator_(nullptr), data_(nullptr), indices_(nullptr) {}
+    Binding() : evaluator_(nullptr), data_(nullptr), index_manager_(nullptr) {}
 
     ~Binding() = default;
 
@@ -41,9 +41,9 @@ class Binding {
      */
     Binding(const std::shared_ptr<Evaluator> &ptr, const DataPtr &data,
             const std::vector<Eigen::Index> &indices)
-        : evaluator_(ptr), data_(data), indices_(nullptr) {
-        assert(ptr->getInputDimension() == indices.size());
-        this->indices_ = std::make_shared<variable_indices>(indices);
+        : evaluator_(ptr), data_(data), index_manager_(nullptr) {
+        assert(ptr->numInputs() == indices.size());
+        this->index_manager_ = std::make_shared<VariableIndexManager>(indices);
     }
 
     /**
@@ -65,14 +65,16 @@ class Binding {
         : Binding(static_cast<EvaluatorPtr>(b.get()),
                   static_cast<DataPtr>(b.data()), b.indices().indices()) {}
 
-    EvaluatorPtr get() const {
-        // DBGASSERT(evaluator_ && "Empty binding has no object bound to it");
-        return evaluator_;
-    }
+    EvaluatorPtr get() const { return evaluator_; }
 
-    const variable_indices &indices() const {
-        // DBGASSERT(indices_ && "Empty binding has no indices");
-        return *indices_;
+    /**
+     * @brief Returns the index manager for the variables associated with the
+     * binding.
+     *
+     * @return const VariableIndexManager&
+     */
+    const VariableIndexManager &getIndexManager() const {
+        return *index_manager_;
     }
 
     /**
@@ -87,8 +89,7 @@ class Binding {
    private:
     EvaluatorPtr evaluator_;
     DataPtr data_;
-    // todo - see about memory management here
-    std::shared_ptr<variable_indices> indices_;
+    std::shared_ptr<VariableIndexManager> index_manager_;
 };
 
 }  // namespace bopt

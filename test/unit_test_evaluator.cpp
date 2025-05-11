@@ -41,7 +41,7 @@ class SparseEvaluator : public bopt::SparseEvaluatorTpl<double> {
 
 TEST(DenseEvaluator, Constructor) {
     DenseEvaluator e;
-    EXPECT_EQ(e.getInputDimension(), 2);
+    EXPECT_EQ(e.numInputs(), 2);
 
     std::cout << e << std::endl;
 

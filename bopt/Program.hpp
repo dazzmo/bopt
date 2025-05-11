@@ -76,7 +76,7 @@ class MathematicalProgram {
         for (const auto &constraint : constraint_bindings_) {
             std::visit(
                 [&](auto &&binding) {
-                    m += binding.get()->getOutputDimension();
+                    m += binding.get()->numOutputs();
                 },
                 constraint);
         }
@@ -133,7 +133,7 @@ class MathematicalProgram {
 
     const std::vector<Variable> &getAllVariables() const { return variables_; }
 
-    Eigen::Index getVariableIndex(const Variable &v) const {
+    Index getVariableIndex(const Variable &v) const {
         const auto &it = variable_index_map_.find(v.id());
         if (it != variable_index_map_.end()) {
             return it->second;
@@ -143,9 +143,9 @@ class MathematicalProgram {
         return -1;
     }
 
-    std::vector<Eigen::Index> getVariableIndices(
+    std::vector<Index> getVariableIndices(
         const Eigen::Ref<const VariableVector> &v) const {
-        std::vector<Eigen::Index> indices = {};
+        std::vector<Index> indices = {};
         for (const auto &vi : v) {
             indices.emplace_back(getVariableIndex(vi));
         }
@@ -366,7 +366,7 @@ class MathematicalProgram {
     VectorXd x_ub_;
 
     std::vector<Variable> variables_;
-    std::unordered_map<Variable::Id, Eigen::Index> variable_index_map_;
+    std::unordered_map<Variable::Id, Index> variable_index_map_;
 
     std::vector<CostVariant> cost_bindings_ = {};
     std::vector<ConstraintVariant> constraint_bindings_ = {};

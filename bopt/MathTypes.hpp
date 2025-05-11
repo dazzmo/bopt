@@ -13,6 +13,12 @@ namespace bopt {
  */
 template <typename T>
 struct MathTypes {
+    template <int Size>
+    using Vector = Eigen::Vector<T, Size>;
+
+    template <int Rows, int Cols>
+    using Matrix = Eigen::Matrix<T, Rows, Cols>;
+
     using VectorX = Eigen::VectorX<T>;
     using MatrixX = Eigen::MatrixX<T>;
 

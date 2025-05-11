@@ -4,24 +4,22 @@
 
 namespace bopt {
 
-template <typename Scalar>
+// Forward declaration of data type
+template <typename EvaluatorTraits>
 struct LinearCostDataTpl;
 
 /**
  * @brief Linear cost of the form fₚ(x) = aₚᵀx + bₚ
  *
  */
-template <typename FunctionTraits>
-class LinearCostTpl : public CostTpl<FunctionTraits> {
+template <typename EvaluatorTraits>
+class LinearCostTpl : public CostTpl<EvaluatorTraits> {
    public:
-    using Base = CostTpl<FunctionTraits>;
-    using EvaluatorData = typename Base::Data;
+    using Base = CostTpl<EvaluatorTraits>;
+    using EvaluatorData = typename Base::EvaluatorData;
+    using Data = LinearCostDataTpl<EvaluatorTraits>;
 
-    using Data = LinearCostDataTpl<FunctionTraits>;
-
-    std::shared_ptr<Data> createData() const {
-        return std::shared_ptr<Data>(this->createDataImpl());
-    }
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
 
     /**
      * @brief Evaluates the vector coeffcient vector bₚ for the cost fₚ(x) = aₚ
@@ -33,57 +31,57 @@ class LinearCostTpl : public CostTpl<FunctionTraits> {
     void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
    protected:
-    LinearCostTpl(const Index &dim_input) : CostTpl<FunctionTraits>(dim_input) {
-        this->setName("linear_cost");
+    LinearCostTpl(const Index &nx) : CostTpl<EvaluatorTraits>(nx) {
+        this->setName("linear cost");
     }
 
-    LinearCostTpl(const std::shared_ptr<CostTpl<FunctionTraits>> &cost)
-        : CostTpl<FunctionTraits>(cost) {
-        this->setName("linear_cost");
+    LinearCostTpl(const std::shared_ptr<LinearCostTpl<EvaluatorTraits>> &cost)
+        : CostTpl<EvaluatorTraits>(cost) {
+        this->setName("linear cost");
     }
 
-    virtual void evalCoefficientsImpl(Data &data) const {}
+    virtual void evalCoefficientsImpl(Data &data) const {
+        if (ptr_) ptr_->evalCoefficients(data);
+    }
 
-    Data *createDataImpl() const override {
-        auto data = new Data(*this);
-        return data;
+    virtual void setDataSparsityImpl(Data &data) const {
+        if (ptr_) ptr_->setDataSparsity(data);
     }
 
    private:
+    std::shared_ptr<LinearCostTpl<EvaluatorTraits>> ptr_{nullptr};
 };
 
 template <typename Scalar>
-using DenseLinearCostTpl = LinearCostTpl<DenseFunctionTraits<Scalar>>;
+using DenseLinearCostTpl = LinearCostTpl<DenseEvaluatorTraits<Scalar>>;
 using DenseLinearCost = DenseLinearCostTpl<Real>;
 
 template <typename Scalar>
-using SparseLinearCostTpl = LinearCostTpl<SparseFunctionTraits<Scalar>>;
+using SparseLinearCostTpl = LinearCostTpl<SparseEvaluatorTraits<Scalar>>;
 using SparseLinearCost = SparseLinearCostTpl<Real>;
 
 /**
  * @brief Contains the data associated with a linear cost
  *
- * @tparam FunctionTraits
+ * @tparam EvaluatorTraits
  */
-template <typename FunctionTraits>
-struct LinearCostDataTpl : public CostDataTpl<FunctionTraits> {
-    using Scalar = typename FunctionTraits::Scalar;
+template <typename EvaluatorTraits>
+struct LinearCostDataTpl : public CostDataTpl<EvaluatorTraits> {
+    using Scalar = typename EvaluatorTraits::Scalar;
+    using Vector = typename EvaluatorTraits::VectorType;
+    using Matrix = typename EvaluatorTraits::MatrixType;
 
-    using Vector = typename FunctionTraits::OutputVector;
-    using Matrix = typename FunctionTraits::OutputMatrix;
-
-    LinearCostDataTpl(const LinearCostTpl<FunctionTraits> &c)
-        : CostDataTpl<FunctionTraits>(c) {
-        if constexpr (FunctionTraits::type == "Sparse") {
-            // Sparse: allocate sparse objects properly
-            a.resize(c.getInputDimension());
+    LinearCostDataTpl(const LinearCostTpl<EvaluatorTraits> &c)
+        : CostDataTpl<EvaluatorTraits>(c) {
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
+            a.resize(c.numInputs());
         } else {
-            // Dense
-            a = Vector::Zero(c.getInputDimension());
+            a = Vector::Zero(c.numInputs());
         }
+        c.setDataSparsity(*this);
     }
 
-    /// Dense coefficient vector a
+    /// Coefficient vector a
     Vector a;
     /// Constant term b
     Scalar b;

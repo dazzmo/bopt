@@ -60,7 +60,7 @@ TEST(LinearCost, Construction) {
     std::shared_ptr<LinearCost> cost = std::make_shared<LinearCost>();
     auto data = cost->createData();
 
-    auto x = Eigen::VectorXd::Zero(cost->getInputDimension());
+    auto x = Eigen::VectorXd::Zero(cost->numInputs());
     cost->evalGradients(x, *data, true, true);
 
     std::shared_ptr<bopt::SparseCostTpl<double>> ptr = cost;

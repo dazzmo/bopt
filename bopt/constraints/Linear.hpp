@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bopt/Constraint.hpp"
+#include "bopt/constraints/ConstraintBase.hpp"
 
 namespace bopt {
 
@@ -11,16 +11,15 @@ struct LinearConstraintDataTpl;
  * @brief Constraint of the form lb ≤ Ax ≤ ub
  *
  */
-template <typename FunctionTraits>
-class LinearConstraintTpl : public ConstraintTpl<FunctionTraits> {
+template <typename EvaluatorTraits>
+class LinearConstraintTpl : public ConstraintTpl<EvaluatorTraits> {
    public:
-    using EvaluatorData = typename ConstraintTpl<FunctionTraits>::EvaluatorData;
-    using ConstraintData = typename ConstraintTpl<FunctionTraits>::Data;
-    using Data = LinearConstraintDataTpl<FunctionTraits>;
+    using Base = ConstraintTpl<EvaluatorTraits>;
+    using EvaluatorData = typename Base::EvaluatorData;
+    using ConstraintData = typename Base::Data;
+    using Data = LinearConstraintDataTpl<EvaluatorTraits>;
 
-    std::shared_ptr<Data> createData() const {
-        return std::shared_ptr<Data>(this->createDataImpl());
-    }
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
 
     /**
      * @brief Evaluates the vector coeffcient vector bₚ for the constraint lb ≤
@@ -31,50 +30,59 @@ class LinearConstraintTpl : public ConstraintTpl<FunctionTraits> {
     void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
    protected:
-    LinearConstraintTpl(const Index &dim_input, const Index &dim_output)
-        : ConstraintTpl<FunctionTraits>(dim_input, dim_output) {
+    LinearConstraintTpl(const Size &dim_input, const Size &dim_output)
+        : Base(dim_input, dim_output) {
         this->setName("linear_constraint");
     }
 
-    LinearConstraintTpl(
-        const std::shared_ptr<ConstraintTpl<FunctionTraits>> &constraint)
-        : ConstraintTpl<FunctionTraits>(constraint) {
+    /**
+     * @brief Construct a new Linear Constraint Tpl object
+     *
+     * @param constraint
+     */
+    LinearConstraintTpl(const std::shared_ptr<Base> &constraint)
+        : Base(constraint) {
         this->setName("linear_constraint");
     }
 
     virtual void evalCoefficientsImpl(Data &data) const {}
-
-    virtual Data *createDataImpl() const { return new Data(*this); }
+    virtual void setDataSparsityImpl(Data &data) const {}
 
    private:
 };
 
 template <typename Scalar>
 using DenseLinearConstraintTpl =
-    LinearConstraintTpl<DenseFunctionTraits<Scalar>>;
+    LinearConstraintTpl<DenseEvaluatorTraits<Scalar>>;
+using DenseLinearConstraint = DenseLinearConstraintTpl<Real>;
 
 template <typename Scalar>
 using SparseLinearConstraintTpl =
-    LinearConstraintTpl<SparseFunctionTraits<Scalar>>;
-
-using DenseLinearConstraint = DenseLinearConstraintTpl<Real>;
+    LinearConstraintTpl<SparseEvaluatorTraits<Scalar>>;
 using SparseLinearConstraint = SparseLinearConstraintTpl<Real>;
 
-template <typename FunctionTraits>
-struct LinearConstraintDataTpl : public ConstraintDataTpl<FunctionTraits> {
-    using Base = ConstraintDataTpl<FunctionTraits>;
+/**
+ * @brief Data associated with a linear constraint
+ *
+ * @tparam EvaluatorTraits
+ */
+template <typename EvaluatorTraits>
+struct LinearConstraintDataTpl : public ConstraintDataTpl<EvaluatorTraits> {
+    using Base = ConstraintDataTpl<EvaluatorTraits>;
     using Matrix = typename Base::Matrix;
 
-    LinearConstraintDataTpl(const LinearConstraintTpl<FunctionTraits> &c)
-        : ConstraintDataTpl<FunctionTraits>(c) {
-        if constexpr (FunctionTraits::type == "Sparse") {
-            // Sparse: allocate sparse objects properly
-            A.resize(c.getOutputDimension(), c.getInputDimension());
+    LinearConstraintDataTpl(const LinearConstraintTpl<EvaluatorTraits> &c)
+        : ConstraintDataTpl<EvaluatorTraits>(c) {
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
+            A.resize(c.numOutputs(), c.numInputs());
         } else {
-            A = Matrix::Zero(c.getOutputDimension(), c.getInputDimension());
+            A = Matrix::Zero(c.numOutputs(), c.numInputs());
         }
+
+        c.setDataSparsity(*this);
     }
 
+    /// @brief Coefficient matrix A
     Matrix A;
 };
 

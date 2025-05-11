@@ -13,9 +13,9 @@ namespace casadi {
  * @brief Cost function y = fₚ(x) ∈ ℝ
  *
  */
-template <typename FunctionTraits>
-class CostTpl : public bopt::CostTpl<FunctionTraits> {
-    using Base = bopt::CostTpl<FunctionTraits>;
+template <typename EvaluatorTraits>
+class CostTpl : public bopt::CostTpl<EvaluatorTraits> {
+    using Base = bopt::CostTpl<EvaluatorTraits>;
 
    public:
     using Scalar = typename Base::Scalar;
@@ -37,7 +37,7 @@ class CostTpl : public bopt::CostTpl<FunctionTraits> {
      */
     CostTpl(const Symbol &expression, const SymbolicVector &x,
             const SymbolicVector &p, bool codegen = false)
-        : bopt::CostTpl<FunctionTraits>(x.rows(), "casadi generated cost") {
+        : bopt::CostTpl<EvaluatorTraits>(x.rows(), "casadi generated cost") {
         assert(expression.is_scalar());
 
         // Set up variables
@@ -60,7 +60,7 @@ class CostTpl : public bopt::CostTpl<FunctionTraits> {
         // Create function
         f = Function("f", in, {expression});
 
-        if constexpr (FunctionTraits::type == "Dense") {
+        if constexpr (EvaluatorTraits::type == "Dense") {
             // Create jacobians
             g = Function("gradient", in,
                          {Symbol::densify(grdx), Symbol::densify(grdp)});
@@ -88,7 +88,7 @@ class CostTpl : public bopt::CostTpl<FunctionTraits> {
         auto data = new Data(*this);
 
         // Update the sparsity patterns
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == "Sparse") {
             setupSparseEigenMatrix(data->gx, g.sparsity_out(0));
             setupSparseEigenMatrix(data->gp, g.sparsity_out(1));
             setupSparseEigenMatrix(data->Hxx, H.sparsity_out(0));
@@ -117,7 +117,7 @@ class CostTpl : public bopt::CostTpl<FunctionTraits> {
     void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
                            bool compute_x, bool compute_p) const override {
         std::vector<Scalar *> out = {nullptr, nullptr};
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == "Sparse") {
             if (compute_x) out[0] = data.gx.valuePtr();
             if (compute_p) out[1] = data.gp.valuePtr();
         } else {
@@ -136,7 +136,7 @@ class CostTpl : public bopt::CostTpl<FunctionTraits> {
                           bool compute_xx, bool compute_xp,
                           bool compute_pp) const override {
         std::vector<Scalar *> out = {nullptr, nullptr, nullptr};
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == "Sparse") {
             if (compute_xx) out[0] = data.Hxx.valuePtr();
             if (compute_xp) out[1] = data.Hxp.valuePtr();
             if (compute_pp) out[2] = data.Hpp.valuePtr();
@@ -155,9 +155,9 @@ class CostTpl : public bopt::CostTpl<FunctionTraits> {
 };
 
 template <typename Scalar>
-using DenseCostTpl = CostTpl<DenseFunctionTraits<Scalar>>;
+using DenseCostTpl = CostTpl<DenseEvaluatorTraits<Scalar>>;
 template <typename Scalar>
-using SparseCostTpl = CostTpl<SparseFunctionTraits<Scalar>>;
+using SparseCostTpl = CostTpl<SparseEvaluatorTraits<Scalar>>;
 
 using DenseCost = DenseCostTpl<Real>;
 using SparseCost = SparseCostTpl<Real>;
@@ -166,17 +166,17 @@ using SparseCost = SparseCostTpl<Real>;
  * @brief Linear cost of the form fₚ(x) = aₚᵀx + bₚ
  *
  */
-template <typename FunctionTraits>
-class LinearCostTpl : public bopt::LinearCostTpl<FunctionTraits> {
-    using Base = bopt::LinearCostTpl<FunctionTraits>;
+template <typename EvaluatorTraits>
+class LinearCostTpl : public bopt::LinearCostTpl<EvaluatorTraits> {
+    using Base = bopt::LinearCostTpl<EvaluatorTraits>;
 
    public:
     using Data = typename Base::Data;
 
     LinearCostTpl(const Symbol &expression, const SymbolicVector &x,
                   const SymbolicVector &p, bool codegen = false)
-        : bopt::LinearCostTpl<FunctionTraits>(
-              std::make_shared<CostTpl<FunctionTraits>>(expression, x, p,
+        : bopt::LinearCostTpl<EvaluatorTraits>(
+              std::make_shared<CostTpl<EvaluatorTraits>>(expression, x, p,
                                                         codegen)) {
         SymbolicVector a;
         Symbol b;
@@ -184,7 +184,7 @@ class LinearCostTpl : public bopt::LinearCostTpl<FunctionTraits> {
         Symbol::linear_coeff(expression, x, a, b, true);
 
         // Create function
-        if constexpr (FunctionTraits::type == "Dense") {
+        if constexpr (EvaluatorTraits::type == "Dense") {
             fa = Function("a", {p}, {Symbol::densify(a)});
         } else {
             fa = Function("a", {p}, {a});
@@ -210,9 +210,9 @@ class LinearCostTpl : public bopt::LinearCostTpl<FunctionTraits> {
 };
 
 template <typename Scalar>
-using DenseLinearCostTpl = LinearCostTpl<DenseFunctionTraits<Scalar>>;
+using DenseLinearCostTpl = LinearCostTpl<DenseEvaluatorTraits<Scalar>>;
 template <typename Scalar>
-using SparseLinearCostTpl = LinearCostTpl<SparseFunctionTraits<Scalar>>;
+using SparseLinearCostTpl = LinearCostTpl<SparseEvaluatorTraits<Scalar>>;
 
 using DenseLinearCost = DenseLinearCostTpl<Real>;
 using SparseLinearCost = SparseLinearCostTpl<Real>;
@@ -221,17 +221,17 @@ using SparseLinearCost = SparseLinearCostTpl<Real>;
  * @brief Quadratic cost of the form fₚ(x) = (1/2) xᵀ Aₚ x + bₚᵀ x + cₚ
  *
  */
-template <typename FunctionTraits>
-class QuadraticCostTpl : public bopt::QuadraticCostTpl<FunctionTraits> {
-    using Base = bopt::QuadraticCostTpl<FunctionTraits>;
+template <typename EvaluatorTraits>
+class QuadraticCostTpl : public bopt::QuadraticCostTpl<EvaluatorTraits> {
+    using Base = bopt::QuadraticCostTpl<EvaluatorTraits>;
 
    public:
     using Data = typename Base::Data;
 
     QuadraticCostTpl(const Symbol &expression, const SymbolicVector &x,
                      const SymbolicVector &p, bool codegen = false)
-        : bopt::QuadraticCostTpl<FunctionTraits>(
-              std::make_shared<CostTpl<FunctionTraits>>(expression, x, p,
+        : bopt::QuadraticCostTpl<EvaluatorTraits>(
+              std::make_shared<CostTpl<EvaluatorTraits>>(expression, x, p,
                                                         codegen)) {
         SymbolicMatrix A;
         SymbolicVector b;
@@ -242,7 +242,7 @@ class QuadraticCostTpl : public bopt::QuadraticCostTpl<FunctionTraits> {
         A = Symbol::tril(A);
 
         // Create function
-        if constexpr (FunctionTraits::type == "Dense") {
+        if constexpr (EvaluatorTraits::type == "Dense") {
             fA = Function("A", {p}, {Symbol::densify(A)});
             fb = Function("b", {p}, {Symbol::densify(b)});
         } else {
@@ -274,9 +274,9 @@ class QuadraticCostTpl : public bopt::QuadraticCostTpl<FunctionTraits> {
 };
 
 template <typename Scalar>
-using DenseQuadraticCostTpl = QuadraticCostTpl<DenseFunctionTraits<Scalar>>;
+using DenseQuadraticCostTpl = QuadraticCostTpl<DenseEvaluatorTraits<Scalar>>;
 template <typename Scalar>
-using SparseQuadraticCostTpl = QuadraticCostTpl<SparseFunctionTraits<Scalar>>;
+using SparseQuadraticCostTpl = QuadraticCostTpl<SparseEvaluatorTraits<Scalar>>;
 
 using DenseQuadraticCost = DenseQuadraticCostTpl<Real>;
 using SparseQuadraticCost = SparseQuadraticCostTpl<Real>;

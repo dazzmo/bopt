@@ -1,12 +1,12 @@
 #pragma once
 
 #include "bopt/Common.hpp"
-#include "bopt/FunctionTraits.hpp"
+#include "bopt/EvaluatorTraits.hpp"
 
 namespace bopt {
 
 // Forward declarations
-template <typename FunctionTraits, int OutputSize>
+template <typename EvaluatorTraits, int OutputSize>
 struct EvaluatorDataTpl;
 
 /**
@@ -14,37 +14,85 @@ struct EvaluatorDataTpl;
  *
  * @tparam Scalar
  */
-template <typename FunctionTraits, int OutputSize = Eigen::Dynamic>
+template <typename EvaluatorTraits, int OutputSize = Eigen::Dynamic>
 class EvaluatorTpl {
    public:
-    using Scalar = typename FunctionTraits::Scalar;
+    using Scalar = typename EvaluatorTraits::Scalar;
 
-    using DenseVector = typename FunctionTraits::DenseVector;
-    using InputVector = typename FunctionTraits::InputVector;
-    using InputVectorConstRef = typename FunctionTraits::InputVectorConstRef;
+    using DenseVector = typename EvaluatorTraits::DenseVector;
+    using InputVector = typename EvaluatorTraits::InputVector;
+    using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
 
     /// @brief The standard type of data to be used for the evaluation functions
-    using Data = EvaluatorDataTpl<FunctionTraits, OutputSize>;
+    using Data = EvaluatorDataTpl<EvaluatorTraits, OutputSize>;
 
-    EvaluatorTpl(const std::shared_ptr<EvaluatorTpl<FunctionTraits>> &ptr)
-        : ptr_(ptr),
-          dim_input_(ptr->getInputDimension()),
-          dim_tangent_space_(ptr->getInputTangentSpaceDimension()),
-          dim_output_(ptr->getOutputDimension()),
-          num_parameters_(ptr->getNumberOfParameters()),
-          parameters_(InputVector::Zero(ptr->getNumberOfParameters())),
-          description_(ptr->description()) {}
+    /**
+     * @brief Dimension of the input variable vector, commonly denoted as x.
+     *
+     * @return const Size&
+     */
+    const Size &numInputs() const { return n_in_; }
 
-    std::shared_ptr<Data> createData() const {
-        auto ptr = std::shared_ptr<Data>(this->createDataImpl());
-        setDataSparsityImpl(*ptr);
-    };
+    /**
+     * @brief Dimension of the input space, this is equal to numInputs().
+     *
+     * @return const Size&
+     */
+    const Size &inputSpaceDimension() const { return n_in_; }
+
+    /**
+     * @brief Dimension of the tangent space for the input vector, typically
+     * this is equal to numInputs().
+     *
+     * @return const Size&
+     */
+    const Size &tangentSpaceDimension() const { return dim_tangent_space_; }
+
+    /**
+     * @brief Dimension of the output vector y.
+     *
+     * @return const Size&
+     */
+    const Size &numOutputs() const { return n_out_; }
+
+    /**
+     * @brief Dimension of the parameter vector p.
+     *
+     * @return const Size&
+     */
+    const Size &numParameters() const { return num_parameters_; }
+
+    const String &getDescription() const { return description_; }
+
+    void setDescription(const String &description) {
+        description_ = description;
+    }
+
+    const DenseVector &getParameters() const { return parameters_; }
+
+    /**
+     * @brief Set the parameter vector p (numParameters() x 1).
+     *
+     * @param p
+     */
+    void setParameters(const InputVectorConstRef &p) {
+        assert(p.size() == numParameters());
+        parameters_ = p;
+    }
+
+    /**
+     * @brief Set the sparsity of any entries within the provided data
+     * structure.
+     *
+     * @param data
+     */
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
 
     /**
      * @brief Evaluates the expression y = fₚ(x) using variables x and
      * parameters p (set through \ref EvaluatorTpl::setParameters()).
      *
-     * @param x The input vector (getInputDimension() x 1)
+     * @param x The input vector (numInputs() x 1)
      * @param data
      */
     void eval(const InputVectorConstRef &x, Data &data) const {
@@ -82,82 +130,25 @@ class EvaluatorTpl {
         evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
     }
 
-    /**
-     * @brief Dimension of the input variable vector, commonly denoted as x.
-     *
-     * @return const Size&
-     */
-    const Size &getInputDimension() const { return dim_input_; }
-
-    /**
-     * @brief Dimension of the tangent space for the input vector, typically
-     * this is equal to getInputDimension().
-     *
-     * @return const Size&
-     */
-    const Size &getInputTangentSpaceDimension() const {
-        return dim_tangent_space_;
-    }
-
-    /**
-     * @brief Dimension of the output vector y.
-     *
-     * @return const Size&
-     */
-    const Size &getOutputDimension() const { return dim_output_; }
-
-    /**
-     * @brief Dimension of the parameter vector p.
-     *
-     * @return const Size&
-     */
-    const Size &getNumberOfParameters() const { return num_parameters_; }
-
-    const String &getDescription() const { return description_; }
-
-    void setDescription(const String &description) {
-        description_ = description;
-    }
-
-    const DenseVector &getParameters() const { return parameters_; }
-
-    /**
-     * @brief Set the parameter vector p (getNumberOfParameters() x 1).
-     *
-     * @param p
-     */
-    void setParameters(const InputVectorConstRef &p) {
-        assert(p.size() == getNumberOfParameters());
-        parameters_ = p;
-    }
-
-    /**
-     * @brief Set the sparsity of any entries within the provided data
-     * structure.
-     *
-     * @param data
-     */
-    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
-
    protected:
-    EvaluatorTpl(const Index &n_inputs, const Index &n_outputs,
+    EvaluatorTpl(const Index &n_in, const Index &n_out,
                  const String &description = "")
         : ptr_(nullptr),
-          dim_input_(n_inputs),
-          dim_tangent_space_(n_inputs),
-          dim_output_(n_outputs),
+          n_in_(n_in),
+          dim_tangent_space_(n_in),
+          n_out_(n_out),
           num_parameters_(0),
           parameters_(InputVector::Zero(0)),
           description_(description) {}
 
-    virtual Data *createDataImpl() const { return new Data(*this); }
-
-    /**
-     * @brief Sets the dimension of the evaluator output.
-     *
-     * @param dim Dimension of the vector
-     */
-    void setOutputDimension(const Index &dim) { dim_output_ = dim; }
+    EvaluatorTpl(const std::shared_ptr<EvaluatorTpl<EvaluatorTraits>> &ptr)
+        : ptr_(ptr),
+          n_in_(ptr->numInputs()),
+          dim_tangent_space_(ptr->tangentSpaceDimension()),
+          n_out_(ptr->numOutputs()),
+          num_parameters_(ptr->numParameters()),
+          parameters_(DenseVector::Zero(ptr->numParameters())),
+          description_(ptr->getDescription()) {}
 
     /**
      * @brief Sets the dimension of the tangent space for the input variables.
@@ -218,35 +209,39 @@ class EvaluatorTpl {
     }
 
    private:
-    /// Shared pointer for evaluator instance (if made from a copy)
-    std::shared_ptr<EvaluatorTpl<FunctionTraits>> ptr_;
+    /// @brief Shared pointer for evaluator instance (if made from a copy)
+    std::shared_ptr<EvaluatorTpl<EvaluatorTraits>> ptr_;
 
     /// @brief Dimension of the input vector
-    Index dim_input_;
+    Index n_in_;
     Index dim_tangent_space_;
-    Index dim_output_;
+    Index n_out_;
     Index num_parameters_;
 
     DenseVector parameters_;
     String description_;
 };
 
-template <typename FunctionTraits, int OutputSize>
+template <typename EvaluatorTraits, int OutputSize>
 std::ostream &operator<<(std::ostream &os,
-                         const EvaluatorTpl<FunctionTraits, OutputSize> &e) {
+                         const EvaluatorTpl<EvaluatorTraits, OutputSize> &e) {
     os << "Evaluator\n";
     os << "Description: " << e.description() << '\n';
-    os << "Input Size: " << e.getInputDimension() << '\n';
-    os << "Output Size: " << e.getOutputDimension();
+    os << "Input Size: " << e.numInputs() << '\n';
+    os << "Output Size: " << e.numOutputs();
     return os;
 }
 
 template <typename Scalar, typename OutputSize>
-using DenseEvaluatorTpl = EvaluatorTpl<DenseFunctionTraits<Scalar>>;
-using DenseEvaluator = DenseEvaluatorTpl<Real>;
+using DenseEvaluatorTpl =
+    EvaluatorTpl<DenseEvaluatorTraits<Scalar>, OutputSize>;
+template <typename OutputSize>
+using DenseEvaluator = DenseEvaluatorTpl<Real, OutputSize>;
 
-template <typename Scalar>
-using SparseEvaluatorTpl = EvaluatorTpl<SparseFunctionTraits<Scalar>>;
-using SparseEvaluator = SparseEvaluatorTpl<Real>;
+template <typename Scalar, typename OutputSize>
+using SparseEvaluatorTpl =
+    EvaluatorTpl<SparseEvaluatorTraits<Scalar>, OutputSize>;
+template <typename OutputSize>
+using SparseEvaluator = SparseEvaluatorTpl<Real, OutputSize>;
 
 }  // namespace bopt

@@ -3,8 +3,8 @@
 
 #include <Eigen/Core>
 
-#include "bopt/ad/casadi.hpp"
 #include "bopt/Logging.hpp"
+#include "bopt/ad/casadi.hpp"
 #include "bopt/profiler.hpp"
 #include "bopt/program.hpp"
 #include "bopt/solvers/Clp.hpp"
@@ -37,7 +37,7 @@ TEST(Program, SimpleProgram) {
     auto c1 = std::make_shared<bopt::casadi::DenseConstraint>(
         ys + zs, sym::vertcat({xs, ys, zs}), sym(),
         bopt::ConstraintBounds::POSITIVE, false);
-    auto d1 = c1->createData();
+    bopt::DenseConstraint::Data d(c);
     c1->evalBounds(*d1);
 
     p.addConstraint<bopt::DenseConstraint>(c1, d1, v);

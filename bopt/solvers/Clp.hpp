@@ -70,7 +70,7 @@ class ClpSolver {
                 cost->evalCoefficients(*d);
 
                 for (int k = 0; k < d->a.outerSize(); ++k) {
-                    for (SparseFunctionTraits<Real>::OutputVector::InnerIterator
+                    for (SparseEvaluatorTraits<Real>::OutputVector::InnerIterator
                              it(d->a, k);
                          it; ++it) {
                         c[indices[it.row()]] += it.value();
@@ -96,7 +96,7 @@ class ClpSolver {
                 const auto& d = binding.data();
                 const auto& indices = binding.indices().indices();
 
-                const Index m = c->getOutputDimension();
+                const Index m = c->numOutputs();
 
                 c->evalCoefficients(*d);
                 c->evalBounds(*d);
@@ -120,7 +120,7 @@ class ClpSolver {
                 auto& d = binding.data();
                 const auto& indices = binding.indices().indices();
 
-                const Index m = c->getOutputDimension();
+                const Index m = c->numOutputs();
 
                 c->evalCoefficients(*d);
                 c->evalBounds(*d);

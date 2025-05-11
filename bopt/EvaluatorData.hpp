@@ -1,30 +1,34 @@
 #pragma once
 
-#include "bopt/Common.hpp"
-#include "bopt/FunctionTraits.hpp"
+#include "bopt/Evaluator.hpp"
 
 namespace bopt {
 
-template <typename FunctionTraits, int OutputSize>
+/**
+ * @brief Evaluator data struct for evaluation of EvaluatorTpl classes.
+ *
+ * @tparam EvaluatorTraits Traits of the evaluator function
+ * @tparam OutputSize The dimension of the output
+ */
+template <typename EvaluatorTraits, int OutputSize = Eigen::Dynamic>
 struct EvaluatorDataTpl {
-    using Scalar = typename FunctionTraits::Scalar;
+    using Scalar = typename EvaluatorTraits::Scalar;
 
-    using OutputType = std::conditional_t<
-        OutputSize == 1, Scalar,
-        Eigen::Matrix<
-            Scalar, OutputSize == Eigen::Dynamic ? Eigen::Dynamic : OutputSize,
-            1>>;
+    using OutputType =
+        std::conditional_t<OutputSize == 1, Scalar,
+                           typename EvaluatorTraits::DenseVector<OutputSize>>;
 
     using JacobianType =
-        std::conditional_t<OutputSize == 1, typename FunctionTraits::VectorType,
-                           typename FunctionTraits::MatrixType>;
+        std::conditional_t<OutputSize == 1,
+                           typename EvaluatorTraits::VectorType,
+                           typename EvaluatorTraits::MatrixType>;
 
-    using HessianType = typename FunctionTraits::HessianType;
+    using HessianType = typename EvaluatorTraits::HessianType;
 
-    EvaluatorDataTpl(const EvaluatorTpl<FunctionTraits, OutputSize> &e) {
-        const auto &nx = e.getInputTangentSpaceDimension();
-        const auto &np = e.getInputTangentSpaceDimension();
-        const auto &m = e.getOutputDimension();
+    EvaluatorDataTpl(const EvaluatorTpl<EvaluatorTraits, OutputSize> &e) {
+        const auto &nx = e.tangentSpaceDimension();
+        const auto &np = e.tangentSpaceDimension();
+        const auto &m = e.numOutputs();
 
         if constexpr (OutputSize == 1) {
             y = Scalar(0);
@@ -32,7 +36,7 @@ struct EvaluatorDataTpl {
             y = Output::Zero(m);
         }
 
-        if constexpr (FunctionTraits::type == FunctionType::SPARSE) {
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
             if constexpr (OutputSize == 1) {
                 Jx.resize(nx);
                 Jp.resize(np);
@@ -43,6 +47,7 @@ struct EvaluatorDataTpl {
             Hxx.resize(nx, nx);
             Hxp.resize(nx, np);
             Hpp.resize(np, np);
+
         } else {
             if constexpr (OutputSize == 1) {
                 // If scalar output, Jacobian is a vector (i.e. a gradient)
@@ -57,6 +62,9 @@ struct EvaluatorDataTpl {
             Hxp = HessianType::Zero(nx, np);
             Hpp = HessianType::Zero(np, np);
         }
+
+        // Set up data sparsity patterns
+        e.setDataSparsity(*this);
     }
 
     /// @brief Output y

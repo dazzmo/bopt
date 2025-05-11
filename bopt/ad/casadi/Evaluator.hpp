@@ -6,10 +6,10 @@
 namespace bopt {
 namespace casadi {
 
-template <typename FunctionTraits>
-class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
+template <typename EvaluatorTraits>
+class EvaluatorTpl : public bopt::EvaluatorTpl<EvaluatorTraits> {
    public:
-    using Base = bopt::EvaluatorTpl<FunctionTraits>;
+    using Base = bopt::EvaluatorTpl<EvaluatorTraits>;
 
     using Scalar = typename Base::Scalar;
 
@@ -24,7 +24,7 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
                  const SymbolicVector &p, bool codegen = false)
         : Base(x.rows(), expression.rows(), "CasADi generated evaluator") {
         // Set up variables
-        this->setOutputDimension(expression.rows());
+        this->setNumOutputs(expression.rows());
         this->setTangentSpaceDimension(x.rows());
         this->setParameterDimension(p.rows());
 
@@ -48,7 +48,7 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
         // Create function
         f = Function("f", in, {expression});
 
-        if constexpr (FunctionTraits::type == "Dense") {
+        if constexpr (EvaluatorTraits::type == "Dense") {
             // Create jacobians
             J = Function("jacobian", in,
                          {Symbol::densify(jacx), Symbol::densify(jacp)});
@@ -92,7 +92,7 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
     void evalJacobiansImpl(const InputVectorConstRef &x, Data &data,
                            bool compute_x, bool compute_p) const override {
         std::vector<Scalar *> out = {nullptr, nullptr};
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == "Sparse") {
             if (compute_x) out[0] = data.Jx.valuePtr();
             if (compute_p) out[1] = data.Jp.valuePtr();
         } else {
@@ -114,7 +114,7 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
                           bool compute_xx, bool compute_xp,
                           bool compute_pp) const override {
         std::vector<Scalar *> out = {nullptr, nullptr, nullptr};
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == "Sparse") {
             if (compute_xx) out[0] = data.Hxx.valuePtr();
             if (compute_xp) out[1] = data.Hxp.valuePtr();
             if (compute_pp) out[2] = data.Hpp.valuePtr();
@@ -129,7 +129,7 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
 
     // Sparsity patterns
     void setDataSparsityImpl(Data &data) const override {
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == "Sparse") {
             setupSparseEigenMatrix(data.Jx, J.sparsity_out(0));
             setupSparseEigenMatrix(data.Jp, J.sparsity_out(1));
             setupSparseEigenMatrix(data.Hxx, H.sparsity_out(0));
@@ -145,10 +145,10 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<FunctionTraits> {
 };
 
 template <typename Scalar>
-using DenseEvaluatorTpl = EvaluatorTpl<DenseFunctionTraits<Scalar>>;
+using DenseEvaluatorTpl = EvaluatorTpl<DenseEvaluatorTraits<Scalar>>;
 
 template <typename Scalar>
-using SparseEvaluatorTpl = EvaluatorTpl<SparseFunctionTraits<Scalar>>;
+using SparseEvaluatorTpl = EvaluatorTpl<SparseEvaluatorTraits<Scalar>>;
 
 using DenseEvaluator = DenseEvaluatorTpl<Real>;
 using SparseEvaluator = SparseEvaluatorTpl<Real>;

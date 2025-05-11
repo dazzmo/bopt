@@ -26,14 +26,14 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
         const auto& c = *b.get();
         auto& d = *b.data();
         const auto& indices = b.indices().indices();
-        for (Index row = 0; row < c.getOutputDimension(); ++row) {
-            for (Index col = 0; col < c.getInputTangentSpaceDimension();
+        for (Index row = 0; row < c.numOutputs(); ++row) {
+            for (Index col = 0; col < c.tangentSpaceDimension();
                  ++col) {
                 triplets.push_back(
                     Eigen::Triplet<Real>(c_idx + row, indices[col]));
             }
         }
-        c_idx += c.getOutputDimension();
+        c_idx += c.numOutputs();
     }
     // Sparse constraint jacobians
     for (auto& b : sparse_constraints_) {
@@ -46,7 +46,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
                     Eigen::Triplet<Real>(c_idx + it.row(), indices[it.col()]));
             }
         }
-        c_idx += c.getOutputDimension();
+        c_idx += c.numOutputs();
     }
 
     cache_.constraint_jacobian.setFromTriplets(triplets.begin(),
@@ -76,7 +76,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
         auto& d = *b.data();
         const auto& indices = b.indices().indices();
         // Dense output - currently use block insert
-        for (Index row = 0; row < c.getInputTangentSpaceDimension(); ++row) {
+        for (Index row = 0; row < c.tangentSpaceDimension(); ++row) {
             for (Index col = 0; col <= row; ++col) {
                 triplets.push_back(
                     Eigen::Triplet<Real>(indices[row], indices[col]));
@@ -88,7 +88,7 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
         auto& d = *b.data();
         const auto& indices = b.indices().indices();
         // Dense output - currently use block insert
-        for (Index row = 0; row < c.getInputTangentSpaceDimension(); ++row) {
+        for (Index row = 0; row < c.tangentSpaceDimension(); ++row) {
             for (Index col = 0; col <= row; ++col) {
                 triplets.push_back(
                     Eigen::Triplet<Real>(indices[row], indices[col]));
@@ -262,9 +262,9 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
         const auto& xi = cache_.primal_vector(indices);
 
         c.eval(xi, d);
-        cache_.constraint_vector.middleRows(c_idx, c.getOutputDimension()) =
+        cache_.constraint_vector.middleRows(c_idx, c.numOutputs()) =
             d.y;
-        c_idx += c.getOutputDimension();
+        c_idx += c.numOutputs();
     }
 
     // Sparse constraints
@@ -276,9 +276,9 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
         const auto& xi = cache_.primal_vector(indices);
 
         c.eval(xi, d);
-        cache_.constraint_vector.middleRows(c_idx, c.getOutputDimension()) =
+        cache_.constraint_vector.middleRows(c_idx, c.numOutputs()) =
             d.y;
-        c_idx += c.getOutputDimension();
+        c_idx += c.numOutputs();
     }
 
     VLOG(10) << "c : " << cache_.constraint_vector.transpose();
@@ -322,14 +322,14 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
             const auto& xi = cache_.primal_vector(indices);
 
             c.evalJacobians(xi, d, true, false);
-            for (Index row = 0; row < c.getOutputDimension(); ++row) {
-                for (Index col = 0; col < c.getInputTangentSpaceDimension();
+            for (Index row = 0; row < c.numOutputs(); ++row) {
+                for (Index col = 0; col < c.tangentSpaceDimension();
                      ++col) {
                     cache_.constraint_jacobian.valuePtr()[jac_nz_map_.at(
                         {c_idx + row, indices[col]})] = d.Jx(row, col);
                 }
             }
-            c_idx += c.getOutputDimension();
+            c_idx += c.numOutputs();
         }
 
         // Sparse constraints
@@ -348,7 +348,7 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
                         {c_idx + it.row(), indices[it.col()]})] = it.value();
                 }
             }
-            c_idx += c.getOutputDimension();
+            c_idx += c.numOutputs();
         }
 
         // Update caches
@@ -402,7 +402,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             const auto& xi = cache_.primal_vector(indices);
 
             c.evalHessians(xi, d, true, false, false);
-            for (Index row = 0; row < c.getInputTangentSpaceDimension();
+            for (Index row = 0; row < c.tangentSpaceDimension();
                  ++row) {
                 for (Index col = 0; col < row; ++col) {
                     cache_.lagrangian_hessian.valuePtr()[lag_hes_nz_map_.at(
@@ -441,18 +441,18 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             const auto& indices = binding.indices().indices();
             const auto& xi = cache_.primal_vector(indices);
             const auto& li =
-                cache_.dual_vector.middleRows(c_idx, c.getOutputDimension());
+                cache_.dual_vector.middleRows(c_idx, c.numOutputs());
 
             c.evalHessians(xi, li, d, true, false, false);
 
-            for (Index row = 0; row < c.getInputTangentSpaceDimension();
+            for (Index row = 0; row < c.tangentSpaceDimension();
                  ++row) {
                 for (Index col = 0; col < row; ++col) {
                     cache_.lagrangian_hessian.valuePtr()[lag_hes_nz_map_.at(
                         {indices[row], indices[col]})] = d.Hxx(row, col);
                 }
             }
-            c_idx += c.getOutputDimension();
+            c_idx += c.numOutputs();
         }
 
         // Sparse constraints
@@ -464,7 +464,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
             const auto& indices = binding.indices().indices();
             const auto& xi = cache_.primal_vector(indices);
             const auto& li =
-                cache_.dual_vector.middleRows(c_idx, c.getOutputDimension());
+                cache_.dual_vector.middleRows(c_idx, c.numOutputs());
 
             c.evalHessians(xi, li, d, true, false, false);
 
@@ -475,7 +475,7 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
                         obj_factor * it.value();
                 }
             }
-            c_idx += c.getOutputDimension();
+            c_idx += c.numOutputs();
         }
 
         // Update caches
@@ -521,11 +521,11 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
         const auto& c = *binding.get();
         auto& d = *binding.data();
         c.evalBounds(d);
-        cache_.constraint_lower_bound.middleRows(c_idx, c.getOutputDimension())
+        cache_.constraint_lower_bound.middleRows(c_idx, c.numOutputs())
             << d.lb;
-        cache_.constraint_upper_bound.middleRows(c_idx, c.getOutputDimension())
+        cache_.constraint_upper_bound.middleRows(c_idx, c.numOutputs())
             << d.ub;
-        c_idx += c.getOutputDimension();
+        c_idx += c.numOutputs();
     }
 
     VLOG(10) << cache_.constraint_lower_bound.transpose();

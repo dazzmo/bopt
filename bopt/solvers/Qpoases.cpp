@@ -67,7 +67,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             c->evalCoefficients(*d);
 
             for (int k = 0; k < d->a.outerSize(); ++k) {
-                for (SparseFunctionTraits<Real>::OutputVector::InnerIterator it(
+                for (SparseEvaluatorTraits<Real>::OutputVector::InnerIterator it(
                          d->a, k);
                      it; ++it) {
                     data_.g(indices[it.row()]) += it.value();
@@ -129,7 +129,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             const auto& d = binding.data();
             const auto& indices = binding.indices().indices();
 
-            const Index m = c->getOutputDimension();
+            const Index m = c->numOutputs();
 
             c->evalCoefficients(*d);
             c->evalBounds(*d);
@@ -146,7 +146,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             const auto& d = binding.data();
             const auto& indices = binding.indices().indices();
 
-            const Index m = c->getOutputDimension();
+            const Index m = c->numOutputs();
 
             c->evalCoefficients(*d);
             c->evalBounds(*d);

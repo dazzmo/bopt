@@ -10,9 +10,9 @@ namespace casadi {
  * @brief Constraint of the form y = fₚ(x) ∈ ℝᵐ
  *
  */
-template <typename FunctionTraits>
-class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
-    using Base = bopt::ConstraintTpl<FunctionTraits>;
+template <typename EvaluatorTraits>
+class ConstraintTpl : public bopt::ConstraintTpl<EvaluatorTraits> {
+    using Base = bopt::ConstraintTpl<EvaluatorTraits>;
 
     using Scalar = typename Base::Scalar;
 
@@ -21,14 +21,14 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
 
     using Data = typename Base::Data;
 
-    using ConstraintData = ConstraintDataTpl<FunctionTraits>;
+    using ConstraintData = ConstraintDataTpl<EvaluatorTraits>;
 
    public:
     ConstraintTpl(const SymbolicVector &expression, const SymbolicVector &x,
                   const SymbolicVector &p, const SymbolicVector &lb,
                   const SymbolicVector &ub, bool codegen = false)
-        : bopt::ConstraintTpl<FunctionTraits>(
-              std::make_shared<EvaluatorTpl<FunctionTraits>>(expression, x, p,
+        : bopt::ConstraintTpl<EvaluatorTraits>(
+              std::make_shared<EvaluatorTpl<EvaluatorTraits>>(expression, x, p,
                                                              codegen),
               ConstraintBounds::CUSTOM),
           has_bound_functions_(true) {
@@ -50,7 +50,7 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
         f_bnd = Function("bounds_f", in,
                          {Symbol::densify(lb), Symbol::densify(ub)});
 
-        if constexpr (FunctionTraits::type == "Dense") {
+        if constexpr (EvaluatorTraits::type == "Dense") {
             J_bnd = Function("bounds_jac", in,
                              {Symbol::densify(ljacp), Symbol::densify(ujacp)});
 
@@ -76,15 +76,15 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
     ConstraintTpl(const SymbolicVector &expression, const SymbolicVector &x,
                   const SymbolicVector &p, const ConstraintBounds &bounds,
                   bool codegen = false)
-        : bopt::ConstraintTpl<FunctionTraits>(
-              std::make_shared<EvaluatorTpl<FunctionTraits>>(expression, x, p,
+        : bopt::ConstraintTpl<EvaluatorTraits>(
+              std::make_shared<EvaluatorTpl<EvaluatorTraits>>(expression, x, p,
                                                              codegen),
               bounds) {}
 
    protected:
     void setDataSparsityImpl(Data &data) const override {
         Base::setDataSparsityImpl(data);
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == "Sparse") {
             setupSparseEigenMatrix(data.Jlb_p, J_bnd.sparsity_out(0));
             setupSparseEigenMatrix(data.Jub_p, J_bnd.sparsity_out(1));
 
@@ -107,7 +107,7 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
     void evalBoundJacobiansImpl(Data &data) const override {
         if (has_bound_functions_) {
             std::vector<Scalar *> out(2);
-            if constexpr (FunctionTraits::type == "Sparse") {
+            if constexpr (EvaluatorTraits::type == "Sparse") {
                 out[0] = data.Jlb_p.valuePtr();
                 out[1] = data.Jub_p.valuePtr();
             } else {
@@ -123,7 +123,7 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
     void evalBoundHessiansImpl(const InputVectorConstRef &lambda,
                                Data &data) const override {
         std::vector<Scalar *> out(2);
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == "Sparse") {
             out[0] = data.Hlb_pp.valuePtr();
             out[1] = data.Hub_pp.valuePtr();
         } else {
@@ -141,9 +141,9 @@ class ConstraintTpl : public bopt::ConstraintTpl<FunctionTraits> {
 };
 
 template <typename Scalar>
-using DenseConstraintTpl = ConstraintTpl<DenseFunctionTraits<Scalar>>;
+using DenseConstraintTpl = ConstraintTpl<DenseEvaluatorTraits<Scalar>>;
 template <typename Scalar>
-using SparseConstraintTpl = ConstraintTpl<SparseFunctionTraits<Scalar>>;
+using SparseConstraintTpl = ConstraintTpl<SparseEvaluatorTraits<Scalar>>;
 
 using DenseConstraint = DenseConstraintTpl<Real>;
 using SparseConstraint = SparseConstraintTpl<Real>;
@@ -151,9 +151,9 @@ using SparseConstraint = SparseConstraintTpl<Real>;
  * @brief Constraint of the form lb ≤ Ax ≤ ub
  *
  */
-template <typename FunctionTraits>
-class LinearConstraintTpl : public bopt::LinearConstraintTpl<FunctionTraits> {
-    using Base = bopt::LinearConstraintTpl<FunctionTraits>;
+template <typename EvaluatorTraits>
+class LinearConstraintTpl : public bopt::LinearConstraintTpl<EvaluatorTraits> {
+    using Base = bopt::LinearConstraintTpl<EvaluatorTraits>;
 
    public:
     using Data = typename Base::Data;
@@ -161,8 +161,8 @@ class LinearConstraintTpl : public bopt::LinearConstraintTpl<FunctionTraits> {
     LinearConstraintTpl(const Symbol &expression, const SymbolicVector &x,
                         const SymbolicVector &p, const SymbolicVector &lb,
                         const SymbolicVector &ub, bool codegen = false)
-        : bopt::LinearConstraintTpl<FunctionTraits>(
-              std::make_shared<ConstraintTpl<FunctionTraits>>(
+        : bopt::LinearConstraintTpl<EvaluatorTraits>(
+              std::make_shared<ConstraintTpl<EvaluatorTraits>>(
                   expression, x, p, lb, ub, codegen)) {
         Symbol A, b;
         // Check expression is linear
@@ -183,7 +183,7 @@ class LinearConstraintTpl : public bopt::LinearConstraintTpl<FunctionTraits> {
         auto data = new Data(*this);
 
         // Update the sparsity patterns
-        if constexpr (FunctionTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
             setupSparseEigenMatrix(data->A, fA.sparsity_out(0));
         }
 
@@ -200,35 +200,35 @@ class LinearConstraintTpl : public bopt::LinearConstraintTpl<FunctionTraits> {
 
 template <typename Scalar>
 using DenseLinearConstraintTpl =
-    LinearConstraintTpl<DenseFunctionTraits<Scalar>>;
+    LinearConstraintTpl<DenseEvaluatorTraits<Scalar>>;
 template <typename Scalar>
 using SparseLinearConstraintTpl =
-    LinearConstraintTpl<SparseFunctionTraits<Scalar>>;
+    LinearConstraintTpl<SparseEvaluatorTraits<Scalar>>;
 
 using DenseLinearConstraint = DenseLinearConstraintTpl<Real>;
 using SparseLinearConstraint = SparseLinearConstraintTpl<Real>;
 
-template <typename FunctionTraits>
-class BoundingBoxConstraintTpl : public ConstraintTpl<FunctionTraits> {
+template <typename EvaluatorTraits>
+class BoundingBoxConstraintTpl : public ConstraintTpl<EvaluatorTraits> {
    public:
     BoundingBoxConstraintTpl(const SymbolicVector &x, const SymbolicVector &p,
                              const SymbolicVector &lb, const SymbolicVector &ub,
                              bool codegen = false)
-        : ConstraintTpl<FunctionTraits>(x, x, p, lb, ub, codegen) {}
+        : ConstraintTpl<EvaluatorTraits>(x, x, p, lb, ub, codegen) {}
 
     BoundingBoxConstraintTpl(const SymbolicVector &x, const Real &lb,
                              const Real &ub, bool codegen = false)
-        : ConstraintTpl<FunctionTraits>(
+        : ConstraintTpl<EvaluatorTraits>(
               x, x, SymbolicVector(), lb * SymbolicVector::ones(x.size1()),
               ub * SymbolicVector::ones(x.size1()), codegen) {}
 };
 
 template <typename Scalar>
 using DenseBoundingBoxConstraintTpl =
-    BoundingBoxConstraintTpl<DenseFunctionTraits<Scalar>>;
+    BoundingBoxConstraintTpl<DenseEvaluatorTraits<Scalar>>;
 template <typename Scalar>
 using SparseBoundingBoxConstraintTpl =
-    BoundingBoxConstraintTpl<SparseFunctionTraits<Scalar>>;
+    BoundingBoxConstraintTpl<SparseEvaluatorTraits<Scalar>>;
 
 using DenseBoundingBoxConstraint = DenseBoundingBoxConstraintTpl<Real>;
 using SparseBoundingBoxConstraint = SparseBoundingBoxConstraintTpl<Real>;
