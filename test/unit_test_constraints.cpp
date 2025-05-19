@@ -3,48 +3,50 @@
 
 #include <Eigen/Core>
 
-#include "bopt/constraints.hpp"
+#include "bopt/Constraints.hpp"
 #include "bopt/Logging.hpp"
-#include "bopt/profiler.hpp"
+#include "bopt/Profiler.hpp"
 
-class GenericConstraint : public bopt::constraint_tpl<double> {
+class DenseEvaluatorTest
+    : public bopt::DenseEvaluatorTpl<double, Eigen::Dynamic> {
+    using Base = bopt::DenseEvaluatorTpl<double, Eigen::Dynamic>;
+
    public:
-    GenericConstraint() : bopt::constraint_tpl<double>(2, 2) {
-        this->set_name("constraint!!");
+    using Data = typename Base::Data;
+
+    DenseEvaluatorTest() : Base(2, 2, "Dense evaluator") {}
+
+    void setDataSparsityImpl(Data &data) const override {
+        data.Jx.resize(2, 2);
     }
 
-   protected:
-    bopt::evaluator::return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        out[0] = x[0];
-        out[0] = x[0] - x[1];
-        return bopt::evaluator::return_status::Success;
+    void evalImpl(const typename Base::InputVectorConstRef &x,
+                  Data &data) const {
+        data.y << x[0] * x[1], x[0];
     }
 
-    bopt::evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        out(0, 0) = 1.0;
-        out(1, 0) = 1.0;
-        out(1, 1) = -1.0;
-        return bopt::evaluator::return_status::Success;
+    void evalJacobiansImpl(const typename Base::InputVectorConstRef &x,
+                           Data &data, bool compute_x,
+                           bool compute_p) const override {
+        data.Jx << x[1], x[0], 1.0, 0.0;
     }
 };
 
-TEST(Constraint, ScalarConstraint) {
-    std::shared_ptr<bopt::constraint_tpl<double>> c =
-        std::make_shared<GenericConstraint>();
+TEST(Constraint, Constraint) {
+    auto e = std::make_shared<DenseEvaluatorTest>();
 
-    LOG(INFO) << *c;
-    c->set_lower_bound(Eigen::Vector2d(-1.0, -1.0));
-    c->set_upper_bound(Eigen::Vector2d(1.0, 1.0));
+    bopt::DenseConstraint c(e, bopt::ConstraintBoundType::POSITIVE);
 
-    EXPECT_TRUE(c->is_satisfied());
-    c->buffer() << 2.0, 1.0;
-    LOG(INFO) << *c;
+    auto data = c.createData();
+    {
+        for (int i = 0; i < 100; ++i) {
+            bopt::Profiler profiler("bounds");
+            c.evalBounds(data);
+        }
+    }
 
-    EXPECT_FALSE(c->is_satisfied());
+    bopt::Logger::info() << data.lb.transpose();
+    bopt::Logger::info() << data.ub.transpose();
 }
 
 int main(int argc, char **argv) {
@@ -55,6 +57,6 @@ int main(int argc, char **argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
     int status = RUN_ALL_TESTS();
-    bopt::profiler summary;
+    bopt::Profiler summary;
     return status;
 }

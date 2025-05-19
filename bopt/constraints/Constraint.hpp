@@ -3,11 +3,9 @@
 #include "bopt/Evaluator.hpp"
 #include "bopt/Logging.hpp"
 #include "bopt/constraints/ConstraintBounds.hpp"
+#include "bopt/constraints/ConstraintData.hpp"
 
 namespace bopt {
-
-template <typename Scalar>
-struct ConstraintDataTpl;
 
 /**
  * @brief Constraint of the form y = fₚ(x) ∈ ℝᵐ
@@ -25,8 +23,7 @@ class ConstraintTpl {
     using InputVector = typename EvaluatorTraits::InputVector;
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
 
-    using Vector = typename EvaluatorTraits::Vector;
-    using Matrix = typename EvaluatorTraits::Matrix;
+    using Data = ConstraintDataTpl<EvaluatorTraits>;
 
     /**
      * @brief Construct a constraint from an existing evaluator and specifying
@@ -38,7 +35,8 @@ class ConstraintTpl {
                   const ConstraintBoundType &bounds)
         : name_(""),
           evaluator_(evaluator),
-          bound_evaluator_(std::make_shared<BoundEvaluator>(bounds)) {}
+          bound_evaluator_(std::make_shared<BoundEvaluator>(
+              evaluator->numOutputs(), bounds)) {}
 
     /**
      * @brief Construct a constraint from an existing evaluator and specifying
@@ -49,6 +47,8 @@ class ConstraintTpl {
     ConstraintTpl(const std::shared_ptr<Evaluator> &evaluator,
                   const std::shared_ptr<BoundEvaluator> &bound_evaluator)
         : name_(""), evaluator_(evaluator), bound_evaluator_(bound_evaluator) {}
+
+    Data createData() const { return Data(*this); }
 
     /**
      * @brief Name of the constraint
@@ -63,15 +63,6 @@ class ConstraintTpl {
      * @param name
      */
     void setName(const String &name) { name_ = name; }
-
-    const ConstraintType &type() const { return type_; }
-
-    /**
-     * @brief Set the constraint to a particular type
-     *
-     * @return const Type&
-     */
-    void setType(const ConstraintType &type) { type_ = type; }
 
     /**
      * @brief Returns the evaluator for the function
@@ -101,7 +92,7 @@ class ConstraintTpl {
      *
      * @param evaluator
      */
-    void setBoundEvaluator(const std::shared_ptr<BoundsEvaluator> &evaluator) {
+    void setBoundEvaluator(const std::shared_ptr<BoundEvaluator> &evaluator) {
         bound_evaluator_ = evaluator_;
     }
 
@@ -130,7 +121,7 @@ class ConstraintTpl {
      *
      * @param data
      */
-    void evalBounds(Data &data) const { bounds_evaluator_->eval(data); }
+    void evalBounds(Data &data) const { bound_evaluator_->eval(data); }
 
    protected:
    private:
@@ -155,7 +146,7 @@ template <typename EvaluatorType>
 class PolynomialConstraintTpl
     : public ConstraintTpl<typename EvaluatorType::EvaluatorTraits> {
    public:
-    using Base = ConstraintTpl<EvaluatorTraits>;
+    using Base = ConstraintTpl<typename EvaluatorType::EvaluatorTraits>;
     using EvaluatorData = typename Base::EvaluatorData;
     using Data = typename EvaluatorType::Data;
 

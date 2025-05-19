@@ -5,8 +5,13 @@
 
 namespace bopt {
 
+// Forward declarations
 template <typename EvaluatorTraits>
-struct ConstraintDataTpl : public EvaluatorDataTpl<EvaluatorTraits, Eigen::Dynamic> {
+class ConstraintTpl;
+
+template <typename EvaluatorTraits>
+struct ConstraintDataTpl
+    : public EvaluatorDataTpl<EvaluatorTraits, Eigen::Dynamic> {
     using Base = EvaluatorDataTpl<EvaluatorTraits>;
 
     using DenseVector = typename Base::DenseVector;
@@ -14,9 +19,9 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<EvaluatorTraits, Eigen::Dynam
     using HessianType = typename Base::HessianType;
 
     ConstraintDataTpl(const ConstraintTpl<EvaluatorTraits> &c)
-        : EvaluatorDataTpl<EvaluatorTraits>(c) {
-        const Size &p = c.numParameters();
-        const Size &m = c.numOutputs();
+        : EvaluatorDataTpl<EvaluatorTraits, Eigen::Dynamic>(c.getEvaluator()) {
+        const Size p = c.getBoundEvaluator().numParameters();
+        const Size m = c.getEvaluator().numOutputs();
 
         lb = DenseVector::Zero(m);
         ub = DenseVector::Zero(m);
@@ -29,10 +34,10 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<EvaluatorTraits, Eigen::Dynam
             Hub_pp.resize(p, p);
         } else {
             // Dense
-            Jlb_p = Matrix::Zero(m, p);
-            Jub_p = Matrix::Zero(m, p);
-            Hlb_pp = Matrix::Zero(p, p);
-            Hub_pp = Matrix::Zero(p, p);
+            Jlb_p = JacobianType::Zero(m, p);
+            Jub_p = JacobianType::Zero(m, p);
+            Hlb_pp = HessianType::Zero(p, p);
+            Hub_pp = HessianType::Zero(p, p);
         }
 
         c.getEvaluator().setDataSparsity(*this);

@@ -4,6 +4,7 @@
 
 #include "bopt/Evaluator.hpp"
 #include "bopt/Logging.hpp"
+#include "bopt/costs/CostData.hpp"
 
 namespace bopt {
 
@@ -23,6 +24,8 @@ class CostTpl {
     using InputVector = typename EvaluatorTraits::InputVector;
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
 
+    using Data = CostDataTpl<EvaluatorTraits>;
+
     /**
      * @brief Construct a constraint from an existing evaluator and specifying
      * the bound type
@@ -31,6 +34,8 @@ class CostTpl {
      */
     CostTpl(const std::shared_ptr<Evaluator> &evaluator)
         : name_(""), evaluator_(evaluator) {}
+
+    Data createData() const { return Data(*this); }
 
     /**
      * @brief Name of the constraint
@@ -102,7 +107,7 @@ template <typename EvaluatorType>
 class PolynomialCostTpl
     : public CostTpl<typename EvaluatorType::EvaluatorTraits> {
    public:
-    using Base = CostTpl<EvaluatorTraits>;
+    using Base = CostTpl<typename EvaluatorType::EvaluatorTraits>;
     using EvaluatorData = typename Base::EvaluatorData;
     using Data = typename EvaluatorType::Data;
 

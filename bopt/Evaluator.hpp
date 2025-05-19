@@ -6,23 +6,10 @@
 
 namespace bopt {
 
-/**
- * @brief Evaluator class related the evaluation of a function y = fₚ(x)
- *
- * @tparam Scalar
- */
-template <typename EvaluatorTraits, int OutputSize = Eigen::Dynamic>
-class EvaluatorTpl {
+class EvaluatorBase {
+    using ParameterVector = typename MathTypes<Real>::VectorX;
+
    public:
-    using Scalar = typename EvaluatorTraits::Scalar;
-
-    using DenseVector = typename EvaluatorTraits::DenseVector;
-    using InputVector = typename EvaluatorTraits::InputVector;
-    using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
-
-    /// @brief The standard type of data to be used for the evaluation functions
-    using Data = EvaluatorDataTpl<EvaluatorTraits, OutputSize>;
-
     /**
      * @brief Dimension of the input variable vector, commonly denoted as x.
      *
@@ -65,17 +52,77 @@ class EvaluatorTpl {
         description_ = description;
     }
 
-    const DenseVector &getParameters() const { return parameters_; }
+    const ParameterVector &getParameters() const { return parameters_; }
 
     /**
      * @brief Set the parameter vector p (numParameters() x 1).
      *
      * @param p
      */
-    void setParameters(const InputVectorConstRef &p) {
+    void setParameters(const Eigen::Ref<const ParameterVector> &p) {
         assert(p.size() == numParameters());
         parameters_ = p;
     }
+
+   protected:
+    EvaluatorBase(const Index &n_in, const Index &n_out,
+                  const String &description = "")
+        : n_in_(n_in),
+          dim_tangent_space_(n_in),
+          n_out_(n_out),
+          n_parameters_(0),
+          parameters_(ParameterVector::Zero(0)),
+          description_(description) {}
+
+    /**
+     * @brief Sets the dimension of the tangent space for the input variables.
+     *
+     * @param dim Dimension of the vector
+     */
+    void setTangentSpaceDimension(const Index &dim) {
+        dim_tangent_space_ = dim;
+    }
+
+    /**
+     * @brief Sets the dimension of the evaluator parameter vector.
+     *
+     * @param dim Dimension of the vector
+     */
+    void setParameterDimension(const Index &dim) {
+        n_parameters_ = dim;
+        parameters_ = ParameterVector::Zero(dim);
+    }
+
+   private:
+    /// @brief Dimension of the input vector
+    Index n_in_;
+    Index n_out_;
+    /// @brief Dimension of the input tangent space
+    Index dim_tangent_space_;
+    Index n_parameters_;
+
+    ParameterVector parameters_;
+    String description_;
+};
+
+/**
+ * @brief Evaluator class related the evaluation of a function y = fₚ(x)
+ *
+ * @tparam Scalar
+ */
+template <typename EvaluatorTraits, int OutputSize = Eigen::Dynamic>
+class EvaluatorTpl : public EvaluatorBase {
+   public:
+    using Scalar = typename EvaluatorTraits::Scalar;
+
+    using DenseVector = typename EvaluatorTraits::DenseVector;
+    using InputVector = typename EvaluatorTraits::InputVector;
+    using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
+
+    /// @brief The standard type of data to be used for the evaluation functions
+    using Data = EvaluatorDataTpl<EvaluatorTraits, OutputSize>;
+
+    Data createData() const { return Data(*this); }
 
     /**
      * @brief Set the sparsity of any entries within the provided data
@@ -130,31 +177,7 @@ class EvaluatorTpl {
    protected:
     EvaluatorTpl(const Index &n_in, const Index &n_out,
                  const String &description = "")
-        : n_in_(n_in),
-          dim_tangent_space_(n_in),
-          n_out_(n_out),
-          n_parameters_(0),
-          parameters_(InputVector::Zero(0)),
-          description_(description) {}
-
-    /**
-     * @brief Sets the dimension of the tangent space for the input variables.
-     *
-     * @param dim Dimension of the vector
-     */
-    void setTangentSpaceDimension(const Index &dim) {
-        dim_tangent_space_ = dim;
-    }
-
-    /**
-     * @brief Sets the dimension of the evaluator parameter vector.
-     *
-     * @param dim Dimension of the vector
-     */
-    void setParameterDimension(const Index &dim) {
-        n_parameters_ = dim;
-        parameters_ = InputVector::Zero(dim);
-    }
+        : EvaluatorBase(n_in, n_out, description) {}
 
     virtual void setDataSparsityImpl(Data &data) const {}
 
@@ -184,17 +207,107 @@ class EvaluatorTpl {
                                   const InputVectorConstRef &lambda, Data &data,
                                   bool compute_xx, bool compute_xp,
                                   bool compute_pp) const {}
+};
 
-   private:
-    /// @brief Dimension of the input vector
-    Index n_in_;
-    Index n_out_;
-    /// @brief Dimension of the input tangent space
-    Index dim_tangent_space_;
-    Index n_parameters_;
+/**
+ * @brief Evaluator class specialisation for scalar functions y = fₚ(x)
+ *
+ * @tparam Scalar
+ */
+template <typename EvaluatorTraits>
+class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
+   public:
+    using Scalar = typename EvaluatorTraits::Scalar;
 
-    DenseVector parameters_;
-    String description_;
+    using DenseVector = typename EvaluatorTraits::DenseVector;
+    using InputVector = typename EvaluatorTraits::InputVector;
+    using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
+
+    /// @brief The standard type of data to be used for the evaluation functions
+    using Data = EvaluatorDataTpl<EvaluatorTraits, 1>;
+
+    Data createData() const { return Data(*this); }
+
+    /**
+     * @brief Set the sparsity of any entries within the provided data
+     * structure.
+     *
+     * @param data
+     */
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
+
+    /**
+     * @brief Evaluates the expression y = fₚ(x) using variables x and
+     * parameters p (set through \ref EvaluatorTpl::setParameters()).
+     *
+     * @param x The input vector (numInputs() x 1)
+     * @param data
+     */
+    void eval(const InputVectorConstRef &x, Data &data) const {
+        evalImpl(x, data);
+    }
+
+    /**
+     * @brief Computes the gradients of the expression f.
+     *
+     * @param x
+     * @param data
+     * @param compute_x Compute ∂y/∂x
+     * @param compute_p Compute ∂y/∂p
+     */
+    void evalGradients(const InputVectorConstRef &x, Data &data,
+                       bool compute_x = true, bool compute_p = false) const {
+        evalGradientsImpl(x, data, compute_x, compute_p);
+    }
+
+    /**
+     * @brief Computes the lower-triangular hessians of the vector-product of
+     * the expression f.
+     *
+     * @param x
+     * @param lambda
+     * @param data
+     * @param compute_xx Compute ∂²f/∂x²
+     * @param compute_xp Compute ∂²f/∂x∂p
+     * @param compute_pp Compute ∂²f/∂p²
+     */
+    void evalHessians(const InputVectorConstRef &x, Data &data,
+                      bool compute_xx = true, bool compute_xp = false,
+                      bool compute_pp = false) const {
+        evalHessiansImpl(x, data, compute_xx, compute_xp, compute_pp);
+    }
+
+   protected:
+    EvaluatorTpl(const Index &n_in, const String &description = "")
+        : EvaluatorBase(n_in, 1, description) {}
+
+    virtual void setDataSparsityImpl(Data &data) const {}
+
+    /**
+     * @brief Implementation of the evaluator
+     *
+     * @param x
+     * @param out
+     */
+    virtual void evalImpl(const InputVectorConstRef &x, Data &data) const {}
+
+    /**
+     * \copydoc EvaluatorTpl::evalGradients(const Eigen::Ref<const
+     * VectorX<Scalar>>, Data &)
+     *
+     */
+    virtual void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
+                                   bool compute_x, bool compute_p) const {}
+
+    /**
+     * \copydoc EvaluatorTpl::evalHessians(const Eigen::Ref<const
+     * VectorX<Scalar>>, const InputVectorConstRef, Data
+     * &)
+     *
+     */
+    virtual void evalHessiansImpl(const InputVectorConstRef &x, Data &data,
+                                  bool compute_xx, bool compute_xp,
+                                  bool compute_pp) const {}
 };
 
 template <typename EvaluatorTraits, int OutputSize>
@@ -240,6 +353,34 @@ class PolynomialEvaluatorTpl
     /// @brief Evaluator data for all other evaluator-type functions
     using EvaluatorData = typename Base::Data;
 
+    PolynomialEvaluatorTpl(const Size &n_in, const Size &n_out,
+                           const String &description = "")
+        : Base(n_in, n_out, description) {}
+
+    Data createData() const { return Data(*this); }
+
+    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
+
+   protected:
+    virtual void evalCoefficientsImpl(Data &data) const {}
+};
+
+template <typename DataType, typename EvaluatorTraits>
+class PolynomialEvaluatorTpl<DataType, EvaluatorTraits, 1>
+    : public EvaluatorTpl<EvaluatorTraits, 1> {
+   public:
+    using Base = EvaluatorTpl<EvaluatorTraits, 1>;
+    /// @brief Data type for the polynomial data for computation of the
+    /// coefficients
+    using Data = DataType;
+    /// @brief Evaluator data for all other evaluator-type functions
+    using EvaluatorData = typename Base::Data;
+
+    PolynomialEvaluatorTpl(const Size &n_in, const String &description = "")
+        : Base(n_in, description) {}
+
+    Data createData() const { return Data(*this); }
+
     void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
    protected:
@@ -250,7 +391,29 @@ template <typename EvaluatorTraits, int OutputSize>
 class LinearEvaluatorTpl
     : public PolynomialEvaluatorTpl<
           LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>, EvaluatorTraits,
-          OutputSize> {};
+          OutputSize> {
+    using Base = PolynomialEvaluatorTpl<
+        LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>, EvaluatorTraits,
+        OutputSize>;
+
+   public:
+    LinearEvaluatorTpl(const Size &n_in, const Size &n_out,
+                       const String &description = "")
+        : Base(n_in, n_out, description) {}
+};
+
+template <typename EvaluatorTraits>
+class LinearEvaluatorTpl<EvaluatorTraits, 1>
+    : public PolynomialEvaluatorTpl<LinearEvaluatorDataTpl<EvaluatorTraits, 1>,
+                                    EvaluatorTraits, 1> {
+    using Base =
+        PolynomialEvaluatorTpl<LinearEvaluatorDataTpl<EvaluatorTraits, 1>,
+                               EvaluatorTraits, 1>;
+
+   public:
+    LinearEvaluatorTpl(const Size &n_in, const String &description = "")
+        : Base(n_in, description) {}
+};
 
 /**
  * @brief Quadratic evaluator for scalar expressions of the form

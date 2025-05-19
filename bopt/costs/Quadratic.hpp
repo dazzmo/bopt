@@ -14,7 +14,7 @@ struct QuadraticCostDataTpl;
  */
 template <typename EvaluatorTraits>
 using QuadraticCostTpl =
-    PolynomialCostTpl<QuadraticEvaluatorTpl<EvaluatorTraits, 1>>;
+    PolynomialCostTpl<QuadraticEvaluatorTpl<EvaluatorTraits>>;
 
 template <typename Scalar>
 using DenseQuadraticCostTpl = QuadraticCostTpl<DenseEvaluatorTraits<Scalar>>;

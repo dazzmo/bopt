@@ -6,9 +6,12 @@
 namespace bopt {
 
 template <typename EvaluatorTraits>
+struct CostTpl;
+
+template <typename EvaluatorTraits>
 struct CostDataTpl : public EvaluatorDataTpl<EvaluatorTraits, 1> {
     CostDataTpl(const CostTpl<EvaluatorTraits> &c)
-        : EvaluatorDataTpl<EvaluatorTraits>(c) {}
+        : EvaluatorDataTpl<EvaluatorTraits>(c.getEvaluator()) {}
 };
 
 }  // namespace bopt

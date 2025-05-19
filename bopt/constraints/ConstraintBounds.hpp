@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bopt/constraints/ConstraintData.hpp"
+
 namespace bopt {
 
 /**
@@ -45,7 +47,7 @@ class BoundEvaluatorTpl {
     using InputVector = typename EvaluatorTraits::InputVector;
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
 
-    using Data = ConstraintDataTpl<EvaluatorTraits, OutputSize>;
+    using Data = ConstraintDataTpl<EvaluatorTraits>;
 
     BoundEvaluatorTpl(
         const Size &num_parameters,
@@ -91,8 +93,10 @@ class BoundEvaluatorTpl {
         parameters_ = parameters;
     }
 
+    Size numParameters() const { return parameters_.size(); }
+
    protected:
-    BoundsEvaluatorTpl(const Index &n_in, const Index &n_out) : {}
+    BoundEvaluatorTpl(const Index &n_in, const Index &n_out) {}
 
     virtual void setDataSparsityImpl(Data &data) const {}
 

@@ -12,7 +12,7 @@
 #define BOPT_ENABLE_LOGGING
 #ifdef BOPT_ENABLE_LOGGING
 
-namespace rmp {
+namespace bopt {
 
 /**
  * @brief Basic logging class with the option to use either standard stream, or

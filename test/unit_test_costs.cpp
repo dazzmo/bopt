@@ -3,22 +3,17 @@
 
 #include <Eigen/Core>
 
-#include "bopt/costs.hpp"
+#include "bopt/Costs.hpp"
 #include "bopt/Logging.hpp"
-// #include "bopt/profiler.hpp"
+#include "bopt/Profiler.hpp"
 
-class BasicCost : public bopt::DenseCostTpl<double> {
+class CostEvaluator : public bopt::DenseEvaluator<1> {
    public:
-    BasicCost() : bopt::DenseCostTpl<double>(2) {}
+    CostEvaluator() : bopt::DenseEvaluator<1>(1) {}
 
-    using Base = bopt::DenseCostTpl<double>;
+    using Base = bopt::DenseEvaluator<1>;
     using InputVectorConstRef = typename Base::InputVectorConstRef;
     using Data = typename Base::Data;
-
-    std::shared_ptr<Data> createData() override {
-        auto data = std::make_shared<Data>(*this);
-        return data;
-    }
 
    protected:
     void evalImpl(const InputVectorConstRef &x, Data &data) const override {
@@ -31,43 +26,36 @@ class BasicCost : public bopt::DenseCostTpl<double> {
         data.gp << 0.0;
     }
 };
-
-class LinearCost : public bopt::SparseLinearCostTpl<double> {
+class LinearCostEvaluator
+    : public bopt::LinearEvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 1> {
    public:
-    LinearCost() : bopt::SparseLinearCostTpl<double>(1000) {}
-    
-    using LinearData =  typename bopt::SparseLinearCostTpl<double>::Data;
-    using Data =  typename bopt::SparseLinearCostTpl<double>::Data;
+    using Base =
+        bopt::LinearEvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 1>;
+    using Data = typename Base::Data;
+    using EvaluatorData = typename Base::EvaluatorData;
+
+    LinearCostEvaluator() : Base(2, "linear cost") {}
 
    protected:
-    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
-        data.y = 1.0;
+    void evalImpl(const InputVectorConstRef &x, EvaluatorData &data) const override {
+        data.y = 1.0 * x[0] + 2 * x[1] + 1.0;
     }
 
-    void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
+    void evalGradientsImpl(const InputVectorConstRef &x, EvaluatorData &data,
                            bool compute_x, bool compute_p) const override {
-        data.gx.valuePtr()[0] = -1.0;
-        data.gx.valuePtr()[1] = 1.0;
+        data.gx << 1.0, 2.0;
+    }
+
+    void evalCoefficientsImpl(Data &data) const override {
+        data.a << 1.0, 2.0;
+        data.b = 1.0;
     }
 };
 
-TEST(BasicCost, Construction) {
-    BasicCost cost;
-    auto data = cost.createData();
-}
 
-TEST(LinearCost, Construction) {
-    std::shared_ptr<LinearCost> cost = std::make_shared<LinearCost>();
-    auto data = cost->createData();
-
-    auto x = Eigen::VectorXd::Zero(cost->numInputs());
-    cost->evalGradients(x, *data, true, true);
-
-    std::shared_ptr<bopt::SparseCostTpl<double>> ptr = cost;
-
-    auto data2 = ptr->createData();
-
-    std::cout << data->gx.transpose() << std::endl;
+TEST(Cost, Construction) {
+    auto e = std::make_shared<CostEvaluator>();
+    auto c = bopt::DenseCost(e);
 }
 
 int main(int argc, char **argv) {
@@ -78,6 +66,6 @@ int main(int argc, char **argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
     int status = RUN_ALL_TESTS();
-    // bopt::profiler summary;
+    bopt::Profiler summary;
     return status;
 }
