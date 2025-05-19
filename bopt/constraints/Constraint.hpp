@@ -2,8 +2,7 @@
 
 #include "bopt/Evaluator.hpp"
 #include "bopt/Logging.hpp"
-#include "bopt/constraints/Bounds.hpp"
-#include "bopt/constraints/Types.hpp"
+#include "bopt/constraints/ConstraintBounds.hpp"
 
 namespace bopt {
 
@@ -36,7 +35,7 @@ class ConstraintTpl {
      * @param evaluator
      */
     ConstraintTpl(const std::shared_ptr<Evaluator> &evaluator,
-                  const ConstraintBounds &bounds)
+                  const ConstraintBoundType &bounds)
         : name_(""),
           evaluator_(evaluator),
           bound_evaluator_(std::make_shared<BoundEvaluator>(bounds)) {}
@@ -138,10 +137,10 @@ class ConstraintTpl {
     /// @brief Name of the constraint
     String name_;
     /// @brief Shared pointer to the evaluator the constraint is associated with
-    std::shared_ptr<Evaluator> evaluator_;
+    std::shared_ptr<Evaluator> evaluator_{nullptr};
     /// @brief Shared pointer to the evaluator the constraint bounds are
     /// associated with
-    std::shared_ptr<BoundEvaluator> bound_evaluator_;
+    std::shared_ptr<BoundEvaluator> bound_evaluator_{nullptr};
 };
 
 template <typename Scalar>
@@ -152,21 +151,45 @@ template <typename Scalar>
 using SparseConstraintTpl = ConstraintTpl<SparseEvaluatorTraits<Scalar>>;
 using SparseConstraint = SparseConstraintTpl<Real>;
 
-template <typename EvaluatorTraits>
-class LinearConstraintTpl : public ConstraintTpl<EvaluatorTraits> {
+template <typename EvaluatorType>
+class PolynomialConstraintTpl
+    : public ConstraintTpl<typename EvaluatorType::EvaluatorTraits> {
    public:
-    LinearConstraintTpl(const std::shared_ptr<Evaluator> &evaluator,
-                        const ConstraintBounds &bounds)
-        : ConstraintTpl<EvaluatorTraits>(evaluator, bounds) {}
+    using Base = ConstraintTpl<EvaluatorTraits>;
+    using EvaluatorData = typename Base::EvaluatorData;
+    using Data = typename EvaluatorType::Data;
 
-    LinearConstraintTpl(const std::shared_ptr<Evaluator> &evaluator,
-                        const ConstraintBounds &bounds)
-        : ConstraintTpl<EvaluatorTraits>(evaluator, bounds) {}
+    PolynomialConstraintTpl(const std::shared_ptr<EvaluatorType> &evaluator)
+        : Base(evaluator), evaluator_(evaluator) {}
 
-    // void getEvaluator()
+    void setDataSparsity(Data &data) const {
+        evaluator_->setDataSparsity(data);
+    }
 
+    /**
+     * @brief Returns the evaluator for the function
+     *
+     * @return Evaluator&
+     */
+    EvaluatorType &getEvaluator() const { return *evaluator_; }
+
+    /**
+     * @brief Set an evaluator for the of the constraint.
+     *
+     * @param evaluator
+     */
+    void setEvaluator(const std::shared_ptr<EvaluatorType> &evaluator) {
+        Base::setEvaluator(evaluator);
+        evaluator_ = evaluator;
+    }
+
+    void evalCoefficients(Data &data) const {
+        evaluator_->evalCoefficients(data);
+    }
+
+   protected:
    private:
-    std::shared_ptr<Evaluator> evaluator_;
+    std::shared_ptr<EvaluatorType> evaluator_{nullptr};
 };
 
 }  // namespace bopt

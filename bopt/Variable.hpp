@@ -20,7 +20,7 @@ class Variable {
 
     Variable() : name_("") { id_ = getNextId(); }
     Variable(const String &name, const Type &type = Type::Continuous)
-        : name_(name), id_(Id(0)), type_(type) {
+        : id_(Id(0)), name_(name), type_(type) {
         id_ = getNextId();
     }
 

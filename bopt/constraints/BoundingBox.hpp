@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bopt/constraints/ConstraintBase.hpp"
+#include "bopt/constraints/Constraint.hpp"
 
 namespace bopt {
 
@@ -33,6 +33,12 @@ class BoundingBoxConstraintTpl : public ConstraintTpl<EvaluatorTraits> {
     void evalJacobiansImpl(const InputVectorConstRef &x, EvaluatorData &data,
                            bool compute_x, bool compute_p) const override {
         if (compute_x) data.Jx.setIdentity();
+    }
+
+    void evalHessiansImpl(const InputVectorConstRef &x, EvaluatorData &data,
+                          bool compute_xx, bool compute_xp,
+                          bool compute_pp) const override {
+        /* No Hessian for bounding box constraints */
     }
 
    private:

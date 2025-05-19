@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 
+#define USE_GLOG
 #ifdef USE_GLOG
 #define GLOG_USE_GLOG_EXPORT
 #include <glog/logging.h>

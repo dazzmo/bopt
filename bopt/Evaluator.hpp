@@ -1,13 +1,10 @@
 #pragma once
 
 #include "bopt/Common.hpp"
+#include "bopt/EvaluatorData.hpp"
 #include "bopt/EvaluatorTraits.hpp"
 
 namespace bopt {
-
-// Forward declarations
-template <typename EvaluatorTraits, int OutputSize>
-struct EvaluatorDataTpl;
 
 /**
  * @brief Evaluator class related the evaluation of a function y = fₚ(x)
@@ -31,36 +28,36 @@ class EvaluatorTpl {
      *
      * @return const Size&
      */
-    const Size &numInputs() const { return n_in_; }
-
-    /**
-     * @brief Dimension of the input space, this is equal to numInputs().
-     *
-     * @return const Size&
-     */
-    const Size &inputSpaceDimension() const { return n_in_; }
-
-    /**
-     * @brief Dimension of the tangent space for the input vector, typically
-     * this is equal to numInputs().
-     *
-     * @return const Size&
-     */
-    const Size &tangentSpaceDimension() const { return dim_tangent_space_; }
+    Size numInputs() const { return n_in_; }
 
     /**
      * @brief Dimension of the output vector y.
      *
      * @return const Size&
      */
-    const Size &numOutputs() const { return n_out_; }
+    Size numOutputs() const { return n_out_; }
+
+    /**
+     * @brief Dimension of the input space, this is equal to numInputs().
+     *
+     * @return const Size&
+     */
+    Size dimInputSpace() const { return n_in_; }
+
+    /**
+     * @brief Dimension of the tangent space of input, typically
+     * this is equal to numInputs().
+     *
+     * @return const Size&
+     */
+    Size dimInputTangentSpace() const { return dim_tangent_space_; }
 
     /**
      * @brief Dimension of the parameter vector p.
      *
      * @return const Size&
      */
-    const Size &numParameters() const { return num_parameters_; }
+    Size numParameters() const { return n_parameters_; }
 
     const String &getDescription() const { return description_; }
 
@@ -136,7 +133,7 @@ class EvaluatorTpl {
         : n_in_(n_in),
           dim_tangent_space_(n_in),
           n_out_(n_out),
-          num_parameters_(0),
+          n_parameters_(0),
           parameters_(InputVector::Zero(0)),
           description_(description) {}
 
@@ -155,7 +152,7 @@ class EvaluatorTpl {
      * @param dim Dimension of the vector
      */
     void setParameterDimension(const Index &dim) {
-        num_parameters_ = dim;
+        n_parameters_ = dim;
         parameters_ = InputVector::Zero(dim);
     }
 
@@ -192,8 +189,9 @@ class EvaluatorTpl {
     /// @brief Dimension of the input vector
     Index n_in_;
     Index n_out_;
+    /// @brief Dimension of the input tangent space
     Index dim_tangent_space_;
-    Index num_parameters_;
+    Index n_parameters_;
 
     DenseVector parameters_;
     String description_;
@@ -203,71 +201,65 @@ template <typename EvaluatorTraits, int OutputSize>
 std::ostream &operator<<(std::ostream &os,
                          const EvaluatorTpl<EvaluatorTraits, OutputSize> &e) {
     os << "Evaluator\n";
-    os << "Description: " << e.description() << '\n';
+    os << "Description: " << e.getDescription() << '\n';
     os << "Input Size: " << e.numInputs() << '\n';
     os << "Output Size: " << e.numOutputs();
     return os;
 }
 
-template <typename Scalar, typename OutputSize>
+template <typename Scalar, int OutputSize>
 using DenseEvaluatorTpl =
     EvaluatorTpl<DenseEvaluatorTraits<Scalar>, OutputSize>;
-template <typename OutputSize>
+template <int OutputSize>
 using DenseEvaluator = DenseEvaluatorTpl<Real, OutputSize>;
 
-template <typename Scalar, typename OutputSize>
+template <typename Scalar, int OutputSize>
 using SparseEvaluatorTpl =
     EvaluatorTpl<SparseEvaluatorTraits<Scalar>, OutputSize>;
-template <typename OutputSize>
+template <int OutputSize>
 using SparseEvaluator = SparseEvaluatorTpl<Real, OutputSize>;
 
 /**
- * @brief Generic evaluator for polynomial-based expressions
+ * @brief An evaluator of an expression that can be represented in polynomial
+ * form.
  *
- * @tparam EvaluatorTraits
- * @tparam Order
- * @tparam DataType
+ * @tparam DataType The data type, where the coefficients can be stored and
+ * evaluated through evalCoefficients()
+ * @tparam EvaluatorTraits Traits of the underlying evaluator
+ * @tparam OutputSize
  */
-template <typename EvaluatorTraits, int OutputSize, class DataType>
+template <typename DataType, typename EvaluatorTraits,
+          int OutputSize = Eigen::Dynamic>
 class PolynomialEvaluatorTpl
     : public EvaluatorTpl<EvaluatorTraits, OutputSize> {
+   public:
+    using Base = EvaluatorTpl<EvaluatorTraits, OutputSize>;
+    /// @brief Data type for the polynomial data for computation of the
+    /// coefficients
     using Data = DataType;
+    /// @brief Evaluator data for all other evaluator-type functions
+    using EvaluatorData = typename Base::Data;
 
-    void evalCoefficients(Data &data) const {
-        this->evalCoefficientsImpl(data);
-    }
+    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
-    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
-
-   private:
+   protected:
     virtual void evalCoefficientsImpl(Data &data) const {}
-    virtual void setDataSparsityImpl(Data &data) const {}
 };
 
 template <typename EvaluatorTraits, int OutputSize>
-struct LinearEvaluatorDataTpl;
-
-template <typename EvaluatorTraits, int OutputSize>
-using LinearEvaluatorTpl =
-    PolynomialEvaluatorTpl<EvaluatorTraits, OutputSize,
-                           LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>>;
+class LinearEvaluatorTpl
+    : public PolynomialEvaluatorTpl<
+          LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>, EvaluatorTraits,
+          OutputSize> {};
 
 /**
- * @brief Evaluator for expressions of the form Ax + b
+ * @brief Quadratic evaluator for scalar expressions of the form
  *
  * @tparam EvaluatorTraits
  */
 template <typename EvaluatorTraits>
-class LinearEvaluatorTpl : public EvaluatorTpl<EvaluatorTraits> {
-   public:
-};
-
-template <typename EvaluatorTraits>
-struct QuadraticEvaluatorDataTpl;
-
-template <typename EvaluatorTraits>
-using QuadraticEvaluatorTpl =
-    PolynomialEvaluatorTpl<EvaluatorTraits, 1,
-                           QuadraticEvaluatorDataTpl<EvaluatorTraits>>;
+class QuadraticEvaluatorTpl
+    : public PolynomialEvaluatorTpl<QuadraticEvaluatorDataTpl<EvaluatorTraits>,
+                                    EvaluatorTraits, 1> {};
 
 }  // namespace bopt

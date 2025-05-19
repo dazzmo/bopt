@@ -4,9 +4,9 @@
 
 #include "bopt/Common.hpp"
 #include "bopt/Logging.hpp"
-#include "bopt/binding.hpp"
-#include "bopt/constraints.hpp"
-#include "bopt/costs.hpp"
+#include "bopt/Binding.hpp"
+#include "bopt/Constraints.hpp"
+#include "bopt/Costs.hpp"
 // #include "bopt/profiler.hpp"
 
 namespace bopt {

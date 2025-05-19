@@ -1,4 +1,4 @@
-#include "bopt/ad/casadi/utils.hpp"
+#include "bopt/ad/casadi/Utils.hpp"
 
 #include <filesystem>
 

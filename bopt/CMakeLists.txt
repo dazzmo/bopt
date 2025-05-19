@@ -9,12 +9,12 @@ option(WITH_IPOPT "Build with IPOPT functionality" OFF)
 
 # Collect source files
 SET(${PROJECT_NAME}_SOURCES
-profiler.cpp
+Profiler.cpp
 # common.cpp
 # evaluator.cpp
-program.cpp
+# Program.cpp
 # costs.cpp
-variable.cpp
+Variable.cpp
 )
 
 SET(${PROJECT_NAME}_INCLUDE_DIRS

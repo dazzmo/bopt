@@ -6,7 +6,7 @@
 namespace bopt {
 
 template <typename EvaluatorTraits>
-struct ConstraintDataTpl : public EvaluatorDataTpl<EvaluatorTraits> {
+struct ConstraintDataTpl : public EvaluatorDataTpl<EvaluatorTraits, Eigen::Dynamic> {
     using Base = EvaluatorDataTpl<EvaluatorTraits>;
 
     using DenseVector = typename Base::DenseVector;
@@ -67,8 +67,8 @@ struct ConstraintDataTpl : public EvaluatorDataTpl<EvaluatorTraits> {
 template <typename EvaluatorTraits>
 bool isSatsified(const ConstraintDataTpl<EvaluatorTraits> &data,
                  const Real epsilon = kEpsilon) {
-    Size m = data.y.size();
-    for (int i = 0; i < m; ++i) {
+    const Size m = data.y.size();
+    for (Size i = 0; i < m; ++i) {
         if (data.lb[i] - data.y[i] > epsilon ||
             data.ub[i] - data.y[i] < -epsilon)
             return false;

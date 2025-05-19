@@ -1,8 +1,19 @@
 #pragma once
 
 #include "bopt/Evaluator.hpp"
+#include "bopt/EvaluatorTraits.hpp"
 
 namespace bopt {
+
+// Forward declarations
+template <typename EvaluatorTraits, int OutputSize>
+class EvaluatorTpl;
+
+template<typename EvaluatorTraits, int OutputSize>
+class LinearEvaluatorTpl;
+
+template<typename EvaluatorTraits>
+class QuadraticEvaluatorTpl;
 
 /**
  * @brief Evaluator data struct for evaluation of EvaluatorTpl classes.
@@ -16,58 +27,14 @@ struct EvaluatorDataTpl {
 
     using DenseVector = typename EvaluatorTraits::DenseVector;
 
-    using OutputType =
-        std::conditional_t<OutputSize == 1, Scalar,
-                           typename EvaluatorTraits::DenseVector>;
-
-    using JacobianType =
-        std::conditional_t<OutputSize == 1,
-                           typename EvaluatorTraits::VectorType,
-                           typename EvaluatorTraits::MatrixType>;
-
+    /// @brief The output type for the evaluator
+    using OutputType = typename EvaluatorTraits::DenseVector;
+    /// @brief The Jacobian type for the evaluator
+    using JacobianType = typename EvaluatorTraits::MatrixType;
+    /// @brief The Hessian type for the evaluator
     using HessianType = typename EvaluatorTraits::MatrixType;
 
-    EvaluatorDataTpl(const EvaluatorTpl<EvaluatorTraits, OutputSize> &e) {
-        const auto &nx = e.tangentSpaceDimension();
-        const auto &np = e.tangentSpaceDimension();
-        const auto &m = e.numOutputs();
-
-        if constexpr (OutputSize == 1) {
-            y = Scalar(0);
-        } else {
-            y = DenseVector::Zero(m);
-        }
-
-        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
-            if constexpr (OutputSize == 1) {
-                Jx.resize(nx);
-                Jp.resize(np);
-            } else {
-                Jx.resize(m, nx);
-                Jp.resize(m, np);
-            }
-            Hxx.resize(nx, nx);
-            Hxp.resize(nx, np);
-            Hpp.resize(np, np);
-
-        } else {
-            if constexpr (OutputSize == 1) {
-                // If scalar output, Jacobian is a vector (i.e. a gradient)
-                Jx = JacobianType::Zero(nx);
-                Jp = JacobianType::Zero(np);
-            } else {
-                Jx = JacobianType::Zero(m, nx);
-                Jp = JacobianType::Zero(m, np);
-            }
-
-            Hxx = HessianType::Zero(nx, nx);
-            Hxp = HessianType::Zero(nx, np);
-            Hpp = HessianType::Zero(np, np);
-        }
-
-        // Set up data sparsity patterns
-        e.setDataSparsity(*this);
-    }
+    EvaluatorDataTpl(const EvaluatorTpl<EvaluatorTraits, OutputSize> &e);
 
     /// @brief Output y
     OutputType y;
@@ -76,6 +43,42 @@ struct EvaluatorDataTpl {
     JacobianType Jx;
     /// @brief Jacobian ∂y/∂p
     JacobianType Jp;
+
+    /// @brief Lower-triangular Hessian matrix ∂²(λᵀy)/∂x²
+    HessianType Hxx;
+    /// @brief Lower-triangular Hessian matrix ∂²(λᵀy)/∂x∂p
+    HessianType Hxp;
+    /// @brief Lower-triangular Hessian matrix ∂²(λᵀy)/∂p²
+    HessianType Hpp;
+};
+
+/**
+ * @brief Template specialisation for scalar outputs
+ *
+ * @tparam EvaluatorTraits
+ */
+template <typename EvaluatorTraits>
+struct EvaluatorDataTpl<EvaluatorTraits, 1> {
+    using Scalar = typename EvaluatorTraits::Scalar;
+
+    using DenseVector = typename EvaluatorTraits::DenseVector;
+
+    /// @brief The output type for the evaluator
+    using OutputType = Scalar;
+    /// @brief The gradient type for the evaluator
+    using GradientType = typename EvaluatorTraits::VectorType;
+    /// @brief The Hessian type for the evaluator
+    using HessianType = typename EvaluatorTraits::MatrixType;
+
+    EvaluatorDataTpl(const EvaluatorTpl<EvaluatorTraits, 1> &e);
+
+    /// @brief Output y
+    OutputType y;
+
+    /// @brief Gradient ∂y/∂x
+    GradientType gx;
+    /// @brief Gradient ∂y/∂p
+    GradientType gp;
 
     /// @brief Lower-triangular Hessian matrix ∂²(λᵀy)/∂x²
     HessianType Hxx;
@@ -102,33 +105,7 @@ struct LinearEvaluatorDataTpl
     using HessianType = typename Base::HessianType;
 
     LinearEvaluatorDataTpl(
-        const LinearEvaluatorTpl<EvaluatorTraits, OutputSize> &e)
-        : EvaluatorDataTpl<EvaluatorTraits, OutputSize>(e) {
-        const auto &nx = e.tangentSpaceDimension();
-        const auto &np = e.tangentSpaceDimension();
-        const auto &m = e.numOutputs();
-
-        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
-            if constexpr (OutputSize == 1) {
-                A.resize(nx);
-                b = Scalar(0);
-            } else {
-                A.resize(m, nx);
-                b = OutputType::Zero(m);
-            }
-        } else {
-            if constexpr (OutputSize == 1) {
-                A = JacobianType::Zero(nx);
-                b = Scalar(0);
-            } else {
-                A = JacobianType::Zero(m, nx);
-                b = OutputType::Zero(m);
-            }
-        }
-
-        // Set up data sparsity patterns
-        e.setDataSparsity(*this);
-    }
+        const LinearEvaluatorTpl<EvaluatorTraits, OutputSize> &e);
 
     /// @brief Coefficient matrix A
     JacobianType A;
@@ -137,44 +114,54 @@ struct LinearEvaluatorDataTpl
 };
 
 /**
- * @brief Evaluator data struct for evaluation of EvaluatorTpl classes.
+ * @brief Template specialisation for scalar outputs
  *
  * @tparam EvaluatorTraits Traits of the evaluator function
  * @tparam OutputSize The dimension of the output
  */
 template <typename EvaluatorTraits>
-struct QuadraticEvaluatorDataTpl : public EvaluatorDataTpl<EvaluatorTraits, 1> {
-    using Base = EvaluatorDataTpl<EvaluatorTraits, OutputSize>;
-    using Scalar = typename Base::Scalar;
+struct LinearEvaluatorDataTpl<EvaluatorTraits, 1>
+    : public EvaluatorDataTpl<EvaluatorTraits, 1> {
+    using Base = EvaluatorDataTpl<EvaluatorTraits, 1>;
+
+    using DenseVector = typename Base::DenseVector;
     using OutputType = typename Base::OutputType;
-    using JacobianType = typename Base::JacobianType;
+    using GradientType = typename Base::GradientType;
     using HessianType = typename Base::HessianType;
 
-    QuadraticEvaluatorDataTpl(
-        const EvaluatorTpl<EvaluatorTraits, OutputSize> &e)
-        : EvaluatorDataTpl<EvaluatorTraits, OutputSize>(e) {
-        const auto &nx = e.tangentSpaceDimension();
-        const auto &m = e.numOutputs();
+    LinearEvaluatorDataTpl(const LinearEvaluatorTpl<EvaluatorTraits, 1> &e);
 
-        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
-            A.resize(nx, nx);
-            b.resize(nx);
-        } else {
-            A = HessianType::Zero(nx, nx);
-            b = JacobianType::Zero(nx);
-        }
-        c = Scalar(0);
+    /// @brief Coefficient vector a
+    GradientType a;
+    /// @brief Constant vector b
+    OutputType b;
+};
 
-        // Set up data sparsity patterns
-        e.setDataSparsity(*this);
-    }
+/**
+ * @brief Evaluator data for scalar quadratic expressions of the form (1/2) xᵀ
+ * Aₚ x + bₚᵀ x + cₚ
+ *
+ * @tparam EvaluatorTraits Traits of the evaluator function
+ */
+template <typename EvaluatorTraits>
+struct QuadraticEvaluatorDataTpl : public EvaluatorDataTpl<EvaluatorTraits, 1> {
+    using Base = EvaluatorDataTpl<EvaluatorTraits, 1>;
+    using Scalar = typename Base::Scalar;
+    using OutputType = typename Base::OutputType;
+    using GradientType = typename Base::GradientType;
+    using HessianType = typename Base::HessianType;
+
+    QuadraticEvaluatorDataTpl(const EvaluatorTpl<EvaluatorTraits, 1> &e);
 
     /// @brief Coefficient matrix A
     HessianType A;
     /// @brief Coefficient vector b
-    JacobianType b;
+    GradientType b;
     /// @brief Constant vector c
     OutputType c;
 };
 
 }  // namespace bopt
+
+// -------------------- Details -------------------------- //
+#include "bopt/EvaluatorData.hxx"

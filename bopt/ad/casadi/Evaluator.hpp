@@ -90,7 +90,7 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<EvaluatorTraits> {
     void evalJacobiansImpl(const InputVectorConstRef &x, Data &data,
                            bool compute_x, bool compute_p) const override {
         std::vector<Scalar *> out = {nullptr, nullptr};
-        if constexpr (EvaluatorTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
             if (compute_x) out[0] = data.Jx.valuePtr();
             if (compute_p) out[1] = data.Jp.valuePtr();
         } else {
@@ -112,7 +112,7 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<EvaluatorTraits> {
                           bool compute_xx, bool compute_xp,
                           bool compute_pp) const override {
         std::vector<Scalar *> out = {nullptr, nullptr, nullptr};
-        if constexpr (EvaluatorTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
             if (compute_xx) out[0] = data.Hxx.valuePtr();
             if (compute_xp) out[1] = data.Hxp.valuePtr();
             if (compute_pp) out[2] = data.Hpp.valuePtr();
@@ -127,7 +127,7 @@ class EvaluatorTpl : public bopt::EvaluatorTpl<EvaluatorTraits> {
 
     // Sparsity patterns
     void setDataSparsityImpl(Data &data) const override {
-        if constexpr (EvaluatorTraits::type == "Sparse") {
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
             setupSparseEigenMatrix(data.Jx, J.sparsity_out(0));
             setupSparseEigenMatrix(data.Jp, J.sparsity_out(1));
             setupSparseEigenMatrix(data.Hxx, H.sparsity_out(0));
@@ -150,6 +150,8 @@ using SparseEvaluatorTpl = EvaluatorTpl<SparseEvaluatorTraits<Scalar>>;
 
 using DenseEvaluator = DenseEvaluatorTpl<Real>;
 using SparseEvaluator = SparseEvaluatorTpl<Real>;
+
+// todo - linear and quadratic evaluator
 
 }  // namespace casadi
 }  // namespace bopt

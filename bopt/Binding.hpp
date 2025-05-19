@@ -20,11 +20,11 @@ template <typename EvaluatorType>
 class Binding {
    public:
     using Evaluator = EvaluatorType;
+    using EvaluatorPtr = std::shared_ptr<Evaluator>;
+
     /// @brief Evaluator data used to compute the main components of the
     /// function
     using Data = typename EvaluatorType::Data;
-
-    using EvaluatorPtr = std::shared_ptr<Evaluator>;
     using DataPtr = std::shared_ptr<Data>;
 
    public:
