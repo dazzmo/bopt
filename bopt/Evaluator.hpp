@@ -88,7 +88,7 @@ class EvaluatorBase {
      *
      * @param dim Dimension of the vector
      */
-    void setParameterDimension(const Index &dim) {
+    void setNumParameters(const Index &dim) {
         n_parameters_ = dim;
         parameters_ = ParameterVector::Zero(dim);
     }
@@ -114,7 +114,7 @@ template <typename EvaluatorTraits, int OutputSize = Eigen::Dynamic>
 class EvaluatorTpl : public EvaluatorBase {
    public:
     using Scalar = typename EvaluatorTraits::Scalar;
-
+    using Traits = EvaluatorTraits;
     using DenseVector = typename EvaluatorTraits::DenseVector;
     using InputVector = typename EvaluatorTraits::InputVector;
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
@@ -122,7 +122,9 @@ class EvaluatorTpl : public EvaluatorBase {
     /// @brief The standard type of data to be used for the evaluation functions
     using Data = EvaluatorDataTpl<EvaluatorTraits, OutputSize>;
 
-    Data createData() const { return Data(*this); }
+    std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
 
     /**
      * @brief Set the sparsity of any entries within the provided data
@@ -218,7 +220,7 @@ template <typename EvaluatorTraits>
 class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
    public:
     using Scalar = typename EvaluatorTraits::Scalar;
-
+    using Traits = EvaluatorTraits;
     using DenseVector = typename EvaluatorTraits::DenseVector;
     using InputVector = typename EvaluatorTraits::InputVector;
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
@@ -226,7 +228,9 @@ class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
     /// @brief The standard type of data to be used for the evaluation functions
     using Data = EvaluatorDataTpl<EvaluatorTraits, 1>;
 
-    Data createData() const { return Data(*this); }
+    std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
 
     /**
      * @brief Set the sparsity of any entries within the provided data
@@ -347,6 +351,7 @@ class PolynomialEvaluatorTpl
     : public EvaluatorTpl<EvaluatorTraits, OutputSize> {
    public:
     using Base = EvaluatorTpl<EvaluatorTraits, OutputSize>;
+    using Traits = typename Base::Traits;
     /// @brief Data type for the polynomial data for computation of the
     /// coefficients
     using Data = DataType;
@@ -357,11 +362,11 @@ class PolynomialEvaluatorTpl
                            const String &description = "")
         : Base(n_in, n_out, description) {}
 
-    Data createData() const { return Data(*this); }
-
+    void setDataSparsity(Data &data) const { setDataSparsityImpl(data); }
     void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
    protected:
+    virtual void setDataSparsityImpl(Data &data) const {}
     virtual void evalCoefficientsImpl(Data &data) const {}
 };
 
@@ -370,6 +375,7 @@ class PolynomialEvaluatorTpl<DataType, EvaluatorTraits, 1>
     : public EvaluatorTpl<EvaluatorTraits, 1> {
    public:
     using Base = EvaluatorTpl<EvaluatorTraits, 1>;
+    using Traits = typename Base::Traits;
     /// @brief Data type for the polynomial data for computation of the
     /// coefficients
     using Data = DataType;
@@ -379,11 +385,11 @@ class PolynomialEvaluatorTpl<DataType, EvaluatorTraits, 1>
     PolynomialEvaluatorTpl(const Size &n_in, const String &description = "")
         : Base(n_in, description) {}
 
-    Data createData() const { return Data(*this); }
-
+    void setDataSparsity(Data &data) const { setDataSparsityImpl(data); }
     void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
 
    protected:
+    virtual void setDataSparsityImpl(Data &data) const {}
     virtual void evalCoefficientsImpl(Data &data) const {}
 };
 
@@ -397,9 +403,17 @@ class LinearEvaluatorTpl
         OutputSize>;
 
    public:
+    using Data = typename Base::Data;
+    using EvaluatorData = typename Base::EvaluatorData;
+    using Traits = typename Base::Traits;
+
     LinearEvaluatorTpl(const Size &n_in, const Size &n_out,
                        const String &description = "")
         : Base(n_in, n_out, description) {}
+
+    std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
 };
 
 template <typename EvaluatorTraits>
@@ -411,8 +425,16 @@ class LinearEvaluatorTpl<EvaluatorTraits, 1>
                                EvaluatorTraits, 1>;
 
    public:
+    using Data = typename Base::Data;
+    using EvaluatorData = typename Base::EvaluatorData;
+    using Traits = typename Base::Traits;
+
     LinearEvaluatorTpl(const Size &n_in, const String &description = "")
         : Base(n_in, description) {}
+
+    std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
 };
 
 /**
@@ -423,6 +445,12 @@ class LinearEvaluatorTpl<EvaluatorTraits, 1>
 template <typename EvaluatorTraits>
 class QuadraticEvaluatorTpl
     : public PolynomialEvaluatorTpl<QuadraticEvaluatorDataTpl<EvaluatorTraits>,
-                                    EvaluatorTraits, 1> {};
+                                    EvaluatorTraits, 1> {
+   public:
+    using Base =
+        PolynomialEvaluatorTpl<QuadraticEvaluatorDataTpl<EvaluatorTraits>,
+                               EvaluatorTraits, 1>;
+    using Traits = typename Base::Traits;
+};
 
 }  // namespace bopt

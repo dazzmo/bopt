@@ -2,11 +2,11 @@
 
 #include <variant>
 
-#include "bopt/Common.hpp"
-#include "bopt/Logging.hpp"
 #include "bopt/Binding.hpp"
+#include "bopt/Common.hpp"
 #include "bopt/Constraints.hpp"
 #include "bopt/Costs.hpp"
+#include "bopt/Logging.hpp"
 // #include "bopt/profiler.hpp"
 
 namespace bopt {
@@ -30,6 +30,8 @@ class MathematicalProgram {
         std::variant<Binding<DenseConstraint>, Binding<SparseConstraint>,
                      Binding<DenseLinearConstraint>,
                      Binding<SparseLinearConstraint>>;
+
+    using VectorXd = typename MathTypes<Real>::VectorX;
 
    public:
     /**
@@ -75,9 +77,7 @@ class MathematicalProgram {
         Index m = 0;
         for (const auto &constraint : constraint_bindings_) {
             std::visit(
-                [&](auto &&binding) {
-                    m += binding.get()->numOutputs();
-                },
+                [&](auto &&binding) { m += binding.get()->numOutputs(); },
                 constraint);
         }
         return m;
@@ -108,7 +108,7 @@ class MathematicalProgram {
         // Create variable
         Variable v(name);
         // Add variable to map
-        variable_index_map_.insert({v.id(), variables_.size()});
+        variable_index_map_.insert({v.getId(), variables_.size()});
         variables_.push_back(v);
 
         // Update decision variable vector sizes
@@ -134,7 +134,7 @@ class MathematicalProgram {
     const std::vector<Variable> &getAllVariables() const { return variables_; }
 
     Index getVariableIndex(const Variable &v) const {
-        const auto &it = variable_index_map_.find(v.id());
+        const auto &it = variable_index_map_.find(v.getId());
         if (it != variable_index_map_.end()) {
             return it->second;
         }
@@ -174,56 +174,44 @@ class MathematicalProgram {
      * @param data
      * @param x
      */
+    template <typename EvaluatorTraits>
     void addLinearCost(
-        const std::shared_ptr<DenseLinearCost> &cost,
-        const std::shared_ptr<typename DenseLinearCost::Data> &data,
+        const std::shared_ptr<LinearCostTpl<EvaluatorTraits>> &cost,
+        const std::shared_ptr<typename LinearCostTpl<EvaluatorTraits>::Data>
+            &data,
         const Eigen::Ref<const VariableVector> &x) {
         // Create binding
-        this->addCost<DenseLinearCost>(cost, data, x);
+        this->addCost<LinearCostTpl<EvaluatorTraits>>(cost, data, x);
     }
 
-    /**
-     * @brief Add a sparse linear cost to the program
-     *
-     * @param cost
-     * @param data
-     * @param x
-     */
-    void addLinearCost(
-        const std::shared_ptr<SparseLinearCost> &cost,
-        const std::shared_ptr<typename SparseLinearCost::Data> &data,
-        const Eigen::Ref<const VariableVector> &x) {
-        this->addCost<SparseLinearCost>(cost, data, x);
-    }
+    // /**
+    //  * @brief Add a dense linear cost to the program
+    //  *
+    //  * @param cost
+    //  * @param data
+    //  * @param x
+    //  */
+    // void addQuadraticCost(
+    //     const std::shared_ptr<DenseQuadraticCost> &cost,
+    //     const std::shared_ptr<typename DenseQuadraticCost::Data> &data,
+    //     const Eigen::Ref<const VariableVector> &x) {
+    //     // Create binding
+    //     this->addCost<DenseQuadraticCost>(cost, data, x);
+    // }
 
-    /**
-     * @brief Add a dense linear cost to the program
-     *
-     * @param cost
-     * @param data
-     * @param x
-     */
-    void addQuadraticCost(
-        const std::shared_ptr<DenseQuadraticCost> &cost,
-        const std::shared_ptr<typename DenseQuadraticCost::Data> &data,
-        const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        this->addCost<DenseQuadraticCost>(cost, data, x);
-    }
-
-    /**
-     * @brief Add a sparse Quadratic cost to the program
-     *
-     * @param cost
-     * @param data
-     * @param x
-     */
-    void addQuadraticCost(
-        const std::shared_ptr<SparseQuadraticCost> &cost,
-        const std::shared_ptr<typename SparseQuadraticCost::Data> &data,
-        const Eigen::Ref<const VariableVector> &x) {
-        this->addCost<SparseQuadraticCost>(cost, data, x);
-    }
+    // /**
+    //  * @brief Add a sparse Quadratic cost to the program
+    //  *
+    //  * @param cost
+    //  * @param data
+    //  * @param x
+    //  */
+    // void addQuadraticCost(
+    //     const std::shared_ptr<SparseQuadraticCost> &cost,
+    //     const std::shared_ptr<typename SparseQuadraticCost::Data> &data,
+    //     const Eigen::Ref<const VariableVector> &x) {
+    //     this->addCost<SparseQuadraticCost>(cost, data, x);
+    // }
 
     /**
      * @brief Add a constraint to the program, bound to the provided variables.
@@ -270,25 +258,25 @@ class MathematicalProgram {
         this->addConstraint<SparseLinearConstraint>(constraint, data, x);
     }
 
-    void addBoundingBoxConstraint(
-        const std::shared_ptr<DenseBoundingBoxConstraint> &constraint,
-        const std::shared_ptr<typename DenseBoundingBoxConstraint::Data> &data,
-        const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        bb_constraint_bindings_.push_back(Binding<DenseBoundingBoxConstraint>(
-            constraint, data, getVariableIndices(x)));
-    }
+    // void addBoundingBoxConstraint(
+    //     const std::shared_ptr<DenseBoundingBoxConstraint> &constraint,
+    //     const std::shared_ptr<typename DenseBoundingBoxConstraint::Data> &data,
+    //     const Eigen::Ref<const VariableVector> &x) {
+    //     // Create binding
+    //     bb_constraint_bindings_.push_back(Binding<DenseBoundingBoxConstraint>(
+    //         constraint, data, getVariableIndices(x)));
+    // }
 
-    void addBoundingBoxConstraint(const Eigen::Ref<const VariableVector> &x,
-                                  const Eigen::Ref<const Eigen::VectorXd> &lb,
-                                  const Eigen::Ref<const Eigen::VectorXd> &ub) {
-        // Create binding
-        auto constraint =
-            std::make_shared<DenseBoundingBoxConstraint>(x.rows(), lb, ub);
-        auto data = constraint->createData();
-        bb_constraint_bindings_.push_back(Binding<DenseBoundingBoxConstraint>(
-            constraint, data, getVariableIndices(x)));
-    }
+    // void addBoundingBoxConstraint(const Eigen::Ref<const VariableVector> &x,
+    //                               const Eigen::Ref<const Eigen::VectorXd> &lb,
+    //                               const Eigen::Ref<const Eigen::VectorXd> &ub) {
+    //     // Create binding
+    //     auto constraint =
+    //         std::make_shared<DenseBoundingBoxConstraint>(x.rows(), lb, ub);
+    //     auto data = constraint->createData();
+    //     bb_constraint_bindings_.push_back(Binding<DenseBoundingBoxConstraint>(
+    //         constraint, data, getVariableIndices(x)));
+    // }
 
     /**
      * @brief Get all cost bindings of a specific type, note that this will
@@ -346,10 +334,10 @@ class MathematicalProgram {
         return vec;
     }
 
-    std::vector<Binding<DenseBoundingBoxConstraint>> getBoundingBoxConstraints()
-        const {
-        return bb_constraint_bindings_;
-    }
+    // std::vector<Binding<DenseBoundingBoxConstraint>> getBoundingBoxConstraints()
+    //     const {
+    //     return bb_constraint_bindings_;
+    // }
 
    protected:
    private:
@@ -370,8 +358,8 @@ class MathematicalProgram {
 
     std::vector<CostVariant> cost_bindings_ = {};
     std::vector<ConstraintVariant> constraint_bindings_ = {};
-    std::vector<Binding<DenseBoundingBoxConstraint>> bb_constraint_bindings_ =
-        {};
+    // std::vector<Binding<DenseBoundingBoxConstraint>> bb_constraint_bindings_ =
+    //     {};
 };
 
 std::ostream &operator<<(std::ostream &os, const MathematicalProgram &program);

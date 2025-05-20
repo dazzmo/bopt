@@ -11,7 +11,7 @@ struct CostTpl;
 template <typename EvaluatorTraits>
 struct CostDataTpl : public EvaluatorDataTpl<EvaluatorTraits, 1> {
     CostDataTpl(const CostTpl<EvaluatorTraits> &c)
-        : EvaluatorDataTpl<EvaluatorTraits>(c.getEvaluator()) {}
+        : EvaluatorDataTpl<EvaluatorTraits, 1>(c.getEvaluator()) {}
 };
 
 }  // namespace bopt

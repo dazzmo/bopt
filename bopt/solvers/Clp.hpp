@@ -51,7 +51,7 @@ class ClpSolver {
 
         {
             VLOG(10) << "Clp:linear costs";
-            bopt::profiler profiler("Clp: linear costs");
+            bopt::Profiler profiler("Clp: linear costs");
             // Dense costs
             for (auto& binding : dense_linear_costs_) {
                 const auto& cost = binding.get();
@@ -70,8 +70,8 @@ class ClpSolver {
                 cost->evalCoefficients(*d);
 
                 for (int k = 0; k < d->a.outerSize(); ++k) {
-                    for (SparseEvaluatorTraits<Real>::OutputVector::InnerIterator
-                             it(d->a, k);
+                    for (SparseEvaluatorTraits<
+                             Real>::OutputVector::InnerIterator it(d->a, k);
                          it; ++it) {
                         c[indices[it.row()]] += it.value();
                     }
@@ -86,7 +86,7 @@ class ClpSolver {
         /** Linear constraints **/
         {
             VLOG(10) << "Clp:linear constraints";
-            bopt::profiler profiler("Clp: linear constraints");
+            bopt::Profiler profiler("Clp: linear constraints");
 
             Index c_idx = 0;
 

@@ -11,7 +11,7 @@
 namespace bopt {
 
 /**
- * @brief Class to bind an evaluator-based object to a sequence of input
+ * @brief Class to bind an evaluator-based object to a set of input
  * variables as well as the data used to evaluate it.
  *
  * @tparam EvaluatorType
@@ -63,7 +63,8 @@ class Binding {
                                       typename Binding<Evaluator>::DataPtr>> * =
                 nullptr)
         : Binding(static_cast<EvaluatorPtr>(b.get()),
-                  static_cast<DataPtr>(b.data()), b.indices().indices()) {}
+                  static_cast<DataPtr>(b.getData()),
+                  b.getIndexManager().getIndices()) {}
 
     EvaluatorPtr get() const { return evaluator_; }
 
@@ -83,8 +84,8 @@ class Binding {
      *
      * @return DataPtr
      */
-    DataPtr &data() { return data_; }
-    const DataPtr &data() const { return data_; }
+    DataPtr &getData() { return data_; }
+    const DataPtr &getData() const { return data_; }
 
    private:
     EvaluatorPtr evaluator_;

@@ -3,7 +3,8 @@
 
 #include <Eigen/Core>
 
-#include "bopt/ad/casadi.hpp"
+#include "bopt/Profiler.hpp"
+#include "bopt/ad/Casadi.hpp"
 
 using sym = ::casadi::SX;
 using dm = ::casadi::DM;
@@ -18,30 +19,18 @@ TEST(Casadi, Evaluator) {
         ex(i) = sin(p(i)) * x(i);
     }
 
-    auto e = bopt::casadi::DenseEvaluatorTpl<double>(ex, x, p, true);
+    auto e = bopt::casadi::DenseLinearEvaluator<Eigen::Dynamic>(ex, x, p, true);
     auto d = e.createData();
-}
-
-TEST(Casadi, Cost) {
-    std::size_t n = 2;
-    sym x = sym::sym("x", n);
-    sym p = sym::sym("p", n);
-    // Create symbolic constraint
-    sym ex = 0.0;
-    for (int i = 0; i < n; ++i) {
-        ex += sin(p(i)) * x(i);
+    Eigen::VectorXd v = Eigen::VectorXd::Random(n);
+    {
+        for (int i = 0; i < 1000; ++i) {
+            bopt::Profiler profiler("eval");
+            e.evalJacobians(v, *d, true, false);
+        }
     }
-
-    std::cout << ex << std::endl;
-
-    auto e = bopt::casadi::DenseCost(ex, x, p, true);
-    auto d = e.createData();
-
-    EXPECT_EQ(d->Hxx.rows(), n);
-    EXPECT_EQ(d->Hxx.cols(), n);
 }
 
-TEST(Casadi, Constraint) {
+TEST(Casadi, LinearEvaluator) {
     std::size_t n = 10;
     sym x = sym::sym("x", n);
     sym p = sym::sym("p", n);
@@ -51,34 +40,77 @@ TEST(Casadi, Constraint) {
         ex(i) = sin(p(i)) * x(i);
     }
 
-    sym lb = -10 * sym::ones(n);
-    sym ub = 10 * sym::ones(n);
+    auto e =
+        bopt::casadi::SparseLinearEvaluator<Eigen::Dynamic>(ex, x, p, true);
+    auto d = e.createData();
 
-    auto c = bopt::SparseConstraint(
-        std::make_shared<bopt::casadi::SparseEvaluator>(ex, x, p, false),
-        0.0, 1.0);
-    auto d = c.createData();
-
-    auto c1 = bopt::casadi::SparseConstraint(ex, x, p, lb, ub, false);
-    auto d1 = c1.createData();
-
-    c.evalBounds(*d);
-
-    std::cout << d->lb << std::endl;
-    std::cout << d->ub << std::endl;
-
-    c.setBounds(bopt::ConstraintBounds::NEGATIVE);
-    c.evalBounds(*d);
-
-    std::cout << d->lb << std::endl;
-    std::cout << d->ub << std::endl;
-
-    c.setBounds(-1.0, 0.0);
-    c.evalBounds(*d);
-
-    std::cout << d->lb << std::endl;
-    std::cout << d->ub << std::endl;
+    bopt::Logger::info() << d->A;
+    bopt::Logger::info() << d->b;
+    {
+        for (int i = 0; i < 1000; ++i) {
+            bopt::Profiler profiler("eval sparse");
+            e.evalCoefficients(*d);
+        }
+    }
 }
+
+// TEST(Casadi, Cost) {
+//     std::size_t n = 2;
+//     sym x = sym::sym("x", n);
+//     sym p = sym::sym("p", n);
+//     // Create symbolic constraint
+//     sym ex = 0.0;
+//     for (int i = 0; i < n; ++i) {
+//         ex += sin(p(i)) * x(i);
+//     }
+
+//     std::cout << ex << std::endl;
+
+//     auto e = bopt::casadi::DenseCost(ex, x, p, true);
+//     auto d = e.createData();
+
+//     EXPECT_EQ(d->Hxx.rows(), n);
+//     EXPECT_EQ(d->Hxx.cols(), n);
+// }
+
+// TEST(Casadi, Constraint) {
+//     std::size_t n = 10;
+//     sym x = sym::sym("x", n);
+//     sym p = sym::sym("p", n);
+//     // Create symbolic constraint
+//     sym ex = x;
+//     for (int i = 0; i < n; ++i) {
+//         ex(i) = sin(p(i)) * x(i);
+//     }
+
+//     sym lb = -10 * sym::ones(n);
+//     sym ub = 10 * sym::ones(n);
+
+//     auto c = bopt::SparseConstraint(
+//         std::make_shared<bopt::casadi::SparseEvaluator>(ex, x, p, false),
+//         0.0, 1.0);
+//     auto d = c.createData();
+
+//     auto c1 = bopt::casadi::SparseConstraint(ex, x, p, lb, ub, false);
+//     auto d1 = c1.createData();
+
+//     c.evalBounds(*d);
+
+//     std::cout << d->lb << std::endl;
+//     std::cout << d->ub << std::endl;
+
+//     c.setBounds(bopt::ConstraintBounds::NEGATIVE);
+//     c.evalBounds(*d);
+
+//     std::cout << d->lb << std::endl;
+//     std::cout << d->ub << std::endl;
+
+//     c.setBounds(-1.0, 0.0);
+//     c.evalBounds(*d);
+
+//     std::cout << d->lb << std::endl;
+//     std::cout << d->ub << std::endl;
+// }
 
 // TEST(Casadi, Cost) {
 //     // Create variable vector and parameters
@@ -195,6 +227,6 @@ int main(int argc, char **argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
     int status = RUN_ALL_TESTS();
-    // bopt::profiler summary;
+    bopt::Profiler summary;
     return status;
 }

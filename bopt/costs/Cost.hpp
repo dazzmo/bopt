@@ -35,7 +35,17 @@ class CostTpl {
     CostTpl(const std::shared_ptr<Evaluator> &evaluator)
         : name_(""), evaluator_(evaluator) {}
 
-    Data createData() const { return Data(*this); }
+    std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
+
+    Size numInputs() const { return evaluator_->numInputs(); }
+    Size dimInputTangentSpace() const {
+        return evaluator_->dimInputTangentSpace();
+    }
+    Size numParameters() const { return evaluator_->numParameters(); }
+
+    Size numOutputs() const { return evaluator_->numOutputs(); }
 
     /**
      * @brief Name of the constraint
@@ -104,11 +114,9 @@ using SparseCostTpl = CostTpl<SparseEvaluatorTraits<Scalar>>;
 using SparseCost = SparseCostTpl<Real>;
 
 template <typename EvaluatorType>
-class PolynomialCostTpl
-    : public CostTpl<typename EvaluatorType::EvaluatorTraits> {
+class PolynomialCostTpl : public CostTpl<typename EvaluatorType::Traits> {
    public:
-    using Base = CostTpl<typename EvaluatorType::EvaluatorTraits>;
-    using EvaluatorData = typename Base::EvaluatorData;
+    using Base = CostTpl<typename EvaluatorType::Traits>;
     using Data = typename EvaluatorType::Data;
 
     PolynomialCostTpl(const std::shared_ptr<EvaluatorType> &evaluator)
@@ -117,6 +125,8 @@ class PolynomialCostTpl
     void setDataSparsity(Data &data) const {
         evaluator_->setDataSparsity(data);
     }
+
+    Data createData() const { return Data(this->getEvaluator()); }
 
     /**
      * @brief Returns the evaluator for the function

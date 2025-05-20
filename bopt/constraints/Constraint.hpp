@@ -48,7 +48,15 @@ class ConstraintTpl {
                   const std::shared_ptr<BoundEvaluator> &bound_evaluator)
         : name_(""), evaluator_(evaluator), bound_evaluator_(bound_evaluator) {}
 
-    Data createData() const { return Data(*this); }
+    Size numInputs() const { return evaluator_->numInputs(); }
+    Size dimInputTangentSpace() const {
+        return evaluator_->dimInputTangentSpace();
+    }
+    Size numParameters() const { return evaluator_->numParameters(); }
+
+    Size numOutputs() const { return evaluator_->numOutputs(); }
+
+    std::shared_ptr<Data> createData() const {return std::make_shared<Data>(*this);}
 
     /**
      * @brief Name of the constraint
@@ -144,10 +152,9 @@ using SparseConstraint = SparseConstraintTpl<Real>;
 
 template <typename EvaluatorType>
 class PolynomialConstraintTpl
-    : public ConstraintTpl<typename EvaluatorType::EvaluatorTraits> {
+    : public ConstraintTpl<typename EvaluatorType::Traits> {
    public:
-    using Base = ConstraintTpl<typename EvaluatorType::EvaluatorTraits>;
-    using EvaluatorData = typename Base::EvaluatorData;
+    using Base = ConstraintTpl<typename EvaluatorType::Traits>;
     using Data = typename EvaluatorType::Data;
 
     PolynomialConstraintTpl(const std::shared_ptr<EvaluatorType> &evaluator)
