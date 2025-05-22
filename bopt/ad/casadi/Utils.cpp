@@ -38,39 +38,40 @@ Function codegen(const Function &f) {
     }
 
     // Provide dynamic library handler for the provided shared library
-    Function ret = ::casadi::external(f.name(), name + ".so");
+    Function function = ::casadi::external(f.name(), name + ".so");
 
     // Return back to normal path
     std::filesystem::current_path(path);
 
-    return ret;
+    return function;
 }
 
-void setupSparseEigenMatrix(Eigen::SparseMatrix<double> &out,
-                        const ::casadi::Sparsity &sparsity) {
+
+void setupSparseEigenMatrix(Eigen::SparseMatrix<Real> &out,
+                            const ::casadi::Sparsity &sparsity) {
     // Use casadi information
     std::vector<casadi_int> output_row, output_col;
     sparsity.get_triplet(output_row, output_col);
 
-    std::vector<Eigen::Triplet<double>> triplets;
+    std::vector<Eigen::Triplet<Real>> triplets;
     triplets.resize(sparsity.nnz());
 
     for (int k = 0; k < sparsity.nnz(); ++k)
-        triplets[k] = Eigen::Triplet<double>(output_row[k], output_col[k]);
+        triplets[k] = Eigen::Triplet<Real>(output_row[k], output_col[k]);
 
     out.resize(sparsity.rows(), sparsity.columns());
     out.setFromTriplets(triplets.begin(), triplets.end());
     out.makeCompressed();
 }
 
-void setupSparseEigenMatrix(Eigen::SparseVector<double> &out,
-                        const ::casadi::Sparsity &sparsity) {
+void setupSparseEigenMatrix(Eigen::SparseVector<Real> &out,
+                            const ::casadi::Sparsity &sparsity) {
     // todo - make sure that sparsity pattern is a column vector
     // Use casadi information
     std::vector<casadi_int> output_row, output_col;
     sparsity.get_triplet(output_row, output_col);
 
-    std::vector<Eigen::Triplet<double>> triplets;
+    std::vector<Eigen::Triplet<Real>> triplets;
     triplets.resize(sparsity.nnz());
 
     out.reserve(sparsity.nnz());

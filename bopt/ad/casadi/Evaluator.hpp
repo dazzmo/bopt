@@ -71,7 +71,7 @@ class FunctionGenerator {
 };
 
 /**
- * @brief Casadi function evaluator
+ * @brief Casadi function evaluator for scalar functions
  *
  * @tparam EvaluatorTraits
  * @tparam OutputSize

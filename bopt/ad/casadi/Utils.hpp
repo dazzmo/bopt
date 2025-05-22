@@ -3,6 +3,8 @@
 #include <Eigen/Sparse>
 #include <casadi/casadi.hpp>
 
+#include "bopt/Types.hpp"
+
 namespace bopt {
 namespace casadi {
 
@@ -25,11 +27,25 @@ typedef ::casadi::Function Function;
  */
 Function codegen(const Function &f);
 
-void setupSparseEigenMatrix(Eigen::SparseMatrix<double> &out,
-                        const ::casadi::Sparsity &sparsity);
+/**
+ * @brief Setup an Eigen::SparseMatrix object with the correct sparsity pattern
+ * specified by the casadi::Sparsity object
+ *
+ * @param out
+ * @param sparsity
+ */
+void setupSparseEigenMatrix(Eigen::SparseMatrix<Real> &out,
+                            const ::casadi::Sparsity &sparsity);
 
-void setupSparseEigenMatrix(Eigen::SparseVector<double> &out,
-                        const ::casadi::Sparsity &sparsity);
+/**
+ * @brief Setup an Eigen::SparseVector object with the correct sparsity pattern
+ * specified by the casadi::Sparsity object
+ *
+ * @param out
+ * @param sparsity
+ */
+void setupSparseEigenMatrix(Eigen::SparseVector<Real> &out,
+                            const ::casadi::Sparsity &sparsity);
 
 /**
  * @brief Create a casadi::Function with the provided inputs and outputs.

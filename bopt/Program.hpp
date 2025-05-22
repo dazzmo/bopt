@@ -7,7 +7,6 @@
 #include "bopt/Constraints.hpp"
 #include "bopt/Costs.hpp"
 #include "bopt/Logging.hpp"
-// #include "bopt/profiler.hpp"
 
 namespace bopt {
 

@@ -3,10 +3,8 @@
 
 #include <Eigen/Core>
 
-#include "bopt/Logging.hpp"
-#include "bopt/ad/casadi.hpp"
-#include "bopt/profiler.hpp"
-#include "bopt/program.hpp"
+#include "bopt/Bopt.hpp"
+#include "bopt/ad/Casadi.hpp"
 #include "bopt/solvers/Clp.hpp"
 
 TEST(Program, SimpleProgram) {

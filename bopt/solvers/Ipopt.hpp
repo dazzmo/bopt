@@ -6,8 +6,8 @@
 #include <coin-or/IpTNLP.hpp>
 
 #include "bopt/Logging.hpp"
-#include "bopt/profiler.hpp"
-#include "bopt/program.hpp"
+#include "bopt/Profiler.hpp"
+#include "bopt/Program.hpp"
 #include "bopt/solvers/base.hpp"
 
 namespace bopt {
