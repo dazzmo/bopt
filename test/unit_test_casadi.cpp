@@ -30,6 +30,27 @@ TEST(Casadi, Evaluator) {
     }
 }
 
+TEST(Casadi, LinearScalarEvaluator) {
+    std::size_t n = 10;
+    sym x = sym::sym("x", n);
+    sym p = sym::sym("p", n);
+    // Create symbolic constraint
+    sym ex = 0;
+    for (int i = 0; i < n; ++i) {
+        ex += sin(p(i)) * x(i);
+    }
+
+    auto e = bopt::casadi::SparseLinearEvaluator<1>(ex, x, p, true);
+    auto d = e.createData();
+
+    {
+        for (int i = 0; i < 1000; ++i) {
+            bopt::Profiler profiler("eval sparse");
+            e.evalCoefficients(*d);
+        }
+    }
+}
+
 TEST(Casadi, LinearEvaluator) {
     std::size_t n = 10;
     sym x = sym::sym("x", n);
@@ -44,8 +65,27 @@ TEST(Casadi, LinearEvaluator) {
         bopt::casadi::SparseLinearEvaluator<Eigen::Dynamic>(ex, x, p, true);
     auto d = e.createData();
 
-    bopt::Logger::info() << d->A;
-    bopt::Logger::info() << d->b;
+    {
+        for (int i = 0; i < 1000; ++i) {
+            bopt::Profiler profiler("eval sparse");
+            e.evalCoefficients(*d);
+        }
+    }
+}
+
+TEST(Casadi, QuadraticEvaluator) {
+    std::size_t n = 10;
+    sym x = sym::sym("x", n);
+    sym p = sym::sym("p", n);
+    // Create symbolic constraint
+    sym ex = 0;
+    for (int i = 0; i < n; ++i) {
+        ex += sin(p(i)) * x(i);
+    }
+
+    auto e = bopt::casadi::SparseQuadraticEvaluator(ex, x, p, true);
+    auto d = e.createData();
+
     {
         for (int i = 0; i < 1000; ++i) {
             bopt::Profiler profiler("eval sparse");

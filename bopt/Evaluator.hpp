@@ -450,7 +450,16 @@ class QuadraticEvaluatorTpl
     using Base =
         PolynomialEvaluatorTpl<QuadraticEvaluatorDataTpl<EvaluatorTraits>,
                                EvaluatorTraits, 1>;
+    using Data = typename Base::Data;
+    using EvaluatorData = typename Base::EvaluatorData;
     using Traits = typename Base::Traits;
+
+    QuadraticEvaluatorTpl(const Size &n_in, const String &description = "")
+        : Base(n_in, description) {}
+
+    std::shared_ptr<Data> createData() const {
+        return std::make_shared<Data>(*this);
+    }
 };
 
 }  // namespace bopt

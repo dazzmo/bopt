@@ -411,7 +411,7 @@ class LinearEvaluatorTpl<EvaluatorTraits, 1>
     LinearEvaluatorTpl(const SymbolicVector &expression,
                        const SymbolicVector &x, const SymbolicVector &p,
                        bool codegen = false)
-        : Base(x.rows(), expression.rows(), "CasADi generated evaluator"),
+        : Base(x.rows(), "CasADi generated evaluator"),
           internal::FunctionGenerator<EvaluatorTraits, 1>(expression, x, p,
                                                           codegen) {
         // Variables and parameters
@@ -444,7 +444,7 @@ class LinearEvaluatorTpl<EvaluatorTraits, 1>
    protected:
     void evalImpl(const InputVectorConstRef &x,
                   EvaluatorData &data) const override {
-        this->f({x.data(), this->getParameters().data()}, {data.y.data()});
+        this->f({x.data(), this->getParameters().data()}, {&data.y});
     }
 
     void evalGradientsImpl(const InputVectorConstRef &x, EvaluatorData &data,
@@ -512,6 +512,128 @@ using SparseLinearEvaluatorTpl =
     LinearEvaluatorTpl<SparseEvaluatorTraits<Scalar>, OutputSize>;
 template <int OutputSize = Eigen::Dynamic>
 using SparseLinearEvaluator = SparseLinearEvaluatorTpl<Real, OutputSize>;
+
+template <typename EvaluatorTraits>
+class QuadraticEvaluatorTpl
+    : public bopt::QuadraticEvaluatorTpl<EvaluatorTraits>,
+      public internal::FunctionGenerator<EvaluatorTraits, 1> {
+   public:
+    using Base = bopt::QuadraticEvaluatorTpl<EvaluatorTraits>;
+
+    using Scalar = typename Base::Scalar;
+
+    using InputVector = typename Base::InputVector;
+    using InputVectorConstRef = typename Base::InputVectorConstRef;
+
+    using Data = typename Base::Data;
+    using EvaluatorData = typename Base::EvaluatorData;
+
+    QuadraticEvaluatorTpl(const SymbolicVector &expression,
+                          const SymbolicVector &x, const SymbolicVector &p,
+                          bool codegen = false)
+        : Base(x.rows(), "CasADi generated evaluator"),
+          internal::FunctionGenerator<EvaluatorTraits, 1>(expression, x, p,
+                                                          codegen) {
+        // Variables and parameters
+        std::vector<SymbolicVector> in;
+        in = {p};
+        // Compute quadratic coefficients
+        Symbol A, b, c;
+        try {
+            Symbol::quadratic_coeff(expression, x, A, b, c, true);
+        } catch (std::exception &e) {
+            throw std::runtime_error(
+                "Expression provided is not quadratic in specified variable "
+                "x!");
+        }
+
+        if constexpr (EvaluatorTraits::type == FunctionType::DENSE) {
+            coefficients = Function(
+                "quadratic_coefficients", in,
+                {Symbol::densify(A), Symbol::densify(b), Symbol::densify(c)});
+        } else {
+            coefficients = Function("quadratic_coefficients", in,
+                                    {A, b, Symbol::densify(c)});
+        }
+
+        // If function is to be code-generated, do so.
+        if (codegen) {
+            coefficients = bopt::casadi::codegen(coefficients);
+        }
+    }
+
+   protected:
+    void evalImpl(const InputVectorConstRef &x,
+                  EvaluatorData &data) const override {
+        this->f({x.data(), this->getParameters().data()}, {&data.y});
+    }
+
+    void evalGradientsImpl(const InputVectorConstRef &x, EvaluatorData &data,
+                           bool compute_x, bool compute_p) const override {
+        std::vector<Scalar *> out = {nullptr, nullptr};
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
+            if (compute_x) out[0] = data.gx.valuePtr();
+            if (compute_p) out[1] = data.gp.valuePtr();
+        } else {
+            if (compute_x) out[0] = data.gx.data();
+            if (compute_p) out[1] = data.gp.data();
+        }
+
+        this->g({x.data(), this->getParameters().data()}, out);
+    }
+
+    void evalHessiansImpl(const InputVectorConstRef &x, EvaluatorData &data,
+                          bool compute_xx, bool compute_xp,
+                          bool compute_pp) const override {
+        std::vector<Scalar *> out = {nullptr, nullptr, nullptr};
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
+            if (compute_pp) out[2] = data.Hpp.valuePtr();
+        } else {
+            if (compute_pp) out[2] = data.Hpp.data();
+        }
+
+        this->H({x.data(), this->getParameters().data()}, out);
+    }
+
+    void evalCoefficientsImpl(Data &data) const {
+        std::vector<Scalar *> out = {nullptr, nullptr, nullptr};
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
+            out[0] = data.A.valuePtr();
+            out[1] = data.b.valuePtr();
+        } else {
+            out[0] = data.A.data();
+            out[1] = data.b.data();
+        }
+        out[2] = &data.c;
+
+        this->coefficients({this->getParameters().data()}, out);
+    }
+
+    void setDataSparsityImpl(Data &data) const override {
+        if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
+            setupSparseEigenMatrix(data.gx, this->g.sparsity_out(0));
+            setupSparseEigenMatrix(data.gp, this->g.sparsity_out(1));
+            setupSparseEigenMatrix(data.Hxx, this->H.sparsity_out(0));
+            setupSparseEigenMatrix(data.Hxp, this->H.sparsity_out(1));
+            setupSparseEigenMatrix(data.Hpp, this->H.sparsity_out(2));
+            setupSparseEigenMatrix(data.A, this->coefficients.sparsity_out(0));
+            setupSparseEigenMatrix(data.b, this->coefficients.sparsity_out(1));
+        }
+    }
+
+   private:
+    Function coefficients;
+};
+
+template <typename Scalar>
+using DenseQuadraticEvaluatorTpl =
+    QuadraticEvaluatorTpl<DenseEvaluatorTraits<Scalar>>;
+using DenseQuadraticEvaluator = DenseQuadraticEvaluatorTpl<Real>;
+
+template <typename Scalar>
+using SparseQuadraticEvaluatorTpl =
+    QuadraticEvaluatorTpl<SparseEvaluatorTraits<Scalar>>;
+using SparseQuadraticEvaluator = SparseQuadraticEvaluatorTpl<Real>;
 
 }  // namespace casadi
 }  // namespace bopt
