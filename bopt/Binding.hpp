@@ -42,7 +42,7 @@ class Binding {
     Binding(const std::shared_ptr<Evaluator> &ptr, const DataPtr &data,
             const std::vector<Eigen::Index> &indices)
         : evaluator_(ptr), data_(data), index_manager_(nullptr) {
-        assert(ptr->numInputs() == indices.size());
+        assert(ptr->inputSize() == indices.size());
         this->index_manager_ = std::make_shared<VariableIndexManager>(indices);
     }
 

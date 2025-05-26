@@ -76,7 +76,7 @@ class MathematicalProgram {
         Index m = 0;
         for (const auto &constraint : constraint_bindings_) {
             std::visit(
-                [&](auto &&binding) { m += binding.get()->numOutputs(); },
+                [&](auto &&binding) { m += binding.get()->outputSize(); },
                 constraint);
         }
         return m;

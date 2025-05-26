@@ -8,22 +8,43 @@
 namespace bopt {
 
 /**
+ * @brief Constraint bounds typical of many constraint types
+ *
+ */
+enum class ConstraintBoundType {
+    /// @brief Constraint of the form 0 = c(x) = 0
+    ZERO,
+    /// @brief Constraint of the form 0 <= c(x) = inf
+    POSITIVE,
+    /// @brief Constraint of the form -inf <= c(x) <= 0
+    NEGATIVE,
+    /// @brief Constraint of the form 0 < c(x) < inf
+    STRICTLY_POSITIVE,
+    /// @brief Constraint of the form -inf < c(x) < 0
+    STRICTLY_NEGATIVE,
+    /// @brief Custom bounds of the form c_l < c(x) < c_u
+    CUSTOM
+};
+
+/**
  * @brief Constraint of the form y = fₚ(x) ∈ ℝᵐ
  *
  */
-template <typename EvaluatorTraits>
-class ConstraintTpl {
+template <typename EvaluatorType>
+class ConstraintTpl
+    : public internal::EvaluatorWrapper<
+          EvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime>> {
+    static constexpr bool is_scalar = OutputSizeAtCompileTime == 1;
+
    public:
-    using Scalar = typename EvaluatorTraits::Scalar;
+    using Scalar = typename Base::Scalar;
 
-    using Evaluator = EvaluatorTpl<EvaluatorTraits, Eigen::Dynamic>;
-    using BoundEvaluator = BoundEvaluatorTpl<EvaluatorTraits>;
+    using DenseVector = typename Base::DenseVector;
+    using InputVector = typename Base::InputVector;
+    using InputVectorConstRef = typename Base::InputVectorConstRef;
 
-    using DenseVector = typename EvaluatorTraits::DenseVector;
-    using InputVector = typename EvaluatorTraits::InputVector;
-    using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
-
-    using Data = ConstraintDataTpl<EvaluatorTraits>;
+    using Evaluator = typename Base::Evaluator;
+    using Data = typename Base::Data;
 
     /**
      * @brief Construct a constraint from an existing evaluator and specifying
@@ -31,32 +52,14 @@ class ConstraintTpl {
      *
      * @param evaluator
      */
-    ConstraintTpl(const std::shared_ptr<Evaluator> &evaluator,
+    ConstraintTpl(const String &name = "",
+                  const std::shared_ptr<Evaluator> &evaluator,
                   const ConstraintBoundType &bounds)
-        : name_(""),
-          evaluator_(evaluator),
-          bound_evaluator_(std::make_shared<BoundEvaluator>(
-              evaluator->numOutputs(), bounds)) {}
-
-    /**
-     * @brief Construct a constraint from an existing evaluator and specifying
-     * the bound type
-     *
-     * @param evaluator
-     */
-    ConstraintTpl(const std::shared_ptr<Evaluator> &evaluator,
-                  const std::shared_ptr<BoundEvaluator> &bound_evaluator)
-        : name_(""), evaluator_(evaluator), bound_evaluator_(bound_evaluator) {}
-
-    Size numInputs() const { return evaluator_->numInputs(); }
-    Size dimInputTangentSpace() const {
-        return evaluator_->dimInputTangentSpace();
-    }
-    Size numParameters() const { return evaluator_->numParameters(); }
-
-    Size numOutputs() const { return evaluator_->numOutputs(); }
-
-    std::shared_ptr<Data> createData() const {return std::make_shared<Data>(*this);}
+        : internal::EvaluatorWrapper<
+              EvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime>>(
+              evaluator),
+          name_(name),
+          type_(bounds) {}
 
     /**
      * @brief Name of the constraint
@@ -72,122 +75,113 @@ class ConstraintTpl {
      */
     void setName(const String &name) { name_ = name; }
 
-    /**
-     * @brief Returns the evaluator for the function
-     *
-     * @return Evaluator&
-     */
-    Evaluator &getEvaluator() const { return *evaluator_; }
+    void setBoundsType(const ConstraintBoundType &type) { type_ = type; }
+    const ConstraintBoundType &getBoundsType() const { return type_; }
 
     /**
-     * @brief Set an evaluator for the of the constraint.
+     * @brief Sets the provided bound vectors to the type specified by the
+     * constraint's type (accessed through getBoundsType())
      *
-     * @param evaluator
+     * @param lb
+     * @param ub
      */
-    void setEvaluator(const std::shared_ptr<Evaluator> &evaluator) {
-        evaluator_ = evaluator;
+    virtual void evalBounds(auto &&lb, auto &&ub) const {
+        if constexpr (is_scalar) {
+            switch (getBoundsType()) {
+                case ConstraintBoundType::ZERO:
+                    lb = 0.0;
+                    ub = 0.0;
+                    break;
+                case ConstraintBoundType::POSITIVE:
+                    lb = 0.0;
+                    ub = kInf;
+                    break;
+                case ConstraintBoundType::NEGATIVE:
+                    lb = -kInf;
+                    ub = 0.0;
+                    break;
+                case ConstraintBoundType::STRICTLY_POSITIVE:
+                    lb = kEpsilon;
+                    ub = kInf;
+                    break;
+                case ConstraintBoundType::STRICTLY_NEGATIVE:
+                    lb = -kInf;
+                    ub = -kEpsilon;
+                    break;
+            }
+        } else {
+            assert(lb.size() == outputSize() && ub.size() == outputSize());
+            switch (getBoundsType()) {
+                case ConstraintBoundType::ZERO:
+                    lb.setZero();
+                    ub.setZero();
+                    break;
+                case ConstraintBoundType::POSITIVE:
+                    lb.setZero();
+                    ub.setConstant(kInf);
+                    break;
+                case ConstraintBoundType::NEGATIVE:
+                    lb.setConstant(-kInf);
+                    ub.setZero();
+                    break;
+                case ConstraintBoundType::STRICTLY_POSITIVE:
+                    lb.setConstant(kEpsilon);
+                    ub.setConstant(kInf);
+                    break;
+                case ConstraintBoundType::STRICTLY_NEGATIVE:
+                    lb.setConstant(-kInf);
+                    ub.setConstant(-kEpsilon);
+                    break;
+            }
+        }
     }
 
     /**
-     * @brief Returns the bound evaluator for the function
+     * @brief Whether the constraints of the system are satisfied to a given
+     * tolerance.
      *
-     * @return BoundEvaluator&
+     * @param value The current value of the constraint
+     * @param epsilon Tolerance
+     * @return true
+     * @return false
      */
-    BoundEvaluator &getBoundEvaluator() const { return *bound_evaluator_; }
-
-    /**
-     * @brief Set an evaluator for the bounds of the constraint.
-     *
-     * @param evaluator
-     */
-    void setBoundEvaluator(const std::shared_ptr<BoundEvaluator> &evaluator) {
-        bound_evaluator_ = evaluator_;
+    bool isSatisfied(const Data &data, const Real epsilon = kEpsilon) const {
+        if constexpr (is_scalar) {
+            Scalar lb, ub;
+            evalBounds(lb, ub);
+            lb -= epsilon;
+            ub += epsilon;
+            return (data.y >= lb && data.y <= ub);
+        } else {
+            const Size m = data.y.size();
+            DenseVector lb(m), ub(m);
+            evalBounds(lb, ub);
+            lb.array() -= epsilon;
+            ub.array() += epsilon;
+            for (Size i = 0; i < m; ++i) {
+                if (data.y[i] > ub[i] || data.y[i] < lb[i]) return false;
+            }
+            return true;
+        }
     }
 
-    /**
-     * @brief Evaluates the constraint c(x) with the input x.
-     *
-     * @param x
-     * @param data
-     */
-    void eval(const InputVectorConstRef &x, Data &data) const {
-        evaluator_->eval(x, data);
-    }
-
-    void evalJacobians(const InputVectorConstRef &x, Data &data, bool compute_x,
-                       bool compute_p) const {
-        evaluator_->evalJacobians(x, data, compute_x, compute_p);
-    }
-
-    void evalHessians(const InputVectorConstRef &x, Data &data, bool compute_xx,
-                      bool compute_xp, bool compute_pp) const {
-        evaluator_->evalHessians(x, data, compute_xx, compute_xp, compute_pp);
-    }
-
-    /**
-     * @brief Evaluate the bounds of the constraint.
-     *
-     * @param data
-     */
-    void evalBounds(Data &data) const { bound_evaluator_->eval(data); }
-
-   protected:
    private:
     /// @brief Name of the constraint
     String name_;
-    /// @brief Shared pointer to the evaluator the constraint is associated with
-    std::shared_ptr<Evaluator> evaluator_{nullptr};
-    /// @brief Shared pointer to the evaluator the constraint bounds are
-    /// associated with
-    std::shared_ptr<BoundEvaluator> bound_evaluator_{nullptr};
+    /// @brief Constraint bounds type
+    ConstraintBoundType type_;
 };
 
-template <typename Scalar>
-using DenseConstraintTpl = ConstraintTpl<DenseEvaluatorTraits<Scalar>>;
-using DenseConstraint = DenseConstraintTpl<Real>;
+template <typename Scalar, int OutputSize = Eigen::Dynamic>
+using DenseConstraintTpl =
+    ConstraintTpl<DenseEvaluatorTraits<Scalar>, OutputSize>;
+template <int OutputSize = Eigen::Dynamic>
+using DenseConstraint = DenseConstraintTpl<Real, OutputSize>;
 
-template <typename Scalar>
-using SparseConstraintTpl = ConstraintTpl<SparseEvaluatorTraits<Scalar>>;
-using SparseConstraint = SparseConstraintTpl<Real>;
-
-template <typename EvaluatorType>
-class PolynomialConstraintTpl
-    : public ConstraintTpl<typename EvaluatorType::Traits> {
-   public:
-    using Base = ConstraintTpl<typename EvaluatorType::Traits>;
-    using Data = typename EvaluatorType::Data;
-
-    PolynomialConstraintTpl(const std::shared_ptr<EvaluatorType> &evaluator)
-        : Base(evaluator), evaluator_(evaluator) {}
-
-    void setDataSparsity(Data &data) const {
-        evaluator_->setDataSparsity(data);
-    }
-
-    /**
-     * @brief Returns the evaluator for the function
-     *
-     * @return Evaluator&
-     */
-    EvaluatorType &getEvaluator() const { return *evaluator_; }
-
-    /**
-     * @brief Set an evaluator for the of the constraint.
-     *
-     * @param evaluator
-     */
-    void setEvaluator(const std::shared_ptr<EvaluatorType> &evaluator) {
-        Base::setEvaluator(evaluator);
-        evaluator_ = evaluator;
-    }
-
-    void evalCoefficients(Data &data) const {
-        evaluator_->evalCoefficients(data);
-    }
-
-   protected:
-   private:
-    std::shared_ptr<EvaluatorType> evaluator_{nullptr};
-};
+template <typename Scalar, int OutputSize = Eigen::Dynamic>
+using SparseConstraintTpl =
+    ConstraintTpl<SparseEvaluatorTraits<Scalar>, OutputSize>;
+template <int OutputSize = Eigen::Dynamic>
+using SparseConstraint = SparseConstraintTpl<Real, OutputSize>;
 
 }  // namespace bopt

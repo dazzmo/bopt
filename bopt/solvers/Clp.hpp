@@ -131,7 +131,7 @@ class ClpSolver : public SolverBase<ClpInfo> {
                 const auto& d = binding.getData();
                 const auto& indices = binding.getIndexManager().getIndices();
 
-                const Index m = c->numOutputs();
+                const Index m = c->outputSize();
 
                 c->evalCoefficients(*d);
                 c->evalBounds(*d);
@@ -155,7 +155,7 @@ class ClpSolver : public SolverBase<ClpInfo> {
                 auto& d = binding.getData();
                 const auto& indices = binding.getIndexManager().getIndices();
 
-                const Index m = c->numOutputs();
+                const Index m = c->outputSize();
 
                 c->evalCoefficients(*d);
                 c->evalBounds(*d);

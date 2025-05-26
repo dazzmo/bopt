@@ -18,13 +18,12 @@ class CostTpl {
    public:
     using Scalar = typename EvaluatorTraits::Scalar;
 
-    using Evaluator = EvaluatorTpl<EvaluatorTraits, 1>;
-
     using DenseVector = typename EvaluatorTraits::DenseVector;
     using InputVector = typename EvaluatorTraits::InputVector;
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
 
-    using Data = CostDataTpl<EvaluatorTraits>;
+    using Evaluator = EvaluatorTpl<EvaluatorTraits, 1>;
+    using Data = EvaluatorDataTpl<EvaluatorTraits, 1>;
 
     /**
      * @brief Construct a constraint from an existing evaluator and specifying
@@ -39,13 +38,13 @@ class CostTpl {
         return std::make_shared<Data>(*this);
     }
 
-    Size numInputs() const { return evaluator_->numInputs(); }
+    Size inputSize() const { return evaluator_->inputSize(); }
     Size dimInputTangentSpace() const {
         return evaluator_->dimInputTangentSpace();
     }
     Size numParameters() const { return evaluator_->numParameters(); }
 
-    Size numOutputs() const { return evaluator_->numOutputs(); }
+    Size outputSize() const { return evaluator_->outputSize(); }
 
     /**
      * @brief Name of the constraint
@@ -112,46 +111,5 @@ using DenseCost = DenseCostTpl<Real>;
 template <typename Scalar>
 using SparseCostTpl = CostTpl<SparseEvaluatorTraits<Scalar>>;
 using SparseCost = SparseCostTpl<Real>;
-
-template <typename EvaluatorType>
-class PolynomialCostTpl : public CostTpl<typename EvaluatorType::Traits> {
-   public:
-    using Base = CostTpl<typename EvaluatorType::Traits>;
-    using Data = typename EvaluatorType::Data;
-
-    PolynomialCostTpl(const std::shared_ptr<EvaluatorType> &evaluator)
-        : Base(evaluator), evaluator_(evaluator) {}
-
-    void setDataSparsity(Data &data) const {
-        evaluator_->setDataSparsity(data);
-    }
-
-    Data createData() const { return Data(this->getEvaluator()); }
-
-    /**
-     * @brief Returns the evaluator for the function
-     *
-     * @return Evaluator&
-     */
-    EvaluatorType &getEvaluator() const { return *evaluator_; }
-
-    /**
-     * @brief Set an evaluator for the of the constraint.
-     *
-     * @param evaluator
-     */
-    void setEvaluator(const std::shared_ptr<EvaluatorType> &evaluator) {
-        Base::setEvaluator(evaluator);
-        evaluator_ = evaluator;
-    }
-
-    void evalCoefficients(Data &data) const {
-        evaluator_->evalCoefficients(data);
-    }
-
-   protected:
-   private:
-    std::shared_ptr<EvaluatorType> evaluator_{nullptr};
-};
 
 }  // namespace bopt

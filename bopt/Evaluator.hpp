@@ -6,26 +6,30 @@
 
 namespace bopt {
 
+template <int OutputSizeAtCompileTime>
 class EvaluatorBase {
     using ParameterVector = typename MathTypes<Real>::VectorX;
 
    public:
+    /// @brief Whether the output of the evaluator is a scalar
+    static constexpr bool IsOutputScalar = OutputSizeAtCompileTime == 1;
+
     /**
      * @brief Dimension of the input variable vector, commonly denoted as x.
      *
      * @return const Size&
      */
-    Size numInputs() const { return n_in_; }
+    Size inputSize() const { return n_in_; }
 
     /**
      * @brief Dimension of the output vector y.
      *
      * @return const Size&
      */
-    Size numOutputs() const { return n_out_; }
+    Size outputSize() const { return n_out_; }
 
     /**
-     * @brief Dimension of the input space, this is equal to numInputs().
+     * @brief Dimension of the input space, this is equal to inputSize().
      *
      * @return const Size&
      */
@@ -33,11 +37,18 @@ class EvaluatorBase {
 
     /**
      * @brief Dimension of the tangent space of input, typically
-     * this is equal to numInputs().
+     * this is equal to inputSize().
      *
      * @return const Size&
      */
     Size dimInputTangentSpace() const { return dim_tangent_space_; }
+
+    /**
+     * @brief Dimension of the input space, this is equal to inputSize().
+     *
+     * @return const Size&
+     */
+    Size dimOutputSpace() const { return n_out_; }
 
     /**
      * @brief Dimension of the parameter vector p.
@@ -62,6 +73,14 @@ class EvaluatorBase {
     void setParameters(const Eigen::Ref<const ParameterVector> &p) {
         assert(p.size() == numParameters());
         parameters_ = p;
+    }
+
+    friend std::ostream &operator<<(std::ostream &os, const EvaluatorBase &e) {
+        os << "Evaluator\n";
+        os << "Description: " << e.getDescription() << '\n';
+        os << "Input Size: " << e.inputSize() << '\n';
+        os << "Output Size: " << e.outputSize();
+        return os;
     }
 
    protected:
@@ -105,13 +124,51 @@ class EvaluatorBase {
     String description_;
 };
 
+struct GradientEvaluationFlags {
+    GradientEvaluationFlags() : compute_x(true), compute_p(false) {}
+    GradientEvaluationFlags(bool compute_x, bool compute_p)
+        : compute_x(compute_x), compute_p(compute_p) {}
+
+    /// @brief Compute ∂f/∂x
+    bool compute_x;
+    /// @brief Compute ∂f/∂p
+    bool compute_p;
+};
+
+struct JacobianEvaluationFlags {
+    JacobianEvaluationFlags() : compute_x(true), compute_p(false) {}
+    JacobianEvaluationFlags(bool compute_x, bool compute_p = false)
+        : compute_x(compute_x), compute_p(compute_p) {}
+
+    /// @brief Compute ∂f/∂x
+    bool compute_x;
+    /// @brief Compute ∂f/∂p
+    bool compute_p;
+};
+
+struct HessianEvaluationFlags {
+    HessianEvaluationFlags()
+        : compute_xx(true), compute_xp(false), compute_pp(false) {}
+    HessianEvaluationFlags(bool compute_xx, bool compute_xp = false,
+                           bool compute_pp = false)
+        : compute_xx(compute_xx),
+          compute_xp(compute_xp),
+          compute_pp(compute_pp) {}
+    /// @brief Compute ∂²(λᵀf)/∂x²
+    bool compute_xx;
+    /// @brief Compute ∂²(λᵀf)/∂x∂p
+    bool compute_xp;
+    /// @brief Compute ∂²(λᵀf)/∂p²
+    bool compute_pp;
+};
+
 /**
  * @brief Evaluator class related the evaluation of a function y = fₚ(x)
  *
  * @tparam Scalar
  */
-template <typename EvaluatorTraits, int OutputSize = Eigen::Dynamic>
-class EvaluatorTpl : public EvaluatorBase {
+template <typename EvaluatorTraits, int OutputSizeAtCompileTime>
+class EvaluatorTpl : public EvaluatorBase<OutputSizeAtCompileTime> {
    public:
     using Scalar = typename EvaluatorTraits::Scalar;
     using Traits = EvaluatorTraits;
@@ -120,7 +177,7 @@ class EvaluatorTpl : public EvaluatorBase {
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
 
     /// @brief The standard type of data to be used for the evaluation functions
-    using Data = EvaluatorDataTpl<EvaluatorTraits, OutputSize>;
+    using Data = EvaluatorDataTpl<EvaluatorTraits, OutputSizeAtCompileTime>;
 
     std::shared_ptr<Data> createData() const {
         return std::make_shared<Data>(*this);
@@ -138,7 +195,7 @@ class EvaluatorTpl : public EvaluatorBase {
      * @brief Evaluates the expression y = fₚ(x) using variables x and
      * parameters p (set through \ref EvaluatorTpl::setParameters()).
      *
-     * @param x The input vector (numInputs() x 1)
+     * @param x The input vector (inputSize() x 1)
      * @param data
      */
     void eval(const InputVectorConstRef &x, Data &data) const {
@@ -150,12 +207,12 @@ class EvaluatorTpl : public EvaluatorBase {
      *
      * @param x
      * @param data
-     * @param compute_x Compute ∂y/∂x
-     * @param compute_p Compute ∂y/∂p
+     * @param flags Flags to indicate which Jacobians to compute
      */
     void evalJacobians(const InputVectorConstRef &x, Data &data,
-                       bool compute_x = true, bool compute_p = false) const {
-        evalJacobiansImpl(x, data, compute_x, compute_p);
+                       const JacobianEvaluationFlags &flags =
+                           JacobianEvaluationFlags()) const {
+        evalJacobiansImpl(x, data, flags);
     }
 
     /**
@@ -165,21 +222,19 @@ class EvaluatorTpl : public EvaluatorBase {
      * @param x
      * @param lambda
      * @param data
-     * @param compute_xx Compute ∂²(λᵀf)/∂x²
-     * @param compute_xp Compute ∂²(λᵀf)/∂x∂p
-     * @param compute_pp Compute ∂²(λᵀf)/∂p²
+     * @param flags Flags to indicate which Hessians to compute
      */
-    void evalHessians(const InputVectorConstRef &x,
-                      const InputVectorConstRef &lambda, Data &data,
-                      bool compute_xx = true, bool compute_xp = false,
-                      bool compute_pp = false) const {
-        evalHessiansImpl(x, lambda, data, compute_xx, compute_xp, compute_pp);
+    void evalHessians(
+        const InputVectorConstRef &x, const InputVectorConstRef &lambda,
+        Data &data,
+        const HessianEvaluationFlags &flags = HessianEvaluationFlags()) const {
+        evalHessiansImpl(x, lambda, data, flags);
     }
 
    protected:
     EvaluatorTpl(const Index &n_in, const Index &n_out,
                  const String &description = "")
-        : EvaluatorBase(n_in, n_out, description) {}
+        : EvaluatorBase<OutputSizeAtCompileTime>(n_in, n_out, description) {}
 
     virtual void setDataSparsityImpl(Data &data) const {}
 
@@ -197,7 +252,8 @@ class EvaluatorTpl : public EvaluatorBase {
      *
      */
     virtual void evalJacobiansImpl(const InputVectorConstRef &x, Data &data,
-                                   bool compute_x, bool compute_p) const {}
+                                   const JacobianEvaluationFlags &flags) const {
+    }
 
     /**
      * \copydoc EvaluatorTpl::evalHessians(const Eigen::Ref<const
@@ -207,8 +263,7 @@ class EvaluatorTpl : public EvaluatorBase {
      */
     virtual void evalHessiansImpl(const InputVectorConstRef &x,
                                   const InputVectorConstRef &lambda, Data &data,
-                                  bool compute_xx, bool compute_xp,
-                                  bool compute_pp) const {}
+                                  const HessianEvaluationFlags &flags) const {}
 };
 
 /**
@@ -217,7 +272,7 @@ class EvaluatorTpl : public EvaluatorBase {
  * @tparam Scalar
  */
 template <typename EvaluatorTraits>
-class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
+class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase<1> {
    public:
     using Scalar = typename EvaluatorTraits::Scalar;
     using Traits = EvaluatorTraits;
@@ -244,7 +299,7 @@ class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
      * @brief Evaluates the expression y = fₚ(x) using variables x and
      * parameters p (set through \ref EvaluatorTpl::setParameters()).
      *
-     * @param x The input vector (numInputs() x 1)
+     * @param x The input vector (inputSize() x 1)
      * @param data
      */
     void eval(const InputVectorConstRef &x, Data &data) const {
@@ -256,12 +311,12 @@ class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
      *
      * @param x
      * @param data
-     * @param compute_x Compute ∂y/∂x
-     * @param compute_p Compute ∂y/∂p
+     * @param flags
      */
     void evalGradients(const InputVectorConstRef &x, Data &data,
-                       bool compute_x = true, bool compute_p = false) const {
-        evalGradientsImpl(x, data, compute_x, compute_p);
+                       const GradientEvaluationFlags &flags =
+                           GradientEvaluationFlags()) const {
+        evalGradientsImpl(x, data, flags);
     }
 
     /**
@@ -275,10 +330,10 @@ class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
      * @param compute_xp Compute ∂²f/∂x∂p
      * @param compute_pp Compute ∂²f/∂p²
      */
-    void evalHessians(const InputVectorConstRef &x, Data &data,
-                      bool compute_xx = true, bool compute_xp = false,
-                      bool compute_pp = false) const {
-        evalHessiansImpl(x, data, compute_xx, compute_xp, compute_pp);
+    void evalHessians(
+        const InputVectorConstRef &x, Data &data,
+        const HessianEvaluationFlags &flags = HessianEvaluationFlags()) const {
+        evalHessiansImpl(x, data, flags);
     }
 
    protected:
@@ -301,7 +356,8 @@ class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
      *
      */
     virtual void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
-                                   bool compute_x, bool compute_p) const {}
+                                   const GradientEvaluationFlags &flags) const {
+    }
 
     /**
      * \copydoc EvaluatorTpl::evalHessians(const Eigen::Ref<const
@@ -310,149 +366,49 @@ class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase {
      *
      */
     virtual void evalHessiansImpl(const InputVectorConstRef &x, Data &data,
-                                  bool compute_xx, bool compute_xp,
-                                  bool compute_pp) const {}
+                                  const HessianEvaluationFlags &flags) const {}
 };
 
-template <typename EvaluatorTraits, int OutputSize>
-std::ostream &operator<<(std::ostream &os,
-                         const EvaluatorTpl<EvaluatorTraits, OutputSize> &e) {
-    os << "Evaluator\n";
-    os << "Description: " << e.getDescription() << '\n';
-    os << "Input Size: " << e.numInputs() << '\n';
-    os << "Output Size: " << e.numOutputs();
-    return os;
-}
-
-template <typename Scalar, int OutputSize>
-using DenseEvaluatorTpl =
-    EvaluatorTpl<DenseEvaluatorTraits<Scalar>, OutputSize>;
-template <int OutputSize>
-using DenseEvaluator = DenseEvaluatorTpl<Real, OutputSize>;
-
-template <typename Scalar, int OutputSize>
-using SparseEvaluatorTpl =
-    EvaluatorTpl<SparseEvaluatorTraits<Scalar>, OutputSize>;
-template <int OutputSize>
-using SparseEvaluator = SparseEvaluatorTpl<Real, OutputSize>;
-
-/**
- * @brief An evaluator of an expression that can be represented in polynomial
- * form.
- *
- * @tparam DataType The data type, where the coefficients can be stored and
- * evaluated through evalCoefficients()
- * @tparam EvaluatorTraits Traits of the underlying evaluator
- * @tparam OutputSize
- */
-template <typename DataType, typename EvaluatorTraits,
-          int OutputSize = Eigen::Dynamic>
-class PolynomialEvaluatorTpl
-    : public EvaluatorTpl<EvaluatorTraits, OutputSize> {
-   public:
-    using Base = EvaluatorTpl<EvaluatorTraits, OutputSize>;
-    using Traits = typename Base::Traits;
-    /// @brief Data type for the polynomial data for computation of the
-    /// coefficients
-    using Data = DataType;
-    /// @brief Evaluator data for all other evaluator-type functions
-    using EvaluatorData = typename Base::Data;
-
-    PolynomialEvaluatorTpl(const Size &n_in, const Size &n_out,
-                           const String &description = "")
-        : Base(n_in, n_out, description) {}
-
-    void setDataSparsity(Data &data) const { setDataSparsityImpl(data); }
-    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
-
-   protected:
-    virtual void setDataSparsityImpl(Data &data) const {}
-    virtual void evalCoefficientsImpl(Data &data) const {}
-};
-
-template <typename DataType, typename EvaluatorTraits>
-class PolynomialEvaluatorTpl<DataType, EvaluatorTraits, 1>
-    : public EvaluatorTpl<EvaluatorTraits, 1> {
-   public:
-    using Base = EvaluatorTpl<EvaluatorTraits, 1>;
-    using Traits = typename Base::Traits;
-    /// @brief Data type for the polynomial data for computation of the
-    /// coefficients
-    using Data = DataType;
-    /// @brief Evaluator data for all other evaluator-type functions
-    using EvaluatorData = typename Base::Data;
-
-    PolynomialEvaluatorTpl(const Size &n_in, const String &description = "")
-        : Base(n_in, description) {}
-
-    void setDataSparsity(Data &data) const { setDataSparsityImpl(data); }
-    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
-
-   protected:
-    virtual void setDataSparsityImpl(Data &data) const {}
-    virtual void evalCoefficientsImpl(Data &data) const {}
-};
-
-template <typename EvaluatorTraits, int OutputSize>
+template <typename EvaluatorTraits, int OutputSizeAtCompileTime>
 class LinearEvaluatorTpl
-    : public PolynomialEvaluatorTpl<
-          LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>, EvaluatorTraits,
-          OutputSize> {
-    using Base = PolynomialEvaluatorTpl<
-        LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>, EvaluatorTraits,
-        OutputSize>;
+    : public EvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime> {
+    using Base = EvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime>;
 
    public:
-    using Data = typename Base::Data;
-    using EvaluatorData = typename Base::EvaluatorData;
-    using Traits = typename Base::Traits;
+    using Data =
+        LinearEvaluatorDataTpl<EvaluatorTraits, OutputSizeAtCompileTime>;
 
+    // Constructor for vector-valued evaluators
+    template <int S = OutputSizeAtCompileTime,
+              typename std::enable_if_t<(S != 1), int> = 0>
     LinearEvaluatorTpl(const Size &n_in, const Size &n_out,
                        const String &description = "")
         : Base(n_in, n_out, description) {}
 
-    std::shared_ptr<Data> createData() const {
-        return std::make_shared<Data>(*this);
-    }
-};
-
-template <typename EvaluatorTraits>
-class LinearEvaluatorTpl<EvaluatorTraits, 1>
-    : public PolynomialEvaluatorTpl<LinearEvaluatorDataTpl<EvaluatorTraits, 1>,
-                                    EvaluatorTraits, 1> {
-    using Base =
-        PolynomialEvaluatorTpl<LinearEvaluatorDataTpl<EvaluatorTraits, 1>,
-                               EvaluatorTraits, 1>;
-
-   public:
-    using Data = typename Base::Data;
-    using EvaluatorData = typename Base::EvaluatorData;
-    using Traits = typename Base::Traits;
-
+    // Constructor for scalar-valued evaluators
+    template <int S = OutputSizeAtCompileTime,
+              typename std::enable_if_t<(S == 1), int> = 0>
     LinearEvaluatorTpl(const Size &n_in, const String &description = "")
         : Base(n_in, description) {}
 
     std::shared_ptr<Data> createData() const {
         return std::make_shared<Data>(*this);
     }
+
+    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
+
+   protected:
+    virtual void evalCoefficientsImpl(Data &data) const {}
+    virtual void setDataSparsityImpl(Data &data) const {}
 };
 
-/**
- * @brief Quadratic evaluator for scalar expressions of the form
- *
- * @tparam EvaluatorTraits
- */
 template <typename EvaluatorTraits>
-class QuadraticEvaluatorTpl
-    : public PolynomialEvaluatorTpl<QuadraticEvaluatorDataTpl<EvaluatorTraits>,
-                                    EvaluatorTraits, 1> {
+class QuadraticEvaluatorTpl : public EvaluatorTpl<EvaluatorTraits, 1> {
+    using Base = EvaluatorTpl<EvaluatorTraits, 1>;
+
    public:
-    using Base =
-        PolynomialEvaluatorTpl<QuadraticEvaluatorDataTpl<EvaluatorTraits>,
-                               EvaluatorTraits, 1>;
-    using Data = typename Base::Data;
-    using EvaluatorData = typename Base::EvaluatorData;
-    using Traits = typename Base::Traits;
+    using Data = QuadraticEvaluatorDataTpl<EvaluatorTraits>;
 
     QuadraticEvaluatorTpl(const Size &n_in, const String &description = "")
         : Base(n_in, description) {}
@@ -460,6 +416,110 @@ class QuadraticEvaluatorTpl
     std::shared_ptr<Data> createData() const {
         return std::make_shared<Data>(*this);
     }
+
+    void evalCoefficients(Data &data) const { evalCoefficientsImpl(data); }
+    void setDataSparsity(Data &data) const { this->setDataSparsityImpl(data); }
+
+   protected:
+    virtual void evalCoefficientsImpl(Data &data) const {}
+    virtual void setDataSparsityImpl(Data &data) const {}
 };
+
+namespace internal {
+
+template <typename EvaluatorType>
+class EvaluatorWrapper {
+   public:
+    using Scalar = typename EvaluatorType::Scalar;
+
+    using DenseVector = typename EvaluatorType::DenseVector;
+    using InputVector = typename EvaluatorType::InputVector;
+    using InputVectorConstRef = typename EvaluatorType::InputVectorConstRef;
+
+    using Evaluator = EvaluatorType;
+    using Data = typename EvaluatorType::Data;
+
+    /**
+     * @brief Returns the evaluator for the function
+     *
+     * @return Evaluator&
+     */
+    Evaluator &getEvaluator() const { return *evaluator_; }
+
+    /**
+     * @brief Set an evaluator for the of the constraint.
+     *
+     * @param evaluator
+     */
+    void setEvaluator(const std::shared_ptr<Evaluator> &evaluator) {
+        evaluator_ = evaluator;
+    }
+
+    Size inputSize() const { return getEvaluator().inputSize(); }
+    Size outputSize() const { return getEvaluator().outputSize(); }
+    Size dimInputSpace() const { return getEvaluator().dimInputSpace(); }
+    Size dimInputTangentSpace() const {
+        return getEvaluator().dimInputTangentSpace();
+    }
+    Size numParameters() const { return getEvaluator().numParameters(); }
+
+    std::shared_ptr<Data> createData() const {
+        return getEvaluator().createData();
+    }
+
+    void eval(const InputVectorConstRef &x, Data &data) const {
+        evaluator_->eval(x, data);
+    }
+
+    void evalGradients(const InputVectorConstRef &x, Data &data,
+                       const GradientEvaluationFlags &flags =
+                           GradientEvaluationFlags()) const {
+        static_assert(EvaluatorType::IsOutputScalar,
+                      "You are calling evalGradients() on a vector evaluator, "
+                      "use evalJacobians() instead");
+        this->getEvaluator().evalGradients(x, data, flags);
+    }
+
+    void evalJacobians(const InputVectorConstRef &x, Data &data,
+                       const JacobianEvaluationFlags &flags =
+                           JacobianEvaluationFlags()) const {
+        static_assert(!EvaluatorType::IsOutputScalar,
+                      "You are calling evalJacobians() on a scalar evaluator, "
+                      "use evalGradients() instead");
+        this->getEvaluator().evalJacobians(x, data, flags);
+    }
+
+    void evalHessians(const InputVectorConstRef &x,
+                      const InputVectorConstRef &lambda, Data &data,
+                      const HessianEvaluationFlags &flags,
+                      HessianEvaluationFlags()) const {
+        static_assert(
+            EvaluatorType::IsOutputScalar,
+            "You are calling evalHessians(x, lambda, data, flags) on a "
+            "scalar evaluator, "
+            "use evalHessians(x, data, flags) instead");
+        this->getEvaluator().evalHessians(x, lambda, data, flags);
+    }
+
+    void evalHessians(const InputVectorConstRef &x, Data &data,
+                      const HessianEvaluationFlags &flags,
+                      HessianEvaluationFlags()) const {
+        static_assert(EvaluatorType::IsOutputScalar,
+                      "You are calling evalHessians(x, data, flags) on a "
+                      "vector evaluator, "
+                      "use evalHessians(x, lambda, data, flags) instead");
+        this->getEvaluator().evalHessians(x, data, flags);
+    }
+
+    EvaluatorWrapper(const std::shared_ptr<Evaluator> &evaluator)
+        : evaluator_(evaluator) {}
+
+   protected:
+   private:
+    /// @brief Shared pointer to the evaluator the wrapper is associated with
+    std::shared_ptr<Evaluator> evaluator_{nullptr};
+};
+
+}  // namespace internal
 
 }  // namespace bopt

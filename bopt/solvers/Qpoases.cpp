@@ -129,7 +129,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             const auto& d = binding.data();
             const auto& indices = binding.indices().indices();
 
-            const Index m = c->numOutputs();
+            const Index m = c->outputSize();
 
             c->evalCoefficients(*d);
             c->evalBounds(*d);
@@ -146,7 +146,7 @@ void qpoases_solver::solve(MathematicalProgram& program) {
             const auto& d = binding.data();
             const auto& indices = binding.indices().indices();
 
-            const Index m = c->numOutputs();
+            const Index m = c->outputSize();
 
             c->evalCoefficients(*d);
             c->evalBounds(*d);

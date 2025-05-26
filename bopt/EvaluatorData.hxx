@@ -4,18 +4,12 @@
 
 namespace bopt {
 
-/**
- * @brief Evaluator data struct for evaluation of EvaluatorTpl classes.
- *
- * @tparam EvaluatorTraits Traits of the evaluator function
- * @tparam OutputSize The dimension of the output
- */
 template <typename EvaluatorTraits, int OutputSize>
 EvaluatorDataTpl<EvaluatorTraits, OutputSize>::EvaluatorDataTpl(
     const EvaluatorTpl<EvaluatorTraits, OutputSize> &e) {
     const auto &nx = e.dimInputTangentSpace();
     const auto &np = e.numParameters();
-    const auto &m = e.numOutputs();
+    const auto &m = e.outputSize();
 
     y = DenseVector::Zero(m);
 
@@ -38,17 +32,12 @@ EvaluatorDataTpl<EvaluatorTraits, OutputSize>::EvaluatorDataTpl(
     e.setDataSparsity(*this);
 }
 
-/**
- * @brief Template specialisation for scalar outputs
- *
- * @tparam EvaluatorTraits
- */
 template <typename EvaluatorTraits>
 EvaluatorDataTpl<EvaluatorTraits, 1>::EvaluatorDataTpl(
     const EvaluatorTpl<EvaluatorTraits, 1> &e) {
     const auto &nx = e.dimInputTangentSpace();
     const auto &np = e.numParameters();
-    const auto &m = e.numOutputs();
+    const auto &m = e.outputSize();
 
     y = Scalar(0);
 
@@ -70,19 +59,13 @@ EvaluatorDataTpl<EvaluatorTraits, 1>::EvaluatorDataTpl(
     e.setDataSparsity(*this);
 }
 
-/**
- * @brief Evaluator data struct for evaluation of EvaluatorTpl classes.
- *
- * @tparam EvaluatorTraits Traits of the evaluator function
- * @tparam OutputSize The dimension of the output
- */
 template <typename EvaluatorTraits, int OutputSize>
 LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>::LinearEvaluatorDataTpl(
     const LinearEvaluatorTpl<EvaluatorTraits, OutputSize> &e)
     : EvaluatorDataTpl<EvaluatorTraits, OutputSize>(e) {
     const auto &nx = e.dimInputTangentSpace();
     const auto &np = e.numParameters();
-    const auto &m = e.numOutputs();
+    const auto &m = e.outputSize();
 
     if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
         A.resize(m, nx);
@@ -96,19 +79,13 @@ LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>::LinearEvaluatorDataTpl(
     e.setDataSparsity(*this);
 }
 
-/**
- * @brief Template specialisation for scalar outputs
- *
- * @tparam EvaluatorTraits Traits of the evaluator function
- * @tparam OutputSize The dimension of the output
- */
 template <typename EvaluatorTraits>
 LinearEvaluatorDataTpl<EvaluatorTraits, 1>::LinearEvaluatorDataTpl(
     const LinearEvaluatorTpl<EvaluatorTraits, 1> &e)
     : EvaluatorDataTpl<EvaluatorTraits, 1>(e) {
     const auto &nx = e.dimInputTangentSpace();
     const auto &np = e.numParameters();
-    const auto &m = e.numOutputs();
+    const auto &m = e.outputSize();
 
     if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
         a.resize(nx);
@@ -121,18 +98,12 @@ LinearEvaluatorDataTpl<EvaluatorTraits, 1>::LinearEvaluatorDataTpl(
     e.setDataSparsity(*this);
 }
 
-/**
- * @brief Evaluator data for scalar quadratic expressions of the form (1/2) xᵀ
- * Aₚ x + bₚᵀ x + cₚ
- *
- * @tparam EvaluatorTraits Traits of the evaluator function
- */
 template <typename EvaluatorTraits>
 QuadraticEvaluatorDataTpl<EvaluatorTraits>::QuadraticEvaluatorDataTpl(
     const EvaluatorTpl<EvaluatorTraits, 1> &e)
     : EvaluatorDataTpl<EvaluatorTraits, 1>(e) {
     const auto &nx = e.dimInputTangentSpace();
-    const auto &m = e.numOutputs();
+    const auto &m = e.outputSize();
 
     if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
         A.resize(nx, nx);

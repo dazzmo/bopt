@@ -5,23 +5,23 @@
 
 namespace bopt {
 
-// Forward declarations
-template <typename EvaluatorTraits, int OutputSize>
+// Forward declarations of evaluators
+template <typename EvaluatorTraits, int OutputSizeAtCompileTime>
 class EvaluatorTpl;
 
-template<typename EvaluatorTraits, int OutputSize>
+template <typename EvaluatorTraits, int OutputSizeAtCompileTime>
 class LinearEvaluatorTpl;
 
-template<typename EvaluatorTraits>
+template <typename EvaluatorTraits>
 class QuadraticEvaluatorTpl;
 
 /**
  * @brief Evaluator data struct for evaluation of EvaluatorTpl classes.
  *
  * @tparam EvaluatorTraits Traits of the evaluator function
- * @tparam OutputSize The dimension of the output
+ * @tparam OutputSizeAtCompileTime The dimension of the output
  */
-template <typename EvaluatorTraits, int OutputSize = Eigen::Dynamic>
+template <typename EvaluatorTraits, int OutputSizeAtCompileTime>
 struct EvaluatorDataTpl {
     using Scalar = typename EvaluatorTraits::Scalar;
 
@@ -34,7 +34,8 @@ struct EvaluatorDataTpl {
     /// @brief The Hessian type for the evaluator
     using HessianType = typename EvaluatorTraits::MatrixType;
 
-    EvaluatorDataTpl(const EvaluatorTpl<EvaluatorTraits, OutputSize> &e);
+    EvaluatorDataTpl(
+        const EvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime> &e);
 
     /// @brief Output y
     OutputType y;
@@ -92,12 +93,12 @@ struct EvaluatorDataTpl<EvaluatorTraits, 1> {
  * @brief Evaluator data struct for evaluation of EvaluatorTpl classes.
  *
  * @tparam EvaluatorTraits Traits of the evaluator function
- * @tparam OutputSize The dimension of the output
+ * @tparam OutputSizeAtCompileTime The dimension of the output
  */
-template <typename EvaluatorTraits, int OutputSize = Eigen::Dynamic>
+template <typename EvaluatorTraits, int OutputSizeAtCompileTime>
 struct LinearEvaluatorDataTpl
-    : public EvaluatorDataTpl<EvaluatorTraits, OutputSize> {
-    using Base = EvaluatorDataTpl<EvaluatorTraits, OutputSize>;
+    : public EvaluatorDataTpl<EvaluatorTraits, OutputSizeAtCompileTime> {
+    using Base = EvaluatorDataTpl<EvaluatorTraits, OutputSizeAtCompileTime>;
     using Scalar = typename Base::Scalar;
     using DenseVector = typename Base::DenseVector;
     using OutputType = typename Base::OutputType;
@@ -105,7 +106,7 @@ struct LinearEvaluatorDataTpl
     using HessianType = typename Base::HessianType;
 
     LinearEvaluatorDataTpl(
-        const LinearEvaluatorTpl<EvaluatorTraits, OutputSize> &e);
+        const LinearEvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime> &e);
 
     /// @brief Coefficient matrix A
     JacobianType A;
@@ -117,7 +118,7 @@ struct LinearEvaluatorDataTpl
  * @brief Template specialisation for scalar outputs
  *
  * @tparam EvaluatorTraits Traits of the evaluator function
- * @tparam OutputSize The dimension of the output
+ * @tparam OutputSizeAtCompileTime The dimension of the output
  */
 template <typename EvaluatorTraits>
 struct LinearEvaluatorDataTpl<EvaluatorTraits, 1>

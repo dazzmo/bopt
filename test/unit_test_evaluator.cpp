@@ -7,8 +7,9 @@
 #include "bopt/Logging.hpp"
 #include "bopt/Profiler.hpp"
 
-class DenseEvaluatorTest : public bopt::DenseEvaluatorTpl<double, 2> {
-    using Base = bopt::DenseEvaluatorTpl<double, 2>;
+class DenseEvaluatorTest
+    : public bopt::EvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 2> {
+    using Base = bopt::EvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 2>;
 
    public:
     using Data = typename Base::Data;
@@ -19,49 +20,47 @@ class DenseEvaluatorTest : public bopt::DenseEvaluatorTpl<double, 2> {
         data.Jx.resize(2, 2);
     }
 
-    void evalImpl(const typename Base::InputVectorConstRef &x, Data &data) const {
+    void evalImpl(const typename Base::InputVectorConstRef &x,
+                  Data &data) const {
         data.y << x[0] * x[1], x[0];
     }
 
-    void evalJacobiansImpl(const typename Base::InputVectorConstRef &x,
-                           Data &data, bool compute_x,
-                           bool compute_p) const override {
+    void evalJacobiansImpl(
+        const typename Base::InputVectorConstRef &x, Data &data,
+        const bopt::JacobianEvaluationFlags &flags) const override {
         data.Jx << x[1], x[0], 1.0, 0.0;
     }
 };
 
-class DenseScalarEvaluatorTest : public bopt::DenseEvaluatorTpl<double, 1> {
-    using Base = bopt::DenseEvaluatorTpl<double, 1>;
+class ScalarEvaluator
+    : public bopt::EvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 1> {
+    using Base = bopt::EvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 1>;
 
    public:
     using Data = typename Base::Data;
-    DenseScalarEvaluatorTest() : Base(2, "Dense evaluator") {}
 
-    void setDataSparsityImpl(Data &data) const override {
-        data.gx.resize(this->dimInputTangentSpace());
-    }
+    ScalarEvaluator() : Base(2, "Dense evaluator") {}
+
+    void setDataSparsityImpl(Data &data) const override { data.gx.resize(2); }
 
     void evalImpl(const typename Base::InputVectorConstRef &x,
-                  Data &data) const override {
+                  Data &data) const {
         data.y = x[0] * x[1];
     }
 
-    void evalGradientsImpl(const typename Base::InputVectorConstRef &x,
-                           Data &data, bool compute_x,
-                           bool compute_p) const override {
+    void evalGradientsImpl(
+        const typename Base::InputVectorConstRef &x, Data &data,
+        const bopt::GradientEvaluationFlags &flags) const override {
         data.gx << x[1], x[0];
     }
 };
 
 TEST(DenseEvaluator, Constructor) {
     DenseEvaluatorTest e;
-    DenseScalarEvaluatorTest e_scalar;
-    EXPECT_EQ(e.numInputs(), 2);
 
     std::cout << e << std::endl;
 
     DenseEvaluatorTest::Data data(e);
-    DenseScalarEvaluatorTest::Data scalar_data(e_scalar);
 
     Eigen::VectorXd x(2);
     x.setRandom();
@@ -72,14 +71,15 @@ TEST(DenseEvaluator, Constructor) {
             e.evalJacobians(x, data);
         }
     }
+}
 
-    {
-        for (int i = 0; i < 100; ++i) {
-            bopt::Profiler profiler("DenseEvaluatorScalarTest");
-            e_scalar.eval(x, scalar_data);
-            e_scalar.evalGradients(x, scalar_data);
-        }
-    }
+TEST(EvaluatorWrapper, Wrapper) {
+    auto e = std::make_shared<ScalarEvaluator>();
+    auto wrapper = bopt::internal::EvaluatorWrapper<
+        bopt::EvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 1>>(e);
+    auto d = wrapper.createData();
+    Eigen::Vector2d x;
+    wrapper.evalGradients(x, *d);
 }
 
 int main(int argc, char **argv) {
