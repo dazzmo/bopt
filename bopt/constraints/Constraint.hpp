@@ -2,8 +2,6 @@
 
 #include "bopt/Evaluator.hpp"
 #include "bopt/Logging.hpp"
-#include "bopt/constraints/ConstraintBounds.hpp"
-#include "bopt/constraints/ConstraintData.hpp"
 
 namespace bopt {
 
@@ -31,10 +29,8 @@ enum class ConstraintBoundType {
  *
  */
 template <typename EvaluatorType>
-class ConstraintTpl
-    : public internal::EvaluatorWrapper<
-          EvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime>> {
-    static constexpr bool is_scalar = OutputSizeAtCompileTime == 1;
+class ConstraintTpl : public internal::EvaluatorWrapper<EvaluatorType> {
+    using Base = internal::EvaluatorWrapper<EvaluatorType>;
 
    public:
     using Scalar = typename Base::Scalar;
@@ -52,12 +48,10 @@ class ConstraintTpl
      *
      * @param evaluator
      */
-    ConstraintTpl(const String &name = "",
-                  const std::shared_ptr<Evaluator> &evaluator,
+    ConstraintTpl(const String &name,
+                  const std::shared_ptr<EvaluatorType> &evaluator,
                   const ConstraintBoundType &bounds)
-        : internal::EvaluatorWrapper<
-              EvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime>>(
-              evaluator),
+        : internal::EvaluatorWrapper<EvaluatorType>(evaluator),
           name_(name),
           type_(bounds) {}
 
@@ -85,54 +79,61 @@ class ConstraintTpl
      * @param lb
      * @param ub
      */
-    virtual void evalBounds(auto &&lb, auto &&ub) const {
-        if constexpr (is_scalar) {
-            switch (getBoundsType()) {
-                case ConstraintBoundType::ZERO:
-                    lb = 0.0;
-                    ub = 0.0;
-                    break;
-                case ConstraintBoundType::POSITIVE:
-                    lb = 0.0;
-                    ub = kInf;
-                    break;
-                case ConstraintBoundType::NEGATIVE:
-                    lb = -kInf;
-                    ub = 0.0;
-                    break;
-                case ConstraintBoundType::STRICTLY_POSITIVE:
-                    lb = kEpsilon;
-                    ub = kInf;
-                    break;
-                case ConstraintBoundType::STRICTLY_NEGATIVE:
-                    lb = -kInf;
-                    ub = -kEpsilon;
-                    break;
-            }
-        } else {
-            assert(lb.size() == outputSize() && ub.size() == outputSize());
-            switch (getBoundsType()) {
-                case ConstraintBoundType::ZERO:
-                    lb.setZero();
-                    ub.setZero();
-                    break;
-                case ConstraintBoundType::POSITIVE:
-                    lb.setZero();
-                    ub.setConstant(kInf);
-                    break;
-                case ConstraintBoundType::NEGATIVE:
-                    lb.setConstant(-kInf);
-                    ub.setZero();
-                    break;
-                case ConstraintBoundType::STRICTLY_POSITIVE:
-                    lb.setConstant(kEpsilon);
-                    ub.setConstant(kInf);
-                    break;
-                case ConstraintBoundType::STRICTLY_NEGATIVE:
-                    lb.setConstant(-kInf);
-                    ub.setConstant(-kEpsilon);
-                    break;
-            }
+    void evalBounds(Scalar &lb, Scalar &ub) const {
+        static_assert(
+            EvaluatorType::IsOutputScalar,
+            "You are calling a scalar method on a vector constraint!");
+        switch (getBoundsType()) {
+            case ConstraintBoundType::ZERO:
+                lb = 0.0;
+                ub = 0.0;
+                break;
+            case ConstraintBoundType::POSITIVE:
+                lb = 0.0;
+                ub = kInf;
+                break;
+            case ConstraintBoundType::NEGATIVE:
+                lb = -kInf;
+                ub = 0.0;
+                break;
+            case ConstraintBoundType::STRICTLY_POSITIVE:
+                lb = kEpsilon;
+                ub = kInf;
+                break;
+            case ConstraintBoundType::STRICTLY_NEGATIVE:
+                lb = -kInf;
+                ub = -kEpsilon;
+                break;
+        }
+    }
+
+    void evalBounds(Eigen::Ref<DenseVector> lb,
+                    Eigen::Ref<DenseVector> ub) const {
+        static_assert(
+            !EvaluatorType::IsOutputScalar,
+            "You are calling a vector method on a scalar constraint!");
+        assert(lb.size() == outputSize() && ub.size() == outputSize());
+        switch (getBoundsType()) {
+            case ConstraintBoundType::ZERO:
+                lb.setZero();
+                ub.setZero();
+                break;
+            case ConstraintBoundType::POSITIVE:
+                lb.setZero();
+                ub.setConstant(kInf);
+                break;
+            case ConstraintBoundType::NEGATIVE:
+                lb.setConstant(-kInf);
+                ub.setZero();
+                break;
+            case ConstraintBoundType::STRICTLY_POSITIVE:
+                lb.setConstant(kEpsilon);
+                ub.setConstant(kInf);
+                break;
+            case ConstraintBoundType::STRICTLY_NEGATIVE:
+                lb.setConstant(-kInf);
+                ub.setConstant(-kEpsilon);
+                break;
         }
     }
 
@@ -146,7 +147,7 @@ class ConstraintTpl
      * @return false
      */
     bool isSatisfied(const Data &data, const Real epsilon = kEpsilon) const {
-        if constexpr (is_scalar) {
+        if constexpr (EvaluatorType::IsOutputScalar) {
             Scalar lb, ub;
             evalBounds(lb, ub);
             lb -= epsilon;
@@ -172,16 +173,10 @@ class ConstraintTpl
     ConstraintBoundType type_;
 };
 
-template <typename Scalar, int OutputSize = Eigen::Dynamic>
+template <typename Scalar, int OutputSizeAtCompileTime>
 using DenseConstraintTpl =
-    ConstraintTpl<DenseEvaluatorTraits<Scalar>, OutputSize>;
-template <int OutputSize = Eigen::Dynamic>
-using DenseConstraint = DenseConstraintTpl<Real, OutputSize>;
-
-template <typename Scalar, int OutputSize = Eigen::Dynamic>
-using SparseConstraintTpl =
-    ConstraintTpl<SparseEvaluatorTraits<Scalar>, OutputSize>;
-template <int OutputSize = Eigen::Dynamic>
-using SparseConstraint = SparseConstraintTpl<Real, OutputSize>;
+    ConstraintTpl<DenseEvaluatorTpl<Scalar, OutputSizeAtCompileTime>>;
+template <int OutputSizeAtCompileTime>
+using DenseConstraint = DenseConstraintTpl<Real, OutputSizeAtCompileTime>;
 
 }  // namespace bopt

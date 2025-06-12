@@ -175,6 +175,7 @@ class EvaluatorTpl : public EvaluatorBase<OutputSizeAtCompileTime> {
     using DenseVector = typename EvaluatorTraits::DenseVector;
     using InputVector = typename EvaluatorTraits::InputVector;
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
+    using OutputType = typename EvaluatorTraits::DenseVector;
 
     /// @brief The standard type of data to be used for the evaluation functions
     using Data = EvaluatorDataTpl<EvaluatorTraits, OutputSizeAtCompileTime>;
@@ -279,6 +280,7 @@ class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase<1> {
     using DenseVector = typename EvaluatorTraits::DenseVector;
     using InputVector = typename EvaluatorTraits::InputVector;
     using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
+    using OutputType = Scalar;
 
     /// @brief The standard type of data to be used for the evaluation functions
     using Data = EvaluatorDataTpl<EvaluatorTraits, 1>;
@@ -369,6 +371,10 @@ class EvaluatorTpl<EvaluatorTraits, 1> : public EvaluatorBase<1> {
                                   const HessianEvaluationFlags &flags) const {}
 };
 
+template <typename Scalar, int OutputSizeAtCompileTime>
+using DenseEvaluatorTpl =
+    EvaluatorTpl<DenseEvaluatorTraits<Scalar>, OutputSizeAtCompileTime>;
+
 template <typename EvaluatorTraits, int OutputSizeAtCompileTime>
 class LinearEvaluatorTpl
     : public EvaluatorTpl<EvaluatorTraits, OutputSizeAtCompileTime> {
@@ -403,6 +409,10 @@ class LinearEvaluatorTpl
     virtual void setDataSparsityImpl(Data &data) const {}
 };
 
+template <typename Scalar, int OutputSizeAtCompileTime>
+using DenseLinearEvaluatorTpl =
+    LinearEvaluatorTpl<DenseEvaluatorTraits<Scalar>, OutputSizeAtCompileTime>;
+
 template <typename EvaluatorTraits>
 class QuadraticEvaluatorTpl : public EvaluatorTpl<EvaluatorTraits, 1> {
     using Base = EvaluatorTpl<EvaluatorTraits, 1>;
@@ -427,6 +437,12 @@ class QuadraticEvaluatorTpl : public EvaluatorTpl<EvaluatorTraits, 1> {
 
 namespace internal {
 
+/**
+ * @brief Wrapper for the evaluator type, providing the ability to use the
+ * evaluator's functions and change between evaluators on the fly.
+ *
+ * @tparam EvaluatorType
+ */
 template <typename EvaluatorType>
 class EvaluatorWrapper {
    public:
@@ -465,6 +481,10 @@ class EvaluatorWrapper {
 
     std::shared_ptr<Data> createData() const {
         return getEvaluator().createData();
+    }
+
+    void setDataSparsity(Data &data) const {
+        getEvaluator().setDataSparsity(data);
     }
 
     void eval(const InputVectorConstRef &x, Data &data) const {

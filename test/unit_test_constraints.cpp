@@ -7,9 +7,8 @@
 #include "bopt/Logging.hpp"
 #include "bopt/Profiler.hpp"
 
-class DenseEvaluatorTest
-    : public bopt::DenseEvaluatorTpl<double, Eigen::Dynamic> {
-    using Base = bopt::DenseEvaluatorTpl<double, Eigen::Dynamic>;
+class DenseEvaluatorTest : public bopt::DenseEvaluatorTpl<double, 2> {
+    using Base = bopt::DenseEvaluatorTpl<double, 2>;
 
    public:
     using Data = typename Base::Data;
@@ -35,7 +34,7 @@ class DenseEvaluatorTest
 TEST(Constraint, Constraint) {
     auto e = std::make_shared<DenseEvaluatorTest>();
 
-    bopt::DenseConstraint c(e, bopt::ConstraintBoundType::POSITIVE);
+    bopt::DenseConstraint<2> c(e, bopt::ConstraintBoundType::POSITIVE);
 
     auto data = c.createData();
     {
