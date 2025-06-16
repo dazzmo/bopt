@@ -3,92 +3,37 @@
 
 #include <Eigen/Core>
 
-#include "bopt/binding.hpp"
-#include "bopt/constraints.hpp"
+#include "bopt/Binding.hpp"
+#include "bopt/Costs.hpp"
 #include "bopt/Logging.hpp"
-#include "bopt/profiler.hpp"
+#include "bopt/Profiler.hpp"
+#include "example_costs.hpp"
 
-class DummyConstraint : public bopt::constraint_tpl<double> {
-   public:
-    DummyConstraint() : bopt::constraint_tpl<double>(2, 2) {
-        this->set_name("dummy_constraint");
-    }
+TEST(CostEvaluator, Binding) {
+    std::vector<Eigen::Index> indices = {0};
+    auto e = std::make_shared<CostEvaluator>();
+    auto cost = std::make_shared<bopt::CostTpl<CostEvaluator>>(e);
+    auto data = std::make_shared<bopt::EvaluatorDataTpl<double, 1>>(*e);
 
-   protected:
-    bopt::evaluator::return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        out[0] = x[0];
-        out[0] = x[0] - x[1];
-        return bopt::evaluator::return_status::Success;
-    }
-
-    bopt::evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        out(0, 0) = 1.0;
-        out(1, 0) = 1.0;
-        out(1, 1) = -1.0;
-        return bopt::evaluator::return_status::Success;
-    }
-};
-
-class DummyLinearConstraint : public bopt::linear_constraint_tpl<double> {
-   public:
-    DummyLinearConstraint() : bopt::linear_constraint_tpl<double>(2, 2) {
-        this->set_name("dummy_linear_constraint");
-    }
-
-   protected:
-    bopt::evaluator::return_status eval_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_vector_t> out) override {
-        out[0] = x[0];
-        out[0] = x[0] - x[1];
-        return bopt::evaluator::return_status::Success;
-    }
-
-    bopt::evaluator::return_status eval_jacobian_impl(
-        const Eigen::Ref<const dense_vector_t> &x,
-        Eigen::Ref<dense_matrix_t> out) override {
-        out(0, 0) = 1.0;
-        out(1, 0) = 1.0;
-        out(1, 1) = -1.0;
-        return bopt::evaluator::return_status::Success;
-    }
-};
-
-TEST(Variable, EmptyBinding) {
-    bopt::binding<bopt::constraint_tpl<double>> b;
-
-    EXPECT_DEATH({ b.get(); }, "");
-    EXPECT_DEATH({ b.indices(); }, "");
+    bopt::Binding<bopt::CostTpl<CostEvaluator>> b(cost, data, indices);
 }
 
-TEST(Variable, ConstraintBinding) {
-    std::vector<Eigen::Index> indices = {0, 1};
-    auto constraint = std::make_shared<DummyConstraint>();
-    bopt::binding<bopt::constraint_tpl<double>> b(constraint, indices);
+TEST(LinearCostEvaluator, Binding) {
+    std::vector<Eigen::Index> indices = {0};
+    auto e = std::make_shared<LinearCostEvaluator>();
+    auto cost = std::make_shared<bopt::CostTpl<LinearCostEvaluator>>(e);
+    auto data = std::make_shared<bopt::LinearEvaluatorDataTpl<double, 1>>(*e);
 
-    EXPECT_EQ(b.indices().indices().size(), 2);
-    EXPECT_EQ(b.get()->sz_out(), 2);
-
-    // Incorrect indice vector size
-    indices = {0, 1, 2};
-    EXPECT_DEATH(
-        {
-            bopt::binding<bopt::constraint_tpl<double>> binding_incorrect(
-                constraint, indices);
-        },
-        "");
+    bopt::Binding<bopt::CostTpl<LinearCostEvaluator>> b(cost, data, indices);
 }
 
-TEST(Variable, ConstraintBindingConversion) {
-    std::vector<Eigen::Index> indices = {0, 1};
-    auto lc = std::make_shared<DummyLinearConstraint>();
-    bopt::binding<bopt::linear_constraint_tpl<double>> bl(lc, indices);
+TEST(LinearCostEvaluator, Convert) {
+    std::vector<Eigen::Index> indices = {0};
+    auto e = std::make_shared<LinearCostEvaluator>();
+    auto cost = std::make_shared<bopt::CostTpl<LinearCostEvaluator>>(e);
+    auto data = std::make_shared<bopt::LinearEvaluatorDataTpl<double, 1>>(*e);
 
-    bopt::binding<bopt::constraint_tpl<double>> b(bl);
+    bopt::Binding<bopt::CostTpl<LinearCostEvaluator>> b1(cost, data, indices);
 }
 
 int main(int argc, char **argv) {
@@ -99,6 +44,6 @@ int main(int argc, char **argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
     int status = RUN_ALL_TESTS();
-    bopt::profiler summary;
+    bopt::Profiler summary;
     return status;
 }

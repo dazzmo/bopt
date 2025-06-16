@@ -4,118 +4,115 @@
 
 namespace bopt {
 
-template <typename EvaluatorTraits, int OutputSize>
-EvaluatorDataTpl<EvaluatorTraits, OutputSize>::EvaluatorDataTpl(
-    const EvaluatorTpl<EvaluatorTraits, OutputSize> &e) {
-    const auto &nx = e.dimInputTangentSpace();
-    const auto &np = e.numParameters();
-    const auto &m = e.outputSize();
+template <typename ScalarType, int OutputSizeAtCompileTime,
+          SparsityType Sparsity>
+EvaluatorDataTpl<ScalarType, OutputSizeAtCompileTime,
+                 Sparsity>::EvaluatorDataTpl(const Size &n, const Size &m,
+                                             const Size &p) {
+    y = OutputType::Zero(m);
 
-    y = DenseVector::Zero(m);
-
-    if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
-        Jx.resize(m, nx);
-        Jp.resize(m, np);
-        Hxx.resize(nx, nx);
-        Hxp.resize(nx, np);
-        Hpp.resize(np, np);
+    if constexpr (Sparsity == SparsityType::SPARSE) {
+        Jx.resize(m, n);
+        Jp.resize(m, p);
+        Hxx.resize(n, n);
+        Hxp.resize(n, p);
+        Hpp.resize(p, p);
 
     } else {
-        Jx = JacobianType::Zero(m, nx);
-        Jp = JacobianType::Zero(m, np);
-        Hxx = HessianType::Zero(nx, nx);
-        Hxp = HessianType::Zero(nx, np);
-        Hpp = HessianType::Zero(np, np);
+        Jx = JacobianType::Zero(m, n);
+        Jp = JacobianType::Zero(m, p);
+        Hxx = HessianType::Zero(n, n);
+        Hxp = HessianType::Zero(n, p);
+        Hpp = HessianType::Zero(p, p);
     }
-
-    // Set up data sparsity patterns
-    e.setDataSparsity(*this);
 }
 
-template <typename EvaluatorTraits>
-EvaluatorDataTpl<EvaluatorTraits, 1>::EvaluatorDataTpl(
-    const EvaluatorTpl<EvaluatorTraits, 1> &e) {
-    const auto &nx = e.dimInputTangentSpace();
-    const auto &np = e.numParameters();
-    const auto &m = e.outputSize();
+template <typename ScalarType, int OutputSizeAtCompileTime,
+          SparsityType Sparsity>
+EvaluatorDataTpl<ScalarType, OutputSizeAtCompileTime, Sparsity>::
+    EvaluatorDataTpl(const EvaluatorTpl<ScalarType, OutputSizeAtCompileTime,
+                                        Sparsity> &evaluator)
+    : EvaluatorDataTpl(evaluator.dimInputTangentSpace(), evaluator.outputSize(),
+                       evaluator.numParameters()) {}
 
-    y = Scalar(0);
+template <typename ScalarType, SparsityType Sparsity>
+EvaluatorDataTpl<ScalarType, 1, Sparsity>::EvaluatorDataTpl(const Size &n,
+                                                            const Size &p) {
+    y = OutputType(0);
 
-    if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
-        gx.resize(nx);
-        gp.resize(np);
-        Hxx.resize(nx, nx);
-        Hxp.resize(nx, np);
-        Hpp.resize(np, np);
+    if constexpr (Sparsity == SparsityType::SPARSE) {
+        gx.resize(n);
+        gp.resize(p);
+        Hxx.resize(n, n);
+        Hxp.resize(n, p);
+        Hpp.resize(p, p);
     } else {
-        gx = GradientType::Zero(nx);
-        gp = GradientType::Zero(np);
-        Hxx = HessianType::Zero(nx, nx);
-        Hxp = HessianType::Zero(nx, np);
-        Hpp = HessianType::Zero(np, np);
+        gx = GradientType::Zero(n);
+        gp = GradientType::Zero(p);
+        Hxx = HessianType::Zero(n, n);
+        Hxp = HessianType::Zero(n, p);
+        Hpp = HessianType::Zero(p, p);
     }
-
-    // Set up data sparsity patterns
-    e.setDataSparsity(*this);
 }
 
-template <typename EvaluatorTraits, int OutputSize>
-LinearEvaluatorDataTpl<EvaluatorTraits, OutputSize>::LinearEvaluatorDataTpl(
-    const LinearEvaluatorTpl<EvaluatorTraits, OutputSize> &e)
-    : EvaluatorDataTpl<EvaluatorTraits, OutputSize>(e) {
-    const auto &nx = e.dimInputTangentSpace();
-    const auto &np = e.numParameters();
-    const auto &m = e.outputSize();
+template <typename ScalarType, SparsityType Sparsity>
+EvaluatorDataTpl<ScalarType, 1, Sparsity>::EvaluatorDataTpl(
+    const EvaluatorTpl<ScalarType, 1, Sparsity> &evaluator)
+    : EvaluatorDataTpl(evaluator.dimInputTangentSpace(),
+                       evaluator.numParameters()) {}
 
-    if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
-        A.resize(m, nx);
+template <typename ScalarType, int OutputSizeAtCompileTime,
+          SparsityType Sparsity>
+LinearDataTpl<ScalarType, OutputSizeAtCompileTime, Sparsity>::LinearDataTpl(
+    const Size &n, const Size &m, const Size &p)
+    : EvaluatorDataTpl<ScalarType, OutputSizeAtCompileTime, Sparsity>(n, m, p) {
+    if constexpr (Sparsity == SparsityType::SPARSE) {
+        A.resize(m, n);
         b = OutputType::Zero(m);
     } else {
-        A = JacobianType::Zero(m, nx);
+        A = JacobianType::Zero(m, n);
         b = OutputType::Zero(m);
     }
-
-    // Set up data sparsity patterns
-    e.setDataSparsity(*this);
 }
 
-template <typename EvaluatorTraits>
-LinearEvaluatorDataTpl<EvaluatorTraits, 1>::LinearEvaluatorDataTpl(
-    const LinearEvaluatorTpl<EvaluatorTraits, 1> &e)
-    : EvaluatorDataTpl<EvaluatorTraits, 1>(e) {
-    const auto &nx = e.dimInputTangentSpace();
-    const auto &np = e.numParameters();
-    const auto &m = e.outputSize();
+template <typename ScalarType, int OutputSizeAtCompileTime,
+          SparsityType Sparsity>
+LinearDataTpl<ScalarType, OutputSizeAtCompileTime, Sparsity>::LinearDataTpl(
+    const EvaluatorTpl<ScalarType, OutputSizeAtCompileTime, Sparsity>
+        &evaluator)
+    : LinearDataTpl(evaluator.dimInputTangentSpace(), evaluator.outputSize(),
+                    evaluator.numParameters()) {}
 
-    if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
-        a.resize(nx);
+template <typename ScalarType, SparsityType Sparsity>
+LinearDataTpl<ScalarType, 1, Sparsity>::LinearDataTpl(const Size &n,
+                                                      const Size &p)
+    : EvaluatorDataTpl<ScalarType, 1, Sparsity>(n, p) {
+    if constexpr (Sparsity == SparsityType::SPARSE) {
+        a.resize(n);
     } else {
-        a = GradientType::Zero(nx);
+        a = GradientType::Zero(n);
     }
     b = OutputType(0);
-
-    // Set up data sparsity patterns
-    e.setDataSparsity(*this);
 }
 
-template <typename EvaluatorTraits>
-QuadraticEvaluatorDataTpl<EvaluatorTraits>::QuadraticEvaluatorDataTpl(
-    const EvaluatorTpl<EvaluatorTraits, 1> &e)
-    : EvaluatorDataTpl<EvaluatorTraits, 1>(e) {
-    const auto &nx = e.dimInputTangentSpace();
-    const auto &m = e.outputSize();
+template <typename ScalarType, SparsityType Sparsity>
+LinearDataTpl<ScalarType, 1, Sparsity>::LinearDataTpl(
+    const EvaluatorTpl<ScalarType, 1, Sparsity> &evaluator)
+    : LinearDataTpl(evaluator.dimInputTangentSpace(),
+                    evaluator.numParameters()) {}
 
-    if constexpr (EvaluatorTraits::type == FunctionType::SPARSE) {
-        A.resize(nx, nx);
-        b.resize(nx);
+template <typename ScalarType, SparsityType Sparsity>
+QuadraticDataTpl<ScalarType, Sparsity>::QuadraticDataTpl(const Size &n,
+                                                         const Size &p)
+    : EvaluatorDataTpl<ScalarType, 1, Sparsity>(n, p) {
+    if constexpr (Sparsity == SparsityType::SPARSE) {
+        A.resize(n, n);
+        b.resize(n);
     } else {
-        A = HessianType::Zero(nx, nx);
-        b = GradientType::Zero(nx);
+        A = HessianType::Zero(n, n);
+        b = GradientType::Zero(n);
     }
     c = Scalar(0);
-
-    // Set up data sparsity patterns
-    e.setDataSparsity(*this);
 }
 
 }  // namespace bopt

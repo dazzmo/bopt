@@ -4,24 +4,22 @@
 
 namespace bopt {
 
-// Forward declaration of data type
-template <typename EvaluatorTraits>
-struct QuadraticCostDataTpl;
-
 /**
- * @brief Quadratic cost of the form fₚ(x) = aₚᵀx + bₚ
+ * @brief Quadratic cost of the form c(x) = a^T x + b
  *
+ * @tparam EvaluatorTraits
+ * @tparam OutputSize
  */
-template <typename EvaluatorTraits>
-using QuadraticCostTpl =
-    PolynomialCostTpl<QuadraticEvaluatorTpl<EvaluatorTraits>>;
+template <typename ScalarType, SparsityType Sparsity = SparsityType::DENSE>
+class QuadraticCostTpl
+    : public CostTpl<ScalarType, Sparsity>,
+      public PolynomialEvaluator<QuadraticDataTpl<ScalarType, Sparsity>> {
+   public:
+    using Data = typename CostTpl<ScalarType, Sparsity>::Data;
 
-template <typename Scalar>
-using DenseQuadraticCostTpl = QuadraticCostTpl<DenseEvaluatorTraits<Scalar>>;
-using DenseQuadraticCost = DenseQuadraticCostTpl<Real>;
-
-template <typename Scalar>
-using SparseQuadraticCostTpl = QuadraticCostTpl<SparseEvaluatorTraits<Scalar>>;
-using SparseQuadraticCost = SparseQuadraticCostTpl<Real>;
-
+    QuadraticCostTpl(const String &name, const Size &n_in,
+                     const String &description = "")
+        : CostTpl<ScalarType>(name, n_in, description),
+          PolynomialEvaluator<QuadraticDataTpl<ScalarType, Sparsity>>() {}
+};
 }  // namespace bopt

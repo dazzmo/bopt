@@ -4,23 +4,26 @@
 
 namespace bopt {
 
-// Forward declaration of data type
-template <typename EvaluatorTraits>
-struct LinearCostDataTpl;
-
 /**
- * @brief Linear cost of the form fₚ(x) = aₚᵀx + bₚ
+ * @brief Linear cost of the form c(x) = a^T x + b
  *
+ * @tparam EvaluatorTraits
+ * @tparam OutputSize
  */
-template <typename EvaluatorTraits>
-using LinearCostTpl = PolynomialCostTpl<LinearEvaluatorTpl<EvaluatorTraits, 1>>;
+template <typename ScalarType, SparsityType _Sparsity = SparsityType::DENSE>
+class LinearCostTpl
+    : public CostTpl<ScalarType, _Sparsity>,
+      public PolynomialEvaluator<LinearDataTpl<ScalarType, 1, _Sparsity>> {
+   public:
+    using CostBase = CostTpl<ScalarType, _Sparsity>;
+    using Data = LinearDataTpl<ScalarType, 1, _Sparsity>;
 
-template <typename Scalar>
-using DenseLinearCostTpl = LinearCostTpl<DenseEvaluatorTraits<Scalar>>;
-using DenseLinearCost = DenseLinearCostTpl<Real>;
+    static constexpr SparsityType Sparsity = CostBase::Sparsity;
 
-template <typename Scalar>
-using SparseLinearCostTpl = LinearCostTpl<SparseEvaluatorTraits<Scalar>>;
-using SparseLinearCost = SparseLinearCostTpl<Real>;
+    LinearCostTpl(const String &name, const Size &n_in,
+                  const String &description = "")
+        : CostTpl<ScalarType>(name, n_in, description),
+          PolynomialEvaluator<LinearDataTpl<ScalarType, 1, Sparsity>>() {}
+};
 
 }  // namespace bopt

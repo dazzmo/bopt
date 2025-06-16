@@ -1,48 +1,37 @@
 #include "bopt/Costs.hpp"
 
-class CostEvaluator : public bopt::DenseEvaluator<1> {
+class SumOfSquares : public bopt::CostTpl<double> {
    public:
-    CostEvaluator() : bopt::DenseEvaluator<1>(1) {}
+    SumOfSquares(const bopt::Size &n) : bopt::CostTpl<double>("SumOfSquares", n) {}
 
-    using Base = bopt::DenseEvaluator<1>;
-    using InputVectorConstRef = typename Base::InputVectorConstRef;
+    using Base = bopt::EvaluatorTpl<double, 1>;
     using Data = typename Base::Data;
 
    protected:
-    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
-        data.y = 1.0;
+    void evalImpl(const Eigen::Ref<const Eigen::VectorXd> &x,
+                  Data &data) const override {
+        data.y = x.squaredNorm();
     }
 
-    void evalGradientsImpl(const InputVectorConstRef &x, Data &data,
-                           bool compute_x, bool compute_p) const override {
-        data.gx << 1.0;
+    void evalGradientsImpl(
+        const Eigen::Ref<const Eigen::VectorXd> &x, Data &data,
+        const bopt::GradientEvaluationFlags &flags) const override {
+        data.gx << 2.0 * x;
         data.gp << 0.0;
     }
 };
 
-class LinearCostEvaluator
-    : public bopt::LinearEvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 1> {
+class LinearCost : public bopt::LinearCostTpl<double> {
    public:
-    using Base =
-        bopt::LinearEvaluatorTpl<bopt::DenseEvaluatorTraits<double>, 1>;
-    using Data = typename Base::Data;
-    using EvaluatorData = typename Base::EvaluatorData;
+    LinearCost(const bopt::Size &n) : bopt::LinearCostTpl<double>("LinearCost", n) {}
 
-    LinearCostEvaluator() : Base(2, "linear cost") {}
+    using Base = bopt::LinearCostTpl<double>;
+    using Data = typename Base::Data;
 
    protected:
-    void evalImpl(const InputVectorConstRef &x,
-                  EvaluatorData &data) const override {
-        data.y = 1.0 * x[0] + 2 * x[1] + 1.0;
-    }
-
-    void evalGradientsImpl(const InputVectorConstRef &x, EvaluatorData &data,
-                           bool compute_x, bool compute_p) const override {
-        data.gx << 1.0, 2.0;
-    }
 
     void evalCoefficientsImpl(Data &data) const override {
-        data.a << 1.0, 2.0;
-        data.b = 1.0;
+        data.a.setOnes();
+        data.b = 0.0;
     }
 };

@@ -11,24 +11,24 @@ namespace bopt {
  * @tparam EvaluatorTraits
  * @tparam OutputSize
  */
-template <typename LinearEvaluatorType>
-class LinearConstraintTpl : public ConstraintTpl<LinearEvaluatorType> {
-    using Base = ConstraintTpl<LinearEvaluatorType>;
+
+template <typename ScalarType, SparsityType _Sparsity = SparsityType::DENSE>
+class LinearConstraintTpl
+    : public ConstraintTpl<ScalarType, _Sparsity>,
+      public PolynomialEvaluator<
+          LinearDataTpl<ScalarType, Eigen::Dynamic, _Sparsity>> {
+   private:
+    using Base = ConstraintTpl<ScalarType, _Sparsity>;
 
    public:
-    LinearConstraintTpl(const std::shared_ptr<LinearEvaluatorType> &evaluator)
-        : Base(evaluator) {}
+    using Data = typename Base::Data;
+    using LinearData = LinearDataTpl<ScalarType, Eigen::Dynamic, _Sparsity>;
 
-    void evalCoefficients(typename LinearEvaluatorType::Data &data) const {
-        this->getEvaluator().evalCoefficients(data);
-    }
+    static constexpr SparsityType Sparsity = _Sparsity;
+
+    LinearConstraintTpl(const String &name, const Size &n_in, const Size &n_out,
+                        const ConstraintBoundType &bounds)
+        : Base(name, n_in, n_out, bounds), PolynomialEvaluator<LinearData>() {}
 };
-
-template <typename Scalar, int OutputSizeAtCompileTime>
-using DenseLinearConstraintTpl = LinearConstraintTpl<
-    DenseLinearEvaluatorTpl<Scalar, OutputSizeAtCompileTime>>;
-template <int OutputSizeAtCompileTime>
-using DenseLinearConstraint =
-    DenseLinearConstraintTpl<Real, OutputSizeAtCompileTime>;
 
 }  // namespace bopt

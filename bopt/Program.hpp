@@ -21,16 +21,23 @@ namespace bopt {
  */
 class MathematicalProgram {
    private:
-    using CostVariant =
-        std::variant<Binding<DenseCost>, Binding<SparseCost>,
-                     Binding<DenseLinearCost>, Binding<SparseLinearCost>>;
-
-    using ConstraintVariant =
-        std::variant<Binding<DenseConstraint>, Binding<SparseConstraint>,
-                     Binding<DenseLinearConstraint>,
-                     Binding<SparseLinearConstraint>>;
-
     using VectorXd = typename MathTypes<Real>::VectorX;
+
+    using CostVariant = std::variant<
+        // Generic dense costs
+        Binding<CostTpl<double, SparsityType::DENSE>>,
+        // Generic sparse costs
+        Binding<CostTpl<double, SparsityType::SPARSE>>,
+        // Linear dense costs
+        Binding<LinearCostTpl<double, SparsityType::DENSE>>,
+        // Linear sparse costs
+        Binding<LinearCostTpl<double, SparsityType::SPARSE>>>;
+
+    using ConstraintVariant = std::variant<
+        Binding<ConstraintTpl<double, SparsityType::DENSE>>,
+        Binding<ConstraintTpl<double, SparsityType::SPARSE>>,
+        Binding<LinearConstraintTpl<double, SparsityType::DENSE>>,
+        Binding<LinearConstraintTpl<double, SparsityType::SPARSE>>>;
 
    public:
     /**
@@ -151,142 +158,110 @@ class MathematicalProgram {
         return indices;
     }
 
-    /**
-     * @brief Add a cost to the program, bound to the provided variables.
-     *
-     * @param cost
-     * @param x
-     */
-    template <typename CostType>
-    void addCost(const std::shared_ptr<CostType> &cost,
-                 const std::shared_ptr<typename CostType::Data> &data,
-                 const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        cost_bindings_.emplace_back(
-            Binding<CostType>(cost, data, getVariableIndices(x)));
+    template <typename CostDerived>
+    void addCost(
+        const std::shared_ptr<CostDerived> &cost,
+        const Eigen::Ref<const VariableVector> &x,
+        const std::shared_ptr<typename CostDerived::Data> &data = nullptr) {
+        static constexpr SparsityType Sparsity = CostDerived::Sparsity;
+
+        // Ensure the type is convertible
+        static_assert(
+            std::is_base_of<CostTpl<double, Sparsity>, CostDerived>::value,
+            "Error: Cost must be derived from CostTpl.");
+        addCost<Sparsity>(
+            std::static_pointer_cast<CostTpl<double, Sparsity>>(cost), x, data);
     }
 
-    /**
-     * @brief Add a dense linear cost to the program
-     *
-     * @param cost
-     * @param data
-     * @param x
-     */
-    template <typename EvaluatorTraits>
-    void addLinearCost(
-        const std::shared_ptr<LinearCostTpl<EvaluatorTraits>> &cost,
-        const std::shared_ptr<typename LinearCostTpl<EvaluatorTraits>::Data>
-            &data,
-        const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        this->addCost<LinearCostTpl<EvaluatorTraits>>(cost, data, x);
+    template <typename LinearCostDerived>
+    void addLinearCost(const std::shared_ptr<LinearCostDerived> &cost,
+                       const Eigen::Ref<const VariableVector> &x,
+                       const std::shared_ptr<typename LinearCostDerived::Data>
+                           &data = nullptr) {
+        static constexpr SparsityType Sparsity = LinearCostDerived::Sparsity;
+
+        // Ensure the type is convertible
+        static_assert(std::is_base_of<LinearCostTpl<double, Sparsity>,
+                                      LinearCostDerived>::value,
+                      "Error: Cost must be derived from LinearCostTpl.");
+        addLinearCost<Sparsity>(
+            std::static_pointer_cast<LinearCostTpl<double, Sparsity>>(cost), x,
+            data);
     }
 
-    // /**
-    //  * @brief Add a dense linear cost to the program
-    //  *
-    //  * @param cost
-    //  * @param data
-    //  * @param x
-    //  */
-    // void addQuadraticCost(
-    //     const std::shared_ptr<DenseQuadraticCost> &cost,
-    //     const std::shared_ptr<typename DenseQuadraticCost::Data> &data,
-    //     const Eigen::Ref<const VariableVector> &x) {
-    //     // Create binding
-    //     this->addCost<DenseQuadraticCost>(cost, data, x);
-    // }
+    template <typename ConstraintDerived>
+    void addConstraint(const std::shared_ptr<ConstraintDerived> &cost,
+                       const Eigen::Ref<const VariableVector> &x,
+                       const std::shared_ptr<typename ConstraintDerived::Data>
+                           &data = nullptr) {
+        static constexpr SparsityType Sparsity = ConstraintDerived::Sparsity;
 
-    // /**
-    //  * @brief Add a sparse Quadratic cost to the program
-    //  *
-    //  * @param cost
-    //  * @param data
-    //  * @param x
-    //  */
-    // void addQuadraticCost(
-    //     const std::shared_ptr<SparseQuadraticCost> &cost,
-    //     const std::shared_ptr<typename SparseQuadraticCost::Data> &data,
-    //     const Eigen::Ref<const VariableVector> &x) {
-    //     this->addCost<SparseQuadraticCost>(cost, data, x);
-    // }
-
-    /**
-     * @brief Add a constraint to the program, bound to the provided variables.
-     *
-     * @param constraint
-     * @param x
-     */
-    template <typename ConstraintType>
-    void addConstraint(
-        const std::shared_ptr<ConstraintType> &constraint,
-        const std::shared_ptr<typename ConstraintType::Data> &data,
-        const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        constraint_bindings_.emplace_back(
-            Binding<ConstraintType>(constraint, data, getVariableIndices(x)));
+        // Ensure the type is convertible
+        static_assert(std::is_base_of<ConstraintTpl<double, Sparsity>,
+                                      ConstraintDerived>::value,
+                      "Error: Constraint must be derived from ConstraintTpl.");
+        addConstraint<Sparsity>(
+            std::static_pointer_cast<ConstraintTpl<double, Sparsity>>(cost), x,
+            data);
     }
 
-    /**
-     * @brief Add a dense linear cost to the program
-     *
-     * @param cost
-     * @param data
-     * @param x
-     */
+    template <typename LinearConstraintDerived>
     void addLinearConstraint(
-        const std::shared_ptr<DenseLinearConstraint> &constraint,
-        const std::shared_ptr<typename DenseLinearConstraint::Data> &data,
-        const Eigen::Ref<const VariableVector> &x) {
-        // Create binding
-        this->addConstraint<DenseLinearConstraint>(constraint, data, x);
+        const std::shared_ptr<LinearConstraintDerived> &cost,
+        const Eigen::Ref<const VariableVector> &x,
+        const std::shared_ptr<typename LinearConstraintDerived::Data> &data =
+            nullptr) {
+        static constexpr SparsityType Sparsity =
+            LinearConstraintDerived::Sparsity;
+
+        // Ensure the type is convertible
+        static_assert(
+            std::is_base_of<LinearConstraintTpl<double, Sparsity>,
+                            LinearConstraintDerived>::value,
+            "Error: Constraint must be derived from LinearConstraintTpl.");
+        addLinearConstraint<Sparsity>(
+            std::static_pointer_cast<LinearConstraintTpl<double, Sparsity>>(
+                cost),
+            x, data);
     }
 
-    /**
-     * @brief Add a sparse linear constraint to the program
-     *
-     * @param constraint
-     * @param data
-     * @param x
-     */
-    void addLinearConstraint(
-        const std::shared_ptr<SparseLinearConstraint> &constraint,
-        const std::shared_ptr<typename SparseLinearConstraint::Data> &data,
-        const Eigen::Ref<const VariableVector> &x) {
-        this->addConstraint<SparseLinearConstraint>(constraint, data, x);
+    void addBoundingBoxConstraint(
+        const std::shared_ptr<BoundingBoxConstraintTpl<double>> &constraint,
+        const Eigen::Ref<const VariableVector> &x,
+        const std::shared_ptr<typename BoundingBoxConstraintTpl<double>::Data>
+            &data = nullptr) {
+        if (data == nullptr) {
+            bb_constraint_bindings_.push_back(
+                Binding<BoundingBoxConstraintTpl<double>>(
+                    constraint,
+                    std::make_shared<
+                        typename BoundingBoxConstraintTpl<double>::Data>(
+                        *constraint),
+                    getVariableIndices(x)));
+        } else {
+            bb_constraint_bindings_.push_back(
+                Binding<BoundingBoxConstraintTpl<double>>(
+                    constraint, data, getVariableIndices(x)));
+        }
     }
 
-    // void addBoundingBoxConstraint(
-    //     const std::shared_ptr<DenseBoundingBoxConstraint> &constraint,
-    //     const std::shared_ptr<typename DenseBoundingBoxConstraint::Data> &data,
-    //     const Eigen::Ref<const VariableVector> &x) {
-    //     // Create binding
-    //     bb_constraint_bindings_.push_back(Binding<DenseBoundingBoxConstraint>(
-    //         constraint, data, getVariableIndices(x)));
-    // }
-
-    // void addBoundingBoxConstraint(const Eigen::Ref<const VariableVector> &x,
-    //                               const Eigen::Ref<const Eigen::VectorXd> &lb,
-    //                               const Eigen::Ref<const Eigen::VectorXd> &ub) {
-    //     // Create binding
-    //     auto constraint =
-    //         std::make_shared<DenseBoundingBoxConstraint>(x.rows(), lb, ub);
-    //     auto data = constraint->createData();
-    //     bb_constraint_bindings_.push_back(Binding<DenseBoundingBoxConstraint>(
-    //         constraint, data, getVariableIndices(x)));
-    // }
+    void addBoundingBoxConstraint(const Eigen::Ref<const VariableVector> &x,
+                                  const Eigen::Ref<const Eigen::VectorXd> &lb,
+                                  const Eigen::Ref<const Eigen::VectorXd> &ub) {
+        addBoundingBoxConstraint(
+            std::make_shared<BoundingBoxConstraintTpl<double>>(lb, ub), x);
+    }
 
     /**
      * @brief Get all cost bindings of a specific type, note that this will
-     * return all bindings which are of this type, as well as any bindings that
-     * have a base of this given type.
+     * return all bindings which are of this type, as well as any bindings
+     * that have a base of this given type.
      *
      * @tparam BindingType
      * @return std::vector<Binding<BindingType>>
      */
     template <typename BindingType>
-    std::vector<Binding<BindingType>> getCosts() {
+    std::vector<Binding<BindingType>> getCostBindings() {
         std::vector<Binding<BindingType>> vec;
 
         for (const auto &cost : cost_bindings_) {
@@ -307,21 +282,21 @@ class MathematicalProgram {
 
     /**
      * @brief Get all constraint bindings of a specific type, note that this
-     * will return all bindings which are of this type, as well as any bindings
-     * that have a base of this given type.
+     * will return all bindings which are of this type, as well as any
+     * bindings that have a base of this given type.
      *
-     * @tparam BindingType
-     * @return std::vector<Binding<BindingType>>
+     * @tparam ConstraintType
+     * @return std::vector<Binding<ConstraintType>>
      */
-    template <typename BindingType>
-    std::vector<Binding<BindingType>> getConstraints() const {
-        std::vector<Binding<BindingType>> vec;
+    template <typename ConstraintType>
+    std::vector<Binding<ConstraintType>> getConstraintBindings() const {
+        std::vector<Binding<ConstraintType>> vec;
 
         for (const auto &constraint : constraint_bindings_) {
             std::visit(
                 [&](auto &&binding) {
                     using T = std::decay_t<decltype(binding)>;
-                    if constexpr (std::is_base_of_v<BindingType,
+                    if constexpr (std::is_base_of_v<ConstraintType,
                                                     typename T::Evaluator>) {
                         vec.push_back(binding);
                     }
@@ -333,12 +308,119 @@ class MathematicalProgram {
         return vec;
     }
 
-    // std::vector<Binding<DenseBoundingBoxConstraint>> getBoundingBoxConstraints()
-    //     const {
-    //     return bb_constraint_bindings_;
-    // }
+    std::vector<Binding<BoundingBoxConstraintTpl<double>>>
+    getBoundingBoxConstraintBindings() const {
+        return bb_constraint_bindings_;
+    }
 
    protected:
+    /**
+     * @brief Add a cost to the program, bound to the provided variables.
+     *
+     * @param cost
+     * @param x
+     */
+    template <SparsityType Sparsity = SparsityType::DENSE>
+    void addCost(const std::shared_ptr<CostTpl<double, Sparsity>> &cost,
+                 const Eigen::Ref<const VariableVector> &x,
+                 const std::shared_ptr<typename CostTpl<double, Sparsity>::Data>
+                     &data = nullptr) {
+        // Create binding
+        if (data == nullptr) {
+            cost_bindings_.emplace_back(Binding<CostTpl<double, Sparsity>>(
+                cost,
+                std::make_shared<typename CostTpl<double, Sparsity>::Data>(
+                    *cost),
+                getVariableIndices(x)));
+        } else {
+            cost_bindings_.emplace_back(Binding<CostTpl<double, Sparsity>>(
+                cost, data, getVariableIndices(x)));
+        }
+    }
+
+    /**
+     * @brief Add a dense linear cost to the program
+     *
+     * @param cost
+     * @param data
+     * @param x
+     */
+    template <SparsityType Sparsity>
+    void addLinearCost(
+        const std::shared_ptr<LinearCostTpl<double, Sparsity>> &cost,
+        const Eigen::Ref<const VariableVector> &x,
+        const std::shared_ptr<typename LinearCostTpl<double, Sparsity>::Data>
+            &data = nullptr) {
+        if (data) {
+            // Create binding
+            cost_bindings_.emplace_back(
+                Binding<LinearCostTpl<double, Sparsity>>(
+                    cost, data, getVariableIndices(x)));
+        } else {
+            cost_bindings_.emplace_back(
+                Binding<LinearCostTpl<double, Sparsity>>(
+                    cost,
+                    std::make_shared<
+                        typename LinearCostTpl<double, Sparsity>::Data>(*cost),
+                    getVariableIndices(x)));
+        }
+    }
+
+    /**
+     * @brief Add a constraint to the program, bound to the provided
+     * variables.
+     *
+     * @param constraint
+     * @param x
+     */
+    template <SparsityType Sparsity>
+    void addConstraint(
+        const std::shared_ptr<ConstraintTpl<double, Sparsity>> &constraint,
+        const Eigen::Ref<const VariableVector> &x,
+        const std::shared_ptr<typename ConstraintTpl<double, Sparsity>::Data>
+            &data = nullptr) {
+        using ConstraintType = ConstraintTpl<double, Sparsity>;
+        // Create binding
+        if (data) {
+            constraint_bindings_.emplace_back(Binding<ConstraintType>(
+                constraint, data, getVariableIndices(x)));
+        } else {
+            constraint_bindings_.emplace_back(Binding<ConstraintType>(
+                constraint,
+                std::make_shared<typename ConstraintType::Data>(*constraint),
+                getVariableIndices(x)));
+        }
+    }
+
+    /**
+     * @brief Add a dense linear cost to the program
+     *
+     * @param cost
+     * @param data
+     * @param x
+     */
+    template <SparsityType Sparsity>
+    void addLinearConstraint(
+        const std::shared_ptr<LinearConstraintTpl<double, Sparsity>>
+            &constraint,
+        const Eigen::Ref<const VariableVector> &x,
+        const std::shared_ptr<
+            typename LinearConstraintTpl<double, Sparsity>::Data> &data =
+            nullptr) {
+        using LinearConstraintType = LinearConstraintTpl<double, Sparsity>;
+        // Create binding
+        if (data) {
+            constraint_bindings_.emplace_back(Binding<LinearConstraintType>(
+                constraint, data, getVariableIndices(x)));
+        } else {
+            constraint_bindings_.emplace_back(Binding<LinearConstraintType>(
+                constraint,
+                std::make_shared<typename LinearConstraintType::Data>(
+                    *constraint),
+                getVariableIndices(x)));
+        }
+    }
+
    private:
     // Name
     String name_;
@@ -357,8 +439,8 @@ class MathematicalProgram {
 
     std::vector<CostVariant> cost_bindings_ = {};
     std::vector<ConstraintVariant> constraint_bindings_ = {};
-    // std::vector<Binding<DenseBoundingBoxConstraint>> bb_constraint_bindings_ =
-    //     {};
+    std::vector<Binding<BoundingBoxConstraintTpl<double>>>
+        bb_constraint_bindings_ = {};
 };
 
 std::ostream &operator<<(std::ostream &os, const MathematicalProgram &program);

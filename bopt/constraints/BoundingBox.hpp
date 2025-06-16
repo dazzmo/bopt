@@ -12,73 +12,59 @@ namespace bopt {
  * @tparam EvaluatorTraits
  * @tparam OutputSize
  */
-template <typename EvaluatorType>
-class BoundingBoxConstraintTpl : public ConstraintTpl<EvaluatorType> {
-    using Base = ConstraintTpl<EvaluatorType>;
+template <typename ScalarType>
+class BoundingBoxConstraintTpl
+    : public ConstraintTpl<ScalarType, SparsityType::DENSE> {
+    using Base = ConstraintTpl<ScalarType, SparsityType::DENSE>;
     using Scalar = typename Base::Scalar;
 
    public:
-    using InputVectorConstRef = typename Base::InputVectorConstRef;
+    using DenseVector = typename Base::DenseVector;
+    using InputVector = typename Base::InputVector;
     using OutputType = typename Base::OutputType;
 
-    BoundingBoxConstraintTpl(const std::shared_ptr<EvaluatorType> &evaluator)
-        : Base(evaluator, ConstraintBoundType::NEGATIVE) {
-        if constexpr (!Base::IsScalar) {
-            lb_ = OutputType::Zero(this->numOutputs());
-            ub_ = OutputType::Zero(this->numOutputs());
-        } else {
-            lb_ = Scalar(0);
-            ub_ = Scalar(0);
-        }
+    using Data = typename Base::Data;
+
+    BoundingBoxConstraintTpl()
+        : Base("bounding_box_constraint", 0, 0, ConstraintBoundType::NEGATIVE) {
+        lb_ = OutputType::Zero(this->outputSize());
+        ub_ = OutputType::Zero(this->outputSize());
     }
 
-    void evalBoundingBoxBounds(Scalar &lb, Scalar &ub) const {
-        static_assert(
-            EvaluatorType::IsScalar,
-            "You are calling a scalar method on a vector constraint!");
-        evalBoundingBoxBoundsImpl(lb, ub);
-    }
+    BoundingBoxConstraintTpl(const Eigen::Ref<const DenseVector> &lb,
+                             const Eigen::Ref<const DenseVector> &ub)
+        : Base("bounding_box_constraint", lb.size(), 2 * lb.size(),
+               ConstraintBoundType::NEGATIVE),
+          lb_(lb),
+          ub_(ub) {}
 
-    void evalBoundingBoxBounds(Eigen::Ref<DenseVector> lb,
-                               Eigen::Ref<DenseVector> ub) const {
-        static_assert(
-            EvaluatorType::IsScalar,
-            "You are calling a vector method on a scalar constraint!");
+    void evalBoundingBoxBounds(DenseVector &lb, DenseVector &ub) const {
         evalBoundingBoxBoundsImpl(lb, ub);
     }
 
    protected:
-    virtual void evalBoundingBoxBoundsImpl(Scalar &lb, Scalar &ub) const {}
-
-    virtual void evalBoundingBoxBoundsImpl(Eigen::Ref<DenseVector> lb,
-                                           Eigen::Ref<DenseVector> ub) const {}
+    virtual void evalBoundingBoxBoundsImpl(DenseVector &lb,
+                                           DenseVector &ub) const {}
 
    private:
-    OutputType lb_;
-    OutputType ub_;
+    mutable DenseVector lb_;
+    mutable DenseVector ub_;
 
-    void evalImpl(const InputVectorConstRef &x, Data &data) const override {
-        evalBoundingBoxBounds(lb_, ub_);
-        data.c << lb_ - x, x - ub_;
+    void evalImpl(const Eigen::Ref<const InputVector> &x,
+                  Data &data) const override {
+        this->evalBoundingBoxBounds(lb_, ub_);
+        data.y << lb_ - x, x - ub_;
     }
 
     void evalJacobiansImpl(
-        Data &data, const JacobianEvaluationFlags &flags) const override {
+        const Eigen::Ref<const InputVector> &x, Data &data,
+        const JacobianEvaluationFlags &flags) const override {
         if (flags.compute_x) {
-            if constexpr (EvaluatorType::Type == FunctionType::SPARSE) {
-            } else {
-                data.Jx.topLeftCorner().diagonal().array() = -1.0;
-                data.Jx.bottomRightCorner().diagonal().array() = 1.0;
-            }
+            const Index n = this->inputSize();
+            data.Jx.topLeftCorner(n, n).diagonal().array() = -1.0;
+            data.Jx.bottomRightCorner(n, n).diagonal().array() = 1.0;
         }
     }
 };
-
-template <typename Scalar, int OutputSizeAtCompileTime>
-using DenseBoundingBoxConstraintTpl = BoundingBoxConstraintTpl<
-    DenseBoundingBoxEvaluatorTpl<Scalar, OutputSizeAtCompileTime>>;
-template <int OutputSizeAtCompileTime>
-using DenseLinearConstraint =
-    DenseLinearConstraintTpl<Real, OutputSizeAtCompileTime>;
 
 }  // namespace bopt

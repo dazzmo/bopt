@@ -4,7 +4,6 @@
 
 #include "bopt/Evaluator.hpp"
 #include "bopt/Logging.hpp"
-#include "bopt/costs/CostData.hpp"
 
 namespace bopt {
 
@@ -13,17 +12,13 @@ namespace bopt {
  * @brief Cost function y = fₚ(x) ∈ ℝ
  *
  */
-template <typename EvaluatorTraits>
-class CostTpl {
+template <typename ScalarType, SparsityType _Sparsity = SparsityType::DENSE>
+class CostTpl : public EvaluatorTpl<ScalarType, 1, _Sparsity> {
    public:
-    using Scalar = typename EvaluatorTraits::Scalar;
+    static constexpr SparsityType Sparsity = _Sparsity;
 
-    using DenseVector = typename EvaluatorTraits::DenseVector;
-    using InputVector = typename EvaluatorTraits::InputVector;
-    using InputVectorConstRef = typename EvaluatorTraits::InputVectorConstRef;
-
-    using Evaluator = EvaluatorTpl<EvaluatorTraits, 1>;
-    using Data = EvaluatorDataTpl<EvaluatorTraits, 1>;
+    using Scalar = ScalarType;
+    using Data = typename EvaluatorTpl<ScalarType, 1, Sparsity>::Data;
 
     /**
      * @brief Construct a constraint from an existing evaluator and specifying
@@ -31,20 +26,10 @@ class CostTpl {
      *
      * @param evaluator
      */
-    CostTpl(const std::shared_ptr<Evaluator> &evaluator)
-        : name_(""), evaluator_(evaluator) {}
-
-    std::shared_ptr<Data> createData() const {
-        return std::make_shared<Data>(*this);
-    }
-
-    Size inputSize() const { return evaluator_->inputSize(); }
-    Size dimInputTangentSpace() const {
-        return evaluator_->dimInputTangentSpace();
-    }
-    Size numParameters() const { return evaluator_->numParameters(); }
-
-    Size outputSize() const { return evaluator_->outputSize(); }
+    CostTpl(const String &name, const Size &n_in,
+            const String &description = "")
+        : name_(name),
+          EvaluatorTpl<ScalarType, 1, Sparsity>(n_in, description) {}
 
     /**
      * @brief Name of the constraint
@@ -60,56 +45,10 @@ class CostTpl {
      */
     void setName(const String &name) { name_ = name; }
 
-    /**
-     * @brief Returns the evaluator for the function
-     *
-     * @return Evaluator&
-     */
-    Evaluator &getEvaluator() const { return *evaluator_; }
-
-    /**
-     * @brief Set an evaluator for the of the constraint.
-     *
-     * @param evaluator
-     */
-    void setEvaluator(const std::shared_ptr<Evaluator> &evaluator) {
-        evaluator_ = evaluator;
-    }
-
-    /**
-     * @brief Evaluates the constraint c(x) with the input x.
-     *
-     * @param x
-     * @param data
-     */
-    void eval(const InputVectorConstRef &x, Data &data) const {
-        evaluator_->eval(x, data);
-    }
-
-    void evalGradients(const InputVectorConstRef &x, Data &data, bool compute_x,
-                       bool compute_p) const {
-        evaluator_->evalGradients(x, data, compute_x, compute_p);
-    }
-
-    void evalHessians(const InputVectorConstRef &x, Data &data, bool compute_xx,
-                      bool compute_xp, bool compute_pp) const {
-        evaluator_->evalHessians(x, data, compute_xx, compute_xp, compute_pp);
-    }
-
    protected:
    private:
     /// @brief Name of the constraint
     String name_;
-    /// @brief Shared pointer to the evaluator the constraint is associated with
-    std::shared_ptr<Evaluator> evaluator_{nullptr};
 };
-
-template <typename Scalar>
-using DenseCostTpl = CostTpl<DenseEvaluatorTraits<Scalar>>;
-using DenseCost = DenseCostTpl<Real>;
-
-template <typename Scalar>
-using SparseCostTpl = CostTpl<SparseEvaluatorTraits<Scalar>>;
-using SparseCost = SparseCostTpl<Real>;
 
 }  // namespace bopt
