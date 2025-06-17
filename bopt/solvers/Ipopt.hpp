@@ -8,56 +8,70 @@
 #include "bopt/Logging.hpp"
 #include "bopt/Profiler.hpp"
 #include "bopt/Program.hpp"
-#include "bopt/solvers/base.hpp"
+#include "bopt/solvers/SolverBase.hpp"
 
 namespace bopt {
 namespace solvers {
 
-struct ipopt_data {
-    ipopt_data(const bopt_index& n, const bopt_index& m) {
-        primal_vector = VectorXd::Zero(n);
-        dual_vector = VectorXd::Zero(m);
+namespace internal {
+
+struct IpoptData {
+    using Scalar = Ipopt::Number;
+    using VectorX = typename MathTypes<Scalar>::VectorX;
+    using MatrixX = typename MathTypes<Scalar>::MatrixX;
+    using SparseMatrix = typename MathTypes<Scalar>::SparseMatrix;
+
+    IpoptData(const Index& n, const Index& m) {
+        primal_vector = VectorX::Zero(n);
+        dual_vector = VectorX::Zero(m);
         variables_lower_bound =
-            VectorXd::Constant(n, -std::numeric_limits<double>::max());
+            VectorX::Constant(n, -std::numeric_limits<Scalar>::max());
         variables_upper_bound =
-            VectorXd::Constant(n, std::numeric_limits<double>::max());
+            VectorX::Constant(n, std::numeric_limits<Scalar>::max());
 
-        objective_gradient = VectorXd::Zero(n);
+        objective_gradient = VectorX::Zero(n);
 
-        constraint_vector = VectorXd::Zero(m);
-        constraint_lower_bound = VectorXd::Zero(m);
-        constraint_upper_bound = VectorXd::Zero(m);
+        constraint_vector = VectorX::Zero(m);
+        constraint_lower_bound = VectorX::Zero(m);
+        constraint_upper_bound = VectorX::Zero(m);
 
         constraint_jacobian.resize(m, n);
         lagrangian_hessian.resize(n, n);
     }
 
-    VectorXd primal_vector;
-    VectorXd dual_vector;
+    VectorX primal_vector;
+    VectorX dual_vector;
 
-    double objective;
-    VectorXd objective_gradient;
+    Scalar objective;
+    VectorX objective_gradient;
 
-    SparseMatrix<double> lagrangian_hessian;
+    SparseMatrix lagrangian_hessian;
 
-    VectorXd constraint_vector;
-    SparseMatrix<double> constraint_jacobian;
+    VectorX constraint_vector;
+    SparseMatrix constraint_jacobian;
 
-    VectorXd constraint_lower_bound;
-    VectorXd constraint_upper_bound;
+    VectorX constraint_lower_bound;
+    VectorX constraint_upper_bound;
 
-    VectorXd variables_lower_bound;
-    VectorXd variables_upper_bound;
+    VectorX variables_lower_bound;
+    VectorX variables_upper_bound;
 };
 
-class ipopt_program_instance : public Ipopt::TNLP {
+class IpoptProgramInstance : public Ipopt::TNLP {
     using Index = Ipopt::Index;
     using Number = Ipopt::Number;
 
-   public:
-    ipopt_program_instance(MathematicalProgram& program);
+    using VectorX = typename MathTypes<Number>::VectorX;
+    using MatrixX = typename MathTypes<Number>::MatrixX;
+    using SparseMatrix = typename MathTypes<Number>::SparseMatrix;
+    using SparseVector = typename MathTypes<Number>::SparseVector;
 
-    ~ipopt_program_instance() { VLOG(10) << "Destructing!"; }
+   public:
+    IpoptProgramInstance(MathematicalProgram& program);
+
+    ~IpoptProgramInstance() { VLOG(10) << "Destructing!"; }
+
+    const VectorX& getPrimalSolution() const { return primal_solution_; }
 
    private:
     bool get_nlp_info(Index& n, Index& m, Index& nnz_jac_g, Index& nnz_h_lag,
@@ -90,13 +104,17 @@ class ipopt_program_instance : public Ipopt::TNLP {
                            Ipopt::IpoptCalculatedQuantities* ip_cq);
 
    private:
-    ipopt_data cache_;
+    MathematicalProgram& program_;
+    internal::IpoptData cache_;
 
-    std::vector<Binding<DenseCostTpl<Real>>> dense_costs_;
-    std::vector<Binding<SparseCostTpl<Real>>> sparse_costs_;
+    VectorX primal_solution_;
 
-    std::vector<Binding<DenseConstraintTpl<Real>>> dense_constraints_;
-    std::vector<Binding<SparseConstraintTpl<Real>>> sparse_constraints_;
+    std::vector<Binding<CostTpl<Real>>> dense_costs_;
+    std::vector<Binding<CostTpl<Real, SparsityType::SPARSE>>> sparse_costs_;
+
+    std::vector<Binding<ConstraintTpl<Real>>> dense_constraints_;
+    std::vector<Binding<ConstraintTpl<Real, SparsityType::SPARSE>>>
+        sparse_constraints_;
 
     typedef std::pair<int, int> SparseMatrixIndices;
 
@@ -111,27 +129,46 @@ class ipopt_program_instance : public Ipopt::TNLP {
         }
     };
 
-    /// @brief Lookup map from the non-zero entry (x, y) to its index in the nonzero
-    /// vector
+    /// @brief Lookup map from the non-zero entry (x, y) to its index in the
+    /// nonzero vector
     std::unordered_map<SparseMatrixIndices, int, hash_pair> jac_nz_map_;
-    /// @brief Lookup map from the non-zero entry (x, y) to its index in the nonzero
-    /// vector
+    /// @brief Lookup map from the non-zero entry (x, y) to its index in the
+    /// nonzero vector
     std::unordered_map<SparseMatrixIndices, int, hash_pair> lag_hes_nz_map_;
 
-    MathematicalProgram& program_;
     MathematicalProgram& program() { return program_; }
 };
 
-class ipopt_solver : public solver<double> {
+}  // namespace internal
+
+class IpoptSolver : public SolverBase<SolverInfoBase> {
    public:
-    ipopt_solver(MathematicalProgram& program);
-    int solve();
+    using Base = SolverBase<SolverInfoBase>;
+    using SolverInfo = typename Base::SolverInfo;
+    using VectorX = typename Base::VectorX;
+
+    IpoptSolver(MathematicalProgram& program);
+    ~IpoptSolver() {
+        instance_.reset();
+    }
+
+    const SolverInfo& getInfo() const override { return solver_info_; }
 
     Ipopt::SmartPtr<Ipopt::OptionsList> options() { return app_->Options(); }
 
+    VectorX getPrimalSolution() const override;
+
+   protected:
+    void initImpl() override;
+    void solveImpl() override;
+
    private:
-    Ipopt::SmartPtr<Ipopt::TNLP> nlp_;
+    std::unique_ptr<internal::IpoptProgramInstance> instance_;
     Ipopt::SmartPtr<Ipopt::IpoptApplication> app_;
+
+    SolverInfo solver_info_;
+
+    VectorX x_primal_;
 };
 
 }  // namespace solvers

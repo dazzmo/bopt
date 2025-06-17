@@ -7,7 +7,7 @@ namespace bopt {
 namespace casadi {
 
 // Class implementations for constraints and costs
-template <typename ScalarType, SparsityType Sparsity>
+template <typename ScalarType, SparsityType Sparsity = SparsityType::DENSE>
 class Cost : public bopt::CostTpl<ScalarType, Sparsity>,
              public internal::FunctionGenerator<ScalarType, 1, Sparsity> {
    public:

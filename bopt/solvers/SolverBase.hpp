@@ -13,11 +13,11 @@ struct SolverInfoBase {
     Real wall_time;
 };
 
-template <typename SolverInfo>
+template <typename SolverInfoType>
 class SolverBase {
    public:
     using VectorX = typename MathTypes<Real>::VectorX;
-
+    using SolverInfo = SolverInfoType;
 
     virtual const SolverInfo& getInfo() const = 0;
 
@@ -29,7 +29,7 @@ class SolverBase {
      */
     void init() {
         initImpl();
-        initialised_ = false;
+        initialised_ = true;
     }
 
     /**
@@ -38,7 +38,7 @@ class SolverBase {
      * @note Ensure that init() has been called before calling this function.
      */
     void solve() {
-        if (initialised_) {
+        if (!initialised_) {
             std::stringstream ss;
             ss << "Solver: \' " << name_
                << "\' not initialised, call init() before solving!";
@@ -55,8 +55,7 @@ class SolverBase {
     virtual VectorX getPrimalSolution() const = 0;
 
    protected:
-
-    SolverBase(const MathematicalProgram& program, const std::string& name)
+    SolverBase(MathematicalProgram& program, const std::string& name)
         : program_(program), name_(name) {}
 
     const MathematicalProgram& getProgram() const { return program_; };

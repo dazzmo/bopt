@@ -326,15 +326,16 @@ class MathematicalProgram {
                  const std::shared_ptr<typename CostTpl<double, Sparsity>::Data>
                      &data = nullptr) {
         // Create binding
-        if (data == nullptr) {
-            cost_bindings_.emplace_back(Binding<CostTpl<double, Sparsity>>(
-                cost,
-                std::make_shared<typename CostTpl<double, Sparsity>::Data>(
-                    *cost),
-                getVariableIndices(x)));
-        } else {
+        if (data) {
             cost_bindings_.emplace_back(Binding<CostTpl<double, Sparsity>>(
                 cost, data, getVariableIndices(x)));
+        } else {
+            auto data_new =
+                std::make_shared<typename CostTpl<double, Sparsity>::Data>(
+                    *cost);
+            cost->setupDataSparsity(*data_new);
+            cost_bindings_.emplace_back(Binding<CostTpl<double, Sparsity>>(
+                cost, data_new, getVariableIndices(x)));
         }
     }
 
@@ -357,12 +358,12 @@ class MathematicalProgram {
                 Binding<LinearCostTpl<double, Sparsity>>(
                     cost, data, getVariableIndices(x)));
         } else {
+            auto data_new = std::make_shared<
+                typename LinearCostTpl<double, Sparsity>::Data>(*cost);
+            cost->setupDataSparsity(*data_new);
             cost_bindings_.emplace_back(
                 Binding<LinearCostTpl<double, Sparsity>>(
-                    cost,
-                    std::make_shared<
-                        typename LinearCostTpl<double, Sparsity>::Data>(*cost),
-                    getVariableIndices(x)));
+                    cost, data_new, getVariableIndices(x)));
         }
     }
 
@@ -385,10 +386,11 @@ class MathematicalProgram {
             constraint_bindings_.emplace_back(Binding<ConstraintType>(
                 constraint, data, getVariableIndices(x)));
         } else {
+            auto data_new =
+                std::make_shared<typename ConstraintType::Data>(*constraint);
+            constraint->setupDataSparsity(*data_new);
             constraint_bindings_.emplace_back(Binding<ConstraintType>(
-                constraint,
-                std::make_shared<typename ConstraintType::Data>(*constraint),
-                getVariableIndices(x)));
+                constraint, data_new, getVariableIndices(x)));
         }
     }
 
@@ -413,11 +415,12 @@ class MathematicalProgram {
             constraint_bindings_.emplace_back(Binding<LinearConstraintType>(
                 constraint, data, getVariableIndices(x)));
         } else {
-            constraint_bindings_.emplace_back(Binding<LinearConstraintType>(
-                constraint,
+            auto data_new =
                 std::make_shared<typename LinearConstraintType::Data>(
-                    *constraint),
-                getVariableIndices(x)));
+                    *constraint);
+            constraint->setupDataSparsity(*data_new);
+            constraint_bindings_.emplace_back(Binding<LinearConstraintType>(
+                constraint, data_new, getVariableIndices(x)));
         }
     }
 

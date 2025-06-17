@@ -1,36 +1,41 @@
-#include "bopt/solvers/ipopt.hpp"
+#include "bopt/solvers/Ipopt.hpp"
 
 #include "bopt/Logging.hpp"
 
 namespace bopt {
 namespace solvers {
-
-ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
+namespace internal {
+IpoptProgramInstance::IpoptProgramInstance(MathematicalProgram& program)
     : Ipopt::TNLP(),
       program_(program),
-      cache_(program.numVariables(), program.numConstraints()) {
+      cache_(program.numVariables(), program.numConstraints()),
+      primal_solution_(VectorX::Zero(program.numVariables())) {
     // Create data
-    dense_costs_ = program.getCosts<DenseCost>();
-    sparse_costs_ = program.getCosts<SparseCost>();
+    dense_costs_ =
+        program.getCostBindings<CostTpl<Real, SparsityType::DENSE>>();
+    sparse_costs_ =
+        program.getCostBindings<CostTpl<Real, SparsityType::SPARSE>>();
 
-    dense_constraints_ = program.getConstraints<DenseConstraint>();
-    sparse_constraints_ = program.getConstraints<SparseConstraint>();
+    dense_constraints_ =
+        program
+            .getConstraintBindings<ConstraintTpl<Real, SparsityType::DENSE>>();
+    sparse_constraints_ =
+        program
+            .getConstraintBindings<ConstraintTpl<Real, SparsityType::SPARSE>>();
 
     // Create the jacobian for the problem
-    VLOG(10) << "Constraint Jacobian";
+    // Logger::debug() << "Constraint Jacobian";
     // Construct constraint jacobian and lagrangian
     Index c_idx = 0;
-    std::vector<Eigen::Triplet<Real>> triplets;
+    std::vector<Eigen::Triplet<Number>> triplets;
     // Dense constraint jacobian
     for (auto& b : dense_constraints_) {
         const auto& c = *b.get();
-        auto& d = *b.data();
-        const auto& indices = b.indices().indices();
+        const auto& indices = b.getIndexManager().getIndices();
         for (Index row = 0; row < c.outputSize(); ++row) {
-            for (Index col = 0; col < c.tangentSpaceDimension();
-                 ++col) {
+            for (Index col = 0; col < c.dimInputTangentSpace(); ++col) {
                 triplets.push_back(
-                    Eigen::Triplet<Real>(c_idx + row, indices[col]));
+                    Eigen::Triplet<Number>(c_idx + row, indices[col]));
             }
         }
         c_idx += c.outputSize();
@@ -38,12 +43,12 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
     // Sparse constraint jacobians
     for (auto& b : sparse_constraints_) {
         const auto& c = *b.get();
-        auto& d = *b.data();
-        const auto& indices = b.indices().indices();
+        auto& d = *b.getData();
+        const auto& indices = b.getIndexManager().getIndices();
         for (int k = 0; k < d.Jx.outerSize(); ++k) {
-            for (SparseMatrix<Real>::InnerIterator it(d.Jx, k); it; ++it) {
-                triplets.push_back(
-                    Eigen::Triplet<Real>(c_idx + it.row(), indices[it.col()]));
+            for (SparseMatrix::InnerIterator it(d.Jx, k); it; ++it) {
+                triplets.push_back(Eigen::Triplet<Number>(c_idx + it.row(),
+                                                          indices[it.col()]));
             }
         }
         c_idx += c.outputSize();
@@ -56,9 +61,8 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
     // Assemble look-up map for indices
     for (Index k = 0; k < cache_.constraint_jacobian.outerSize(); ++k) {
         Index inner_nz_cnt = 0;
-        for (SparseMatrix<Real>::InnerIterator it(cache_.constraint_jacobian,
-                                                  k);
-             it; ++it) {
+        for (SparseMatrix::InnerIterator it(cache_.constraint_jacobian, k); it;
+             ++it) {
             jac_nz_map_.insert(
                 {{it.row(), it.col()},
                  cache_.constraint_jacobian.outerIndexPtr()[it.outer()] +
@@ -66,56 +70,56 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
         }
     }
 
-    VLOG(10) << cache_.constraint_jacobian;
+    // Logger::debug() << cache_.constraint_jacobian;
 
     // Construct lagrangian hessian
     triplets.clear();
-    VLOG(10) << "Lagrangian Hessian";
+    // Logger::debug() << "Lagrangian Hessian";
     for (auto& b : dense_costs_) {
         const auto& c = *b.get();
-        auto& d = *b.data();
-        const auto& indices = b.indices().indices();
+        auto& d = *b.getData();
+        const auto& indices = b.getIndexManager().getIndices();
         // Dense output - currently use block insert
-        for (Index row = 0; row < c.tangentSpaceDimension(); ++row) {
+        for (Index row = 0; row < c.dimInputTangentSpace(); ++row) {
             for (Index col = 0; col <= row; ++col) {
                 triplets.push_back(
-                    Eigen::Triplet<Real>(indices[row], indices[col]));
+                    Eigen::Triplet<Number>(indices[row], indices[col]));
             }
         }
     }
     for (auto& b : dense_constraints_) {
         const auto& c = *b.get();
-        auto& d = *b.data();
-        const auto& indices = b.indices().indices();
+        auto& d = *b.getData();
+        const auto& indices = b.getIndexManager().getIndices();
         // Dense output - currently use block insert
-        for (Index row = 0; row < c.tangentSpaceDimension(); ++row) {
+        for (Index row = 0; row < c.dimInputTangentSpace(); ++row) {
             for (Index col = 0; col <= row; ++col) {
                 triplets.push_back(
-                    Eigen::Triplet<Real>(indices[row], indices[col]));
+                    Eigen::Triplet<Number>(indices[row], indices[col]));
             }
         }
     }
 
     for (auto& b : sparse_costs_) {
         const auto& c = *b.get();
-        auto& d = *b.data();
-        const auto& indices = b.indices().indices();
+        auto& d = *b.getData();
+        const auto& indices = b.getIndexManager().getIndices();
         // Dense output - currently use block insert
         for (int k = 0; k < d.Hxx.outerSize(); ++k) {
-            for (SparseMatrix<Real>::InnerIterator it(d.Hxx, k); it; ++it) {
-                triplets.push_back(
-                    Eigen::Triplet<Real>(indices[it.row()], indices[it.col()]));
+            for (SparseMatrix::InnerIterator it(d.Hxx, k); it; ++it) {
+                triplets.push_back(Eigen::Triplet<Number>(indices[it.row()],
+                                                          indices[it.col()]));
             }
         }
     }
     for (auto& b : sparse_constraints_) {
         const auto& c = *b.get();
-        auto& d = *b.data();
-        const auto& indices = b.indices().indices();
+        auto& d = *b.getData();
+        const auto& indices = b.getIndexManager().getIndices();
         for (int k = 0; k < d.Hxx.outerSize(); ++k) {
-            for (SparseMatrix<Real>::InnerIterator it(d.Hxx, k); it; ++it) {
-                triplets.push_back(
-                    Eigen::Triplet<Real>(indices[it.row()], indices[it.col()]));
+            for (SparseMatrix::InnerIterator it(d.Hxx, k); it; ++it) {
+                triplets.push_back(Eigen::Triplet<Number>(indices[it.row()],
+                                                          indices[it.col()]));
             }
         }
     }
@@ -125,26 +129,26 @@ ipopt_program_instance::ipopt_program_instance(MathematicalProgram& program)
     // Assemble look-up map for indices
     for (Index k = 0; k < cache_.lagrangian_hessian.outerSize(); ++k) {
         Index inner_nz_cnt = 0;
-        for (SparseMatrix<Real>::InnerIterator it(cache_.lagrangian_hessian, k);
-             it; ++it) {
+        for (SparseMatrix::InnerIterator it(cache_.lagrangian_hessian, k); it;
+             ++it) {
             lag_hes_nz_map_.insert(
                 {{it.row(), it.col()},
                  cache_.lagrangian_hessian.outerIndexPtr()[it.outer()] +
                      inner_nz_cnt++});
         }
     }
-    VLOG(10) << cache_.lagrangian_hessian;
+    // Logger::debug() << cache_.lagrangian_hessian;
 }
 
-bool ipopt_program_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
-                                          Index& nnz_h_lag,
-                                          IndexStyleEnum& index_style) {
-    VLOG(10) << "get_nlp_info()";
+bool IpoptProgramInstance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
+                                        Index& nnz_h_lag,
+                                        IndexStyleEnum& index_style) {
+    // Logger::debug() << "get_nlp_info()";
     n = program().numVariables();
     m = program().numConstraints();
 
-    VLOG(10) << "n = " << n;
-    VLOG(10) << "m = " << m;
+    // Logger::debug() << "n = " << n;
+    // Logger::debug() << "m = " << m;
 
     nnz_jac_g = cache_.constraint_jacobian.nonZeros();
     nnz_h_lag = cache_.lagrangian_hessian.nonZeros();
@@ -154,10 +158,10 @@ bool ipopt_program_instance::get_nlp_info(Index& n, Index& m, Index& nnz_jac_g,
     return true;
 }
 
-bool ipopt_program_instance::eval_f(Index n, const Number* x, bool new_x,
-                                    Number& obj_value) {
-    bopt::profiler profiler("ipopt_program_instance::eval_f");
-    VLOG(10) << "eval_f()";
+bool IpoptProgramInstance::eval_f(Index n, const Number* x, bool new_x,
+                                  Number& obj_value) {
+    bopt::Profiler profiler("IpoptProgramInstance::eval_f");
+    // Logger::debug() << "eval_f()";
 
     if (new_x) {
         std::copy_n(x, n, cache_.primal_vector.data());
@@ -169,38 +173,39 @@ bool ipopt_program_instance::eval_f(Index n, const Number* x, bool new_x,
     // Dense costs
     for (auto& binding : dense_costs_) {
         auto& c = *binding.get();
-        auto& d = *binding.data();
-        const auto& indices = binding.indices().indices();
+        auto& d = *binding.getData();
+        const auto& indices = binding.getIndexManager().getIndices();
         const auto& xi = cache_.primal_vector(indices);
 
         // Evaluate objective
+        // fixme - Cost scaling factor!
         c.eval(xi, d);
-        cache_.objective += c.scaling_factor() * d.y;
+        cache_.objective += 1.0 * d.y;
     }
 
     // Sparse costs
     // todo - maybe make a function for this to avoid code repetition
     for (auto& binding : sparse_costs_) {
         auto& c = *binding.get();
-        auto& d = *binding.data();
-        const auto& indices = binding.indices().indices();
+        auto& d = *binding.getData();
+        const auto& indices = binding.getIndexManager().getIndices();
         const auto& xi = cache_.primal_vector(indices);
 
         // Evaluate objective
         c.eval(xi, d);
-        cache_.objective += c.scaling_factor() * d.y;
+        cache_.objective += 1.0 * d.y;
     }
 
     // Set objective to most recently cached value
-    VLOG(10) << "f: " << cache_.objective;
+    // Logger::debug() << "f: " << cache_.objective;
     obj_value = cache_.objective;
     return true;
 }
 
-bool ipopt_program_instance::eval_grad_f(Index n, const Number* x, bool new_x,
-                                         Number* grad_f) {
-    bopt::profiler profiler("ipopt_program_instance: eval_grad_f");
-    VLOG(10) << "eval_grad_f()";
+bool IpoptProgramInstance::eval_grad_f(Index n, const Number* x, bool new_x,
+                                       Number* grad_f) {
+    bopt::Profiler profiler("IpoptProgramInstance: eval_grad_f");
+    // Logger::debug() << "eval_grad_f()";
 
     if (new_x) {
         std::copy_n(x, n, cache_.primal_vector.data());
@@ -212,43 +217,43 @@ bool ipopt_program_instance::eval_grad_f(Index n, const Number* x, bool new_x,
     // Dense costs
     for (auto& binding : dense_costs_) {
         auto& c = *binding.get();
-        auto& d = *binding.data();
-        const auto& indices = binding.indices().indices();
+        auto& d = *binding.getData();
+        const auto& indices = binding.getIndexManager().getIndices();
         const auto& xi = cache_.primal_vector(indices);
 
         // Evaluate objective
-        c.evalGradients(xi, d, true, false);
-        cache_.objective_gradient(indices) += c.scaling_factor() * d.gx;
+        c.evalGradients(xi, d, GradientEvaluationFlags(true, false));
+        cache_.objective_gradient(indices) += 1.0 * d.gx;
     }
 
     // Sparse costs
     // todo - maybe make a function for this to avoid code repetition
     for (auto& binding : sparse_costs_) {
         auto& c = *binding.get();
-        auto& d = *binding.data();
-        const auto& indices = binding.indices().indices();
+        auto& d = *binding.getData();
+        const auto& indices = binding.getIndexManager().getIndices();
         const auto& xi = cache_.primal_vector(indices);
 
-        c.evalGradients(xi, d, true, false);
+        c.evalGradients(xi, d, GradientEvaluationFlags(true, false));
 
         for (int k = 0; k < d.gx.outerSize(); ++k) {
-            for (SparseVector<Real>::InnerIterator it(d.gx, k); it; ++it) {
+            for (SparseVector::InnerIterator it(d.gx, k); it; ++it) {
                 cache_.objective_gradient[indices[it.row()]] +=
-                    c.scaling_factor() * it.value();
+                    1.0 * it.value();
             }
         }
     }
 
     // TODO - See about mapping these
-    VLOG(10) << "grad_f : " << cache_.objective_gradient.transpose();
+    // Logger::debug() << "grad_f : " << cache_.objective_gradient.transpose();
     std::copy_n(cache_.objective_gradient.data(), n, grad_f);
     return true;
 }
 
-bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
-                                    Index m, Number* g) {
-    bopt::profiler profiler("ipopt_program_instance::eval_g");
-    VLOG(10) << "eval_g()";
+bool IpoptProgramInstance::eval_g(Index n, const Number* x, bool new_x, Index m,
+                                  Number* g) {
+    bopt::Profiler profiler("IpoptProgramInstance::eval_g");
+    // Logger::debug() << "eval_g()";
     if (new_x) {
         std::copy_n(x, n, cache_.primal_vector.data());
     }
@@ -257,13 +262,12 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
     // Dense constraints
     for (auto& binding : dense_constraints_) {
         auto& c = *binding.get();
-        auto& d = *binding.data();
-        const auto& indices = binding.indices().indices();
+        auto& d = *binding.getData();
+        const auto& indices = binding.getIndexManager().getIndices();
         const auto& xi = cache_.primal_vector(indices);
 
         c.eval(xi, d);
-        cache_.constraint_vector.middleRows(c_idx, c.outputSize()) =
-            d.y;
+        cache_.constraint_vector.middleRows(c_idx, c.outputSize()) = d.y;
         c_idx += c.outputSize();
     }
 
@@ -271,30 +275,28 @@ bool ipopt_program_instance::eval_g(Index n, const Number* x, bool new_x,
     // todo - maybe make a function for this to avoid code repetition
     for (auto& binding : sparse_constraints_) {
         auto& c = *binding.get();
-        auto& d = *binding.data();
-        const auto& indices = binding.indices().indices();
+        auto& d = *binding.getData();
+        const auto& indices = binding.getIndexManager().getIndices();
         const auto& xi = cache_.primal_vector(indices);
 
         c.eval(xi, d);
-        cache_.constraint_vector.middleRows(c_idx, c.outputSize()) =
-            d.y;
+        cache_.constraint_vector.middleRows(c_idx, c.outputSize()) = d.y;
         c_idx += c.outputSize();
     }
 
-    VLOG(10) << "c : " << cache_.constraint_vector.transpose();
+    // Logger::debug() << "c : " << cache_.constraint_vector.transpose();
     std::copy_n(cache_.constraint_vector.data(), m, g);
     return true;
 };
 
-bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
-                                        Index m, Index nele_jac, Index* iRow,
-                                        Index* jCol, Number* values) {
+bool IpoptProgramInstance::eval_jac_g(Index n, const Number* x, bool new_x,
+                                      Index m, Index nele_jac, Index* iRow,
+                                      Index* jCol, Number* values) {
     if (values == NULL) {
         // Return the sparsity of the constraint Jacobian
         int cnt = 0;
         for (int k = 0; k < cache_.constraint_jacobian.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<Real>::InnerIterator it(
-                     cache_.constraint_jacobian, k);
+            for (SparseMatrix::InnerIterator it(cache_.constraint_jacobian, k);
                  it; ++it) {
                 if (cnt > nele_jac) {
                     return false;
@@ -306,8 +308,8 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
         }
 
     } else {
-        bopt::profiler profiler("ipopt_program_instance: eval_jac_g");
-        VLOG(10) << "eval_jac_g()";
+        bopt::Profiler profiler("IpoptProgramInstance: eval_jac_g");
+        // Logger::debug() << "eval_jac_g()";
         if (new_x) {
             std::copy_n(x, n, cache_.primal_vector.data());
         }
@@ -317,14 +319,13 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
         // Dense constraints
         for (auto& binding : dense_constraints_) {
             auto& c = *binding.get();
-            auto& d = *binding.data();
-            const auto& indices = binding.indices().indices();
+            auto& d = *binding.getData();
+            const auto& indices = binding.getIndexManager().getIndices();
             const auto& xi = cache_.primal_vector(indices);
 
-            c.evalJacobians(xi, d, true, false);
+            c.evalJacobians(xi, d, JacobianEvaluationFlags(true, false));
             for (Index row = 0; row < c.outputSize(); ++row) {
-                for (Index col = 0; col < c.tangentSpaceDimension();
-                     ++col) {
+                for (Index col = 0; col < c.dimInputTangentSpace(); ++col) {
                     cache_.constraint_jacobian.valuePtr()[jac_nz_map_.at(
                         {c_idx + row, indices[col]})] = d.Jx(row, col);
                 }
@@ -336,14 +337,14 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
         // todo - maybe make a function for this to avoid code repetition
         for (auto& binding : sparse_constraints_) {
             auto& c = *binding.get();
-            auto& d = *binding.data();
-            const auto& indices = binding.indices().indices();
+            auto& d = *binding.getData();
+            const auto& indices = binding.getIndexManager().getIndices();
             const auto& xi = cache_.primal_vector(indices);
 
-            c.evalJacobians(xi, d, true, false);
+            c.evalJacobians(xi, d, JacobianEvaluationFlags(true, false));
 
             for (int k = 0; k < d.Jx.outerSize(); ++k) {
-                for (SparseMatrix<Real>::InnerIterator it(d.Jx, k); it; ++it) {
+                for (SparseMatrix::InnerIterator it(d.Jx, k); it; ++it) {
                     cache_.constraint_jacobian.valuePtr()[jac_nz_map_.at(
                         {c_idx + it.row(), indices[it.col()]})] = it.value();
                 }
@@ -352,25 +353,24 @@ bool ipopt_program_instance::eval_jac_g(Index n, const Number* x, bool new_x,
         }
 
         // Update caches
-        VLOG(10) << "jac : " << cache_.constraint_jacobian;
+        // Logger::debug() << "jac : " << cache_.constraint_jacobian;
         std::copy_n(cache_.constraint_jacobian.valuePtr(), nele_jac, values);
-        VLOG(10) << "finished";
+        // Logger::debug() << "finished";
     }
     return true;
 }
 
-bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
-                                    Number obj_factor, Index m,
-                                    const Number* lambda, bool new_lambda,
-                                    Index nele_hess, Index* iRow, Index* jCol,
-                                    Number* values) {
-    VLOG(10) << "eval_h()";
+bool IpoptProgramInstance::eval_h(Index n, const Number* x, bool new_x,
+                                  Number obj_factor, Index m,
+                                  const Number* lambda, bool new_lambda,
+                                  Index nele_hess, Index* iRow, Index* jCol,
+                                  Number* values) {
+    // Logger::debug() << "eval_h()";
     if (values == NULL) {
         // Return the sparsity of the constraint Jacobian
         int cnt = 0;
         for (int k = 0; k < cache_.lagrangian_hessian.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<Real>::InnerIterator it(
-                     cache_.lagrangian_hessian, k);
+            for (SparseMatrix::InnerIterator it(cache_.lagrangian_hessian, k);
                  it; ++it) {
                 if (cnt > nele_hess) {
                     return false;
@@ -383,8 +383,8 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
         return true;
 
     } else {
-        bopt::profiler profiler("ipopt_program_instance: eval_h");
-        VLOG(10) << "eval_h()";
+        bopt::Profiler profiler("IpoptProgramInstance: eval_h");
+        // Logger::debug() << "eval_h()";
         if (new_x) {
             std::copy_n(x, n, cache_.primal_vector.data());
         }
@@ -394,16 +394,15 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
 
         // Costs
         // Dense costs
-        VLOG(10) << "dense cost";
+        // Logger::debug() << "dense cost";
         for (auto& binding : dense_costs_) {
             auto& c = *binding.get();
-            auto& d = *binding.data();
-            const auto& indices = binding.indices().indices();
+            auto& d = *binding.getData();
+            const auto& indices = binding.getIndexManager().getIndices();
             const auto& xi = cache_.primal_vector(indices);
 
-            c.evalHessians(xi, d, true, false, false);
-            for (Index row = 0; row < c.tangentSpaceDimension();
-                 ++row) {
+            c.evalHessians(xi, d, HessianEvaluationFlags(true, false, false));
+            for (Index row = 0; row < c.dimInputTangentSpace(); ++row) {
                 for (Index col = 0; col < row; ++col) {
                     cache_.lagrangian_hessian.valuePtr()[lag_hes_nz_map_.at(
                         {indices[row], indices[col]})] +=
@@ -413,17 +412,17 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
         }
 
         // Sparse costs
-        VLOG(10) << "sparse cost";
+        // Logger::debug() << "sparse cost";
         // todo - maybe make a function for this to avoid code repetition
         for (auto& binding : sparse_costs_) {
             auto& c = *binding.get();
-            auto& d = *binding.data();
-            const auto& indices = binding.indices().indices();
+            auto& d = *binding.getData();
+            const auto& indices = binding.getIndexManager().getIndices();
             const auto& xi = cache_.primal_vector(indices);
 
-            c.evalHessians(xi, d, true, false, false);
+            c.evalHessians(xi, d, HessianEvaluationFlags(true, false, false));
             for (int k = 0; k < d.Hxx.outerSize(); ++k) {
-                for (SparseMatrix<Real>::InnerIterator it(d.Hxx, k); it; ++it) {
+                for (SparseMatrix::InnerIterator it(d.Hxx, k); it; ++it) {
                     cache_.lagrangian_hessian.valuePtr()[lag_hes_nz_map_.at(
                         {indices[it.row()], indices[it.col()]})] +=
                         obj_factor * it.value();
@@ -434,19 +433,19 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
         // Constraints
         Index c_idx = 0;
         // Dense constraints
-        VLOG(10) << "dense constraint";
+        // Logger::debug() << "dense constraint";
         for (auto& binding : dense_constraints_) {
             auto& c = *binding.get();
-            auto& d = *binding.data();
-            const auto& indices = binding.indices().indices();
+            auto& d = *binding.getData();
+            const auto& indices = binding.getIndexManager().getIndices();
             const auto& xi = cache_.primal_vector(indices);
             const auto& li =
                 cache_.dual_vector.middleRows(c_idx, c.outputSize());
 
-            c.evalHessians(xi, li, d, true, false, false);
+            c.evalHessians(xi, li, d,
+                           HessianEvaluationFlags(true, false, false));
 
-            for (Index row = 0; row < c.tangentSpaceDimension();
-                 ++row) {
+            for (Index row = 0; row < c.dimInputTangentSpace(); ++row) {
                 for (Index col = 0; col < row; ++col) {
                     cache_.lagrangian_hessian.valuePtr()[lag_hes_nz_map_.at(
                         {indices[row], indices[col]})] = d.Hxx(row, col);
@@ -456,20 +455,21 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
         }
 
         // Sparse constraints
-        VLOG(10) << "sparse constraint";
+        // Logger::debug() << "sparse constraint";
         // todo - maybe make a function for this to avoid code repetition
         for (auto& binding : sparse_constraints_) {
             auto& c = *binding.get();
-            auto& d = *binding.data();
-            const auto& indices = binding.indices().indices();
+            auto& d = *binding.getData();
+            const auto& indices = binding.getIndexManager().getIndices();
             const auto& xi = cache_.primal_vector(indices);
             const auto& li =
                 cache_.dual_vector.middleRows(c_idx, c.outputSize());
 
-            c.evalHessians(xi, li, d, true, false, false);
+            c.evalHessians(xi, li, d,
+                           HessianEvaluationFlags(true, false, false));
 
             for (int k = 0; k < d.Hxx.outerSize(); ++k) {
-                for (SparseMatrix<Real>::InnerIterator it(d.Hxx, k); it; ++it) {
+                for (SparseMatrix::InnerIterator it(d.Hxx, k); it; ++it) {
                     cache_.lagrangian_hessian.valuePtr()[lag_hes_nz_map_.at(
                         {indices[it.row()], indices[it.col()]})] +=
                         obj_factor * it.value();
@@ -479,38 +479,38 @@ bool ipopt_program_instance::eval_h(Index n, const Number* x, bool new_x,
         }
 
         // Update caches
-        VLOG(10) << "hes : " << cache_.lagrangian_hessian;
+        // Logger::debug() << "hes : " << cache_.lagrangian_hessian;
         std::copy_n(cache_.lagrangian_hessian.valuePtr(), nele_hess, values);
-        VLOG(10) << "finished";
+        // Logger::debug() << "finished";
         return true;
     }
 }
 
-bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
-                                             Index m, Number* g_l,
-                                             Number* g_u) {
-    VLOG(10) << "get_bounds_info()";
+bool IpoptProgramInstance::get_bounds_info(Index n, Number* x_l, Number* x_u,
+                                           Index m, Number* g_l, Number* g_u) {
+    // Logger::debug() << "get_bounds_info()";
 
     // Variable bounds
     cache_.variables_lower_bound = program().variableLowerBounds();
     cache_.variables_upper_bound = program().variableUpperBounds();
 
-    auto bb = program_.getBoundingBoxConstraints();
+    auto bb = program_.getBoundingBoxConstraintBindings();
     for (auto& binding : bb) {
         const auto& c = *binding.get();
-        auto& d = *binding.data();
-        const auto& indices = binding.indices().indices();
-        c.evalBounds(d);
+        const auto& indices = binding.getIndexManager().getIndices();
+
+        VectorX lb(c.outputSize()), ub(c.outputSize());
+        c.evalBoundingBoxBounds(lb, ub);
 
         cache_.variables_lower_bound(indices).array() =
-            cache_.variables_lower_bound(indices).array().max(d.lb.array());
+            cache_.variables_lower_bound(indices).array().max(lb.array());
 
         cache_.variables_upper_bound(indices).array() =
-            cache_.variables_upper_bound(indices).array().min(d.ub.array());
+            cache_.variables_upper_bound(indices).array().min(ub.array());
     }
 
-    VLOG(10) << cache_.variables_lower_bound.transpose();
-    VLOG(10) << cache_.variables_upper_bound.transpose();
+    // Logger::debug() << cache_.variables_lower_bound.transpose();
+    // Logger::debug() << cache_.variables_upper_bound.transpose();
 
     std::copy_n(cache_.variables_lower_bound.data(), n, x_l);
     std::copy_n(cache_.variables_upper_bound.data(), n, x_u);
@@ -519,17 +519,14 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
     Index c_idx = 0;
     for (auto& binding : dense_constraints_) {
         const auto& c = *binding.get();
-        auto& d = *binding.data();
-        c.evalBounds(d);
-        cache_.constraint_lower_bound.middleRows(c_idx, c.outputSize())
-            << d.lb;
-        cache_.constraint_upper_bound.middleRows(c_idx, c.outputSize())
-            << d.ub;
+        c.evalBounds(
+            cache_.constraint_lower_bound.middleRows(c_idx, c.outputSize()),
+            cache_.constraint_upper_bound.middleRows(c_idx, c.outputSize()));
         c_idx += c.outputSize();
     }
 
-    VLOG(10) << cache_.constraint_lower_bound.transpose();
-    VLOG(10) << cache_.constraint_upper_bound.transpose();
+    // Logger::debug() << cache_.constraint_lower_bound.transpose();
+    // Logger::debug() << cache_.constraint_upper_bound.transpose();
 
     std::copy_n(cache_.constraint_lower_bound.data(), m, g_l);
     std::copy_n(cache_.constraint_upper_bound.data(), m, g_u);
@@ -537,13 +534,14 @@ bool ipopt_program_instance::get_bounds_info(Index n, Number* x_l, Number* x_u,
     return true;
 }
 
-bool ipopt_program_instance::get_starting_point(Index n, bool init_x, Number* x,
-                                                bool init_z, Number* z_L,
-                                                Number* z_U, Index m,
-                                                bool init_lambda,
-                                                Number* lambda) {
-    VLOG(10) << "get_starting_point()";
-    VLOG(10) << "x0: " << program().variableInitialValues().transpose();
+bool IpoptProgramInstance::get_starting_point(Index n, bool init_x, Number* x,
+                                              bool init_z, Number* z_L,
+                                              Number* z_U, Index m,
+                                              bool init_lambda,
+                                              Number* lambda) {
+    // Logger::debug() << "get_starting_point()";
+    // Logger::debug() << "x0: " <<
+    // program().variableInitialValues().transpose();
 
     assert(init_z == false);
     assert(init_lambda == false);
@@ -555,20 +553,25 @@ bool ipopt_program_instance::get_starting_point(Index n, bool init_x, Number* x,
     return true;
 }
 
-void ipopt_program_instance::finalize_solution(
+void IpoptProgramInstance::finalize_solution(
     Ipopt::SolverReturn status, Index n, const Number* x, const Number* z_L,
     const Number* z_U, Index m, const Number* g, const Number* lambda,
     Number obj_value, const Ipopt::IpoptData* ip_data,
     Ipopt::IpoptCalculatedQuantities* ip_cq) {
-    VLOG(10) << "finalize_solution()";
+    // Logger::debug() << "finalize_solution()";
+
     for (Index i = 0; i < n; ++i) {
-        std::cout << x[i] << std::endl;
+        primal_solution_[i] = x[i];
     }
 }
+}  // namespace internal
 
-ipopt_solver::ipopt_solver(MathematicalProgram& program) : solver(program) {
+IpoptSolver::IpoptSolver(MathematicalProgram& program)
+    : SolverBase<SolverInfoBase>(program, "IpoptSolver") {}
+
+void IpoptSolver::initImpl() {
     // Create program instance
-    nlp_ = new ipopt_program_instance(program);
+    instance_ = std::make_unique<internal::IpoptProgramInstance>(getProgram());
 
     // Create application
     app_ = IpoptApplicationFactory();
@@ -582,21 +585,21 @@ ipopt_solver::ipopt_solver(MathematicalProgram& program) : solver(program) {
     }
 }
 
-int ipopt_solver::solve() {
+void IpoptSolver::solveImpl() {
     // Ask Ipopt to solve the problem
     Ipopt::ApplicationReturnStatus status;
     {
-        profiler profiler("ipopt_solver solve");
-        status = app_->OptimizeTNLP(nlp_);
+        Profiler profiler("IpoptSolver solve");
+        status = app_->OptimizeTNLP(
+            static_cast<Ipopt::SmartPtr<Ipopt::TNLP>>(instance_.get()));
     }
 
-    if (status == Ipopt::ApplicationReturnStatus::Solve_Succeeded) {
-        LOG(INFO) << "*** The problem solved!" << std::endl;
-    } else {
-        LOG(INFO) << "*** The problem FAILED!" << std::endl;
-    }
+    solver_info_.success =
+        (status == Ipopt::ApplicationReturnStatus::Solve_Succeeded);
+}
 
-    return (int)status;
+IpoptSolver::VectorX IpoptSolver::getPrimalSolution() const {
+    return instance_->getPrimalSolution();
 }
 
 }  // namespace solvers

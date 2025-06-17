@@ -8,64 +8,46 @@
 #include "bopt/solvers/Ipopt.hpp"
 
 TEST(Program, SimpleProgram) {
-    using sym = ::casadi::SX;
-    using sym_vec = ::casadi::SXVector;
-
     // Create variables
 
     bopt::MathematicalProgram p("program");
     auto x = p.addVariable("x", 0.0, 0.0, 1.0);
-    auto y = p.addVariable("y", 0.0);
-    auto z = p.addVariable("z", 0.0);
+    auto y = p.addVariable("y", -5, -10, 10);
+    auto z = p.addVariable("z", -5, -10, 10);
 
     // Add variables
 
     bopt::VariableVector v(3);
     v << x, y, z;
 
-    sym xs = sym::sym("x");
-    sym ys = sym::sym("y");
-    sym zs = sym::sym("z");
+    using SX = ::casadi::SX;
 
-    auto c0 = std::make_shared<bopt::casadi::DenseConstraint>(
-        xs + ys - zs, sym::vertcat({xs, ys, zs}), sym(), 1.0, 1.0, false);
-    auto d0 = c0->createData();
-    p.addConstraint<bopt::DenseConstraint>(c0, d0, v);
+    SX xs = SX::sym("x");
+    SX ys = SX::sym("y");
+    SX zs = SX::sym("z");
 
-    auto c1 = std::make_shared<bopt::casadi::DenseConstraint>(
-        ys * zs, sym::vertcat({xs, ys, zs}), sym(),
-        bopt::ConstraintBounds::POSITIVE, false);
-    auto d1 = c1->createData();
-    c1->evalBounds(*d1);
-    std::cout << d1->lb << std::endl;
-    std::cout << d1->ub << std::endl;
+    auto c0 = std::make_shared<
+        bopt::casadi::Constraint<double, bopt::SparsityType::DENSE>>(
+        xs + ys - zs, SX::vertcat({xs, ys, zs}), SX(),
+        bopt::ConstraintBoundType::ZERO);
+    p.addConstraint(c0, v);
 
-    Eigen::Vector3d xx;
-    xx.setOnes();
-    c1->eval(xx, *d1);
-    c1->evalJacobians(xx, *d1);
-    std::cout << d1->y << std::endl;
-    std::cout << d1->Jx << std::endl;
+    auto c1 = std::make_shared<bopt::casadi::Constraint<double>>(
+        ys * zs, SX::vertcat({xs, ys, zs}), SX(),
+        bopt::ConstraintBoundType::POSITIVE);
+    p.addConstraint(c1, v);
 
-    p.addConstraint<bopt::DenseConstraint>(c1, d1, v);
+    // fixme - solution changes with sparsity
+    auto f =
+        std::make_shared<bopt::casadi::Cost<double, bopt::SparsityType::DENSE>>(
+            xs * ys + zs, SX::vertcat({xs, ys, zs}), SX());
+    p.addCost(f, v);
 
-    // todo - solution changes with sparsity
-    auto f = std::make_shared<bopt::DenseCost>(
-        std::make_shared<bopt::casadi::DenseCost>(
-            xs * ys + zs, sym::vertcat({xs, ys, zs}), sym(), false));
-    auto df = f->createData();
-    p.addCost(f, df, v);
-
-    p.addBoundingBoxConstraint(v, Eigen::Vector3d(0.0, 0.0, 0.0),
-                               Eigen::Vector3d(1.0, 1.0, 1.0));
-
-    auto nlp = bopt::solvers::ipopt_solver(p);
+    auto nlp = bopt::solvers::IpoptSolver(p);
+    nlp.init();
     nlp.options()->SetStringValue("hessian_approximation", "exact");
 
-    for (int i = 0; i < 1; ++i) {
-        nlp.solve();
-    }
-    std::cout << nlp.getPrimalSolution();
+    nlp.solve();
 }
 
 int main(int argc, char **argv) {
@@ -76,6 +58,6 @@ int main(int argc, char **argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
     int status = RUN_ALL_TESTS();
-    bopt::profiler summary;
+    bopt::Profiler summary;
     return status;
 }
