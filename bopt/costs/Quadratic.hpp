@@ -15,11 +15,12 @@ class QuadraticCostTpl
     : public CostTpl<ScalarType, Sparsity>,
       public PolynomialEvaluator<QuadraticDataTpl<ScalarType, Sparsity>> {
    public:
-    using Data = typename CostTpl<ScalarType, Sparsity>::Data;
+    using CostBase = CostTpl<ScalarType, Sparsity>;
+    using Data = QuadraticDataTpl<ScalarType, Sparsity>;
 
-    QuadraticCostTpl(const String &name, const Size &n_in,
+    QuadraticCostTpl(const String &name, const Size &n_in, const Size &n_p = 0,
                      const String &description = "")
-        : CostTpl<ScalarType>(name, n_in, description),
+        : CostTpl<ScalarType>(name, n_in, n_p, description),
           PolynomialEvaluator<QuadraticDataTpl<ScalarType, Sparsity>>() {}
 };
 }  // namespace bopt

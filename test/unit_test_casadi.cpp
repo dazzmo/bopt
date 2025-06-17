@@ -5,261 +5,152 @@
 
 #include "bopt/Profiler.hpp"
 #include "bopt/ad/Casadi.hpp"
+#include "casadi_expressions.hpp"
 
-using sym = ::casadi::SX;
+using SX = ::casadi::SX;
 using dm = ::casadi::DM;
 
-TEST(Casadi, Evaluator) {
-    std::size_t n = 10;
-    sym x = sym::sym("x", n);
-    sym p = sym::sym("p", n);
-    // Create symbolic constraint
-    sym ex = x;
-    for (int i = 0; i < n; ++i) {
-        ex(i) = sin(p(i)) * x(i);
-    }
+TEST(Casadi, ScalarEvaluator) {
+    for (const auto& test : getScalarTestExpressions()) {
+        bopt::casadi::Evaluator<double, 1> e(test.expr, test.x, test.p);
 
-    auto e = bopt::casadi::DenseLinearEvaluator<Eigen::Dynamic>(ex, x, p, true);
-    auto d = e.createData();
-    Eigen::VectorXd v = Eigen::VectorXd::Random(n);
-    {
-        for (int i = 0; i < 1000; ++i) {
-            bopt::Profiler profiler("eval");
-            e.evalJacobians(v, *d, true, false);
-        }
-    }
-}
+        EXPECT_EQ(e.inputSize(), test.x.rows()) << test.name;
+        EXPECT_EQ(e.dimInputSpace(), test.x.rows()) << test.name;
+        EXPECT_EQ(e.dimInputTangentSpace(), test.x.rows()) << test.name;
+        EXPECT_EQ(e.outputSize(), 1) << test.name;
+        EXPECT_EQ(e.dimOutputSpace(), 1) << test.name;
 
-TEST(Casadi, LinearScalarEvaluator) {
-    std::size_t n = 10;
-    sym x = sym::sym("x", n);
-    sym p = sym::sym("p", n);
-    // Create symbolic constraint
-    sym ex = 0;
-    for (int i = 0; i < n; ++i) {
-        ex += sin(p(i)) * x(i);
-    }
+        EXPECT_EQ(e.numParameters(), test.p.rows()) << test.name;
 
-    auto e = bopt::casadi::SparseLinearEvaluator<1>(ex, x, p, true);
-    auto d = e.createData();
+        // Create data
+        bopt::EvaluatorDataTpl<double, 1> data(e);
 
-    {
-        for (int i = 0; i < 1000; ++i) {
-            bopt::Profiler profiler("eval sparse");
-            e.evalCoefficients(*d);
-        }
+        EXPECT_EQ(data.gx.rows(), test.x.rows()) << test.name;
+        EXPECT_EQ(data.gp.rows(), test.p.rows()) << test.name;
+        EXPECT_EQ(data.Hxx.rows(), test.x.rows()) << test.name;
+        EXPECT_EQ(data.Hxx.cols(), test.x.rows()) << test.name;
+        EXPECT_EQ(data.Hxp.rows(), test.x.rows()) << test.name;
+        EXPECT_EQ(data.Hxp.cols(), test.p.rows()) << test.name;
+        EXPECT_EQ(data.Hpp.rows(), test.p.rows()) << test.name;
+        EXPECT_EQ(data.Hpp.cols(), test.p.rows()) << test.name;
     }
 }
 
-TEST(Casadi, LinearEvaluator) {
-    std::size_t n = 10;
-    sym x = sym::sym("x", n);
-    sym p = sym::sym("p", n);
-    // Create symbolic constraint
-    sym ex = x;
-    for (int i = 0; i < n; ++i) {
-        ex(i) = sin(p(i)) * x(i);
-    }
+TEST(Casadi, ScalarLinearEvaluator) {
+    for (const auto& test : getScalarTestExpressions()) {
+        if (test.name != "linear") {
+            EXPECT_THROW(
+                {
+                    bopt::casadi::LinearCost<double> e(test.expr, test.x,
+                                                       test.p);
+                },
+                std::runtime_error);
+        } else {
+            bopt::casadi::LinearCost<double> e(test.expr, test.x, test.p);
 
-    auto e =
-        bopt::casadi::SparseLinearEvaluator<Eigen::Dynamic>(ex, x, p, true);
-    auto d = e.createData();
+            EXPECT_EQ(e.inputSize(), test.x.rows()) << test.name;
+            EXPECT_EQ(e.dimInputSpace(), test.x.rows()) << test.name;
+            EXPECT_EQ(e.dimInputTangentSpace(), test.x.rows()) << test.name;
+            EXPECT_EQ(e.outputSize(), 1) << test.name;
+            EXPECT_EQ(e.dimOutputSpace(), 1) << test.name;
 
-    {
-        for (int i = 0; i < 1000; ++i) {
-            bopt::Profiler profiler("eval sparse");
-            e.evalCoefficients(*d);
+            EXPECT_EQ(e.numParameters(), test.p.rows()) << test.name;
+
+            // Create data
+            bopt::LinearDataTpl<double, 1> data(e);
+
+            EXPECT_EQ(data.gx.rows(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.gp.rows(), test.p.rows()) << test.name;
+            EXPECT_EQ(data.Hxx.rows(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.Hxx.cols(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.Hxp.rows(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.Hxp.cols(), test.p.rows()) << test.name;
+            EXPECT_EQ(data.Hpp.rows(), test.p.rows()) << test.name;
+            EXPECT_EQ(data.Hpp.cols(), test.p.rows()) << test.name;
+
+            EXPECT_EQ(data.a.rows(), test.x.rows()) << test.name;
+
+            // Try set of random values
+            Eigen::VectorXd x(4), p(4);
+            for (int i = 0; i < 10; ++i) {
+                x.setRandom();
+                p.setRandom();
+                e.setParameters(p);
+                e.eval(x, data);
+                e.evalGradients(x, data,
+                                bopt::GradientEvaluationFlags(true, true));
+                e.evalCoefficients(data);
+
+                EXPECT_DOUBLE_EQ(data.y, x.dot(p));
+                EXPECT_TRUE(data.gx.isApprox(p));
+                EXPECT_TRUE(data.gp.isApprox(x));
+                EXPECT_TRUE(data.a.isApprox(p));
+            }
         }
     }
 }
 
 TEST(Casadi, QuadraticEvaluator) {
-    std::size_t n = 10;
-    sym x = sym::sym("x", n);
-    sym p = sym::sym("p", n);
-    // Create symbolic constraint
-    sym ex = 0;
-    for (int i = 0; i < n; ++i) {
-        ex += sin(p(i)) * x(i);
-    }
+    for (const auto& test : getScalarTestExpressions()) {
+        if (test.name != "quadratic" && test.name != "linear") {
+            EXPECT_THROW(
+                {
+                    bopt::casadi::QuadraticCost<double> e(test.expr, test.x,
+                                                          test.p);
+                },
+                std::runtime_error);
+        } else {
+            bopt::casadi::QuadraticCost<double> e(test.expr, test.x, test.p);
 
-    auto e = bopt::casadi::SparseQuadraticEvaluator(ex, x, p, true);
-    auto d = e.createData();
+            EXPECT_EQ(e.inputSize(), test.x.rows()) << test.name;
+            EXPECT_EQ(e.dimInputSpace(), test.x.rows()) << test.name;
+            EXPECT_EQ(e.dimInputTangentSpace(), test.x.rows()) << test.name;
+            EXPECT_EQ(e.outputSize(), 1) << test.name;
+            EXPECT_EQ(e.dimOutputSpace(), 1) << test.name;
 
-    {
-        for (int i = 0; i < 1000; ++i) {
-            bopt::Profiler profiler("eval sparse");
-            e.evalCoefficients(*d);
+            EXPECT_EQ(e.numParameters(), test.p.rows()) << test.name;
+
+            // Create data
+            bopt::QuadraticDataTpl<double> data(e);
+
+            EXPECT_EQ(data.gx.rows(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.gp.rows(), test.p.rows()) << test.name;
+            EXPECT_EQ(data.Hxx.rows(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.Hxx.cols(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.Hxp.rows(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.Hxp.cols(), test.p.rows()) << test.name;
+            EXPECT_EQ(data.Hpp.rows(), test.p.rows()) << test.name;
+            EXPECT_EQ(data.Hpp.cols(), test.p.rows()) << test.name;
+
+            EXPECT_EQ(data.A.rows(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.A.cols(), test.x.rows()) << test.name;
+            EXPECT_EQ(data.b.rows(), test.x.rows()) << test.name;
+
+            // Try set of random values
+            Eigen::VectorXd x(4), p(4);
+            for (int i = 0; i < 10; ++i) {
+                x.setRandom();
+                p.setRandom();
+                e.setParameters(p);
+                e.eval(x, data);
+                e.evalGradients(x, data,
+                                bopt::GradientEvaluationFlags(true, true));
+                // e.evalCoefficients(data);
+
+                Eigen::MatrixXd P = p.asDiagonal();
+
+                // EXPECT_DOUBLE_EQ(data.y, x.dot(p));
+                EXPECT_TRUE(data.gx.isApprox(2 * P * x));
+                // EXPECT_TRUE(data.gp.isApprox(x));
+
+                // Eigen::MatrixXd P = p.asDiagonal();
+                // EXPECT_TRUE(data.A.isApprox(P));
+            }
         }
     }
 }
 
-// TEST(Casadi, Cost) {
-//     std::size_t n = 2;
-//     sym x = sym::sym("x", n);
-//     sym p = sym::sym("p", n);
-//     // Create symbolic constraint
-//     sym ex = 0.0;
-//     for (int i = 0; i < n; ++i) {
-//         ex += sin(p(i)) * x(i);
-//     }
-
-//     std::cout << ex << std::endl;
-
-//     auto e = bopt::casadi::DenseCost(ex, x, p, true);
-//     auto d = e.createData();
-
-//     EXPECT_EQ(d->Hxx.rows(), n);
-//     EXPECT_EQ(d->Hxx.cols(), n);
-// }
-
-// TEST(Casadi, Constraint) {
-//     std::size_t n = 10;
-//     sym x = sym::sym("x", n);
-//     sym p = sym::sym("p", n);
-//     // Create symbolic constraint
-//     sym ex = x;
-//     for (int i = 0; i < n; ++i) {
-//         ex(i) = sin(p(i)) * x(i);
-//     }
-
-//     sym lb = -10 * sym::ones(n);
-//     sym ub = 10 * sym::ones(n);
-
-//     auto c = bopt::SparseConstraint(
-//         std::make_shared<bopt::casadi::SparseEvaluator>(ex, x, p, false),
-//         0.0, 1.0);
-//     auto d = c.createData();
-
-//     auto c1 = bopt::casadi::SparseConstraint(ex, x, p, lb, ub, false);
-//     auto d1 = c1.createData();
-
-//     c.evalBounds(*d);
-
-//     std::cout << d->lb << std::endl;
-//     std::cout << d->ub << std::endl;
-
-//     c.setBounds(bopt::ConstraintBounds::NEGATIVE);
-//     c.evalBounds(*d);
-
-//     std::cout << d->lb << std::endl;
-//     std::cout << d->ub << std::endl;
-
-//     c.setBounds(-1.0, 0.0);
-//     c.evalBounds(*d);
-
-//     std::cout << d->lb << std::endl;
-//     std::cout << d->ub << std::endl;
-// }
-
-// TEST(Casadi, Cost) {
-//     // Create variable vector and parameters
-//     std::size_t n = 3;
-//     sym xs = sym::sym("x", n);
-//     sym ps = sym::sym("p", n);
-
-//     // Create some costs
-//     sym f0 = sym::dot(xs, xs);
-//     sym f1 = sym::dot(xs, ps);
-
-//     std::shared_ptr<bopt::Cost> c0 =
-//         std::make_shared<bopt::casadi::Cost>(f0, xs, ps, true);
-//     std::shared_ptr<bopt::Cost> c1 =
-//         std::make_shared<bopt::casadi::Cost>(f1, xs, ps, true);
-
-//     bopt::VectorXd x(n), p(n);
-//     x.setRandom();
-//     p.setRandom();
-
-//     bopt::CostData data0(*c0), data1(*c1);
-//     c0->setParameters(p);
-//     c1->setParameters(p);
-
-//     c0->eval(x, data0);
-//     c1->eval(x, data1);
-
-//     EXPECT_DOUBLE_EQ(data0.f, x.dot(x));
-//     EXPECT_DOUBLE_EQ(data1.f, x.dot(p));
-
-//     // Create linear cost
-//     auto l1 = std::make_shared<bopt::casadi::LinearCost>(f1, xs, ps, false);
-//     auto dl1 = bopt::LinearCostData(*l1);
-
-//     std::shared_ptr<bopt::Cost> cl1 = l1;
-//     auto dcl1 = bopt::CostData(*cl1);
-
-//     l1->setParameters(p);
-//     l1->eval(x, dl1);
-//     cl1->eval(x, dcl1);
-
-//     EXPECT_DOUBLE_EQ(dcl1.f, dl1.f);
-// }
-
-// TEST(Casadi, MathematicalProgram) {
-//     // Create variable vector and parameters
-//     std::size_t n = 10;
-//     sym x = sym::sym("x", n);
-//     sym p = sym::sym("p", n);
-
-//     // Create some costs
-//     sym f0 = sym::dot(x, x);  // + 2.0 * sym::sum1(x);
-//     sym f1 = sym::dot(x, p) + 10;
-//     // Create linear constraints
-//     sym c0 = sym::zeros(2);
-//     c0(0) = 1.0 * x(2) - 5.0 * x(7);
-//     c0(1) = 2.0 * x(1) - 12.0 * x(3);
-
-//     std::shared_ptr<bopt::QuadraticCost> cost0 =
-//         std::make_shared<bopt::casadi::QuadraticCost>(f0, x, p, false);
-//     std::shared_ptr<bopt::LinearCost> cost1 =
-//         std::make_shared<bopt::casadi::LinearCost>(f1, x, p, false);
-
-//     std::shared_ptr<bopt::LinearConstraint> constraint0 =
-//         std::make_shared<bopt::casadi::LinearConstraint>(c0, x, p,
-//         sym::ones(2),
-//                                                          sym::ones(2),
-//                                                          false);
-
-//     auto bb = bopt::BoundingBoxConstraint::create(2, 0.0, 10.0);
-
-//     cost0->setParameters(Eigen::VectorXd::Ones(n));
-//     cost1->setParameters(Eigen::VectorXd::Ones(n));
-//     constraint0->setParameters(Eigen::VectorXd::Ones(n));
-
-//     auto program = bopt::MathematicalProgram("program");
-//     bopt::VariableVector v(n);
-//     for (int i = 0; i < n; ++i) {
-//         v[i] = program.addVariable("x");
-//     }
-
-//     program.addQuadraticCost(cost0, v);
-//     program.addLinearCost(cost1, v);
-//     program.addLinearConstraint(constraint0, v);
-//     program.addBoundingBoxConstraint(bb, v({0, 1}));
-
-//     auto qp = bopt::solvers::qpoases_solver(program);
-//     qp.options().printLevel = qpOASES::PrintLevel::PL_LOW;
-//     qp.options().nWSR = 100;
-//     qp.options().perform_hotstart = false;
-
-//     LOG(INFO) << program;
-
-//     for (int i = 0; i < 2; ++i) {
-//         qp.solve(program);
-//     }
-
-//     // Try IPOPT
-
-//     // auto nlp = bopt::solvers::ipopt_solver(program);
-
-//     // for (int i = 0; i < 1; ++i) {
-//     //     nlp.solve();
-//     // }
-// }
-
-// #endif  // BOPT_WITH_CASADI
-
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     // FLAGS_logtostderr = true;
     // FLAGS_v = 10;
 

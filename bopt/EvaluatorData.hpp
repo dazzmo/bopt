@@ -154,6 +154,7 @@ struct QuadraticDataTpl
     using HessianType = typename DataBase::HessianType;
 
     QuadraticDataTpl(const Size &n, const Size &p);
+    QuadraticDataTpl(const EvaluatorTpl<ScalarType, 1, Sparsity> &evaluator);
 
     /// @brief Coefficient matrix A
     HessianType A;

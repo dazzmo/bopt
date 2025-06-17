@@ -46,7 +46,6 @@ Function codegen(const Function &f) {
     return function;
 }
 
-
 void setupSparseEigenMatrix(Eigen::SparseMatrix<Real> &out,
                             const ::casadi::Sparsity &sparsity) {
     // Use casadi information
@@ -86,32 +85,5 @@ void setupSparseEigenMatrix(Eigen::SparseVector<Real> &out,
     }
 }
 
-Function create_function(const std::string &name,
-                         const std::vector<SymbolicVector> &in,
-                         const std::vector<SymbolicVector> &out, bool densify,
-                         bool codegen) {
-    // Create vector of temporary outputs
-    std::vector<SymbolicVector> out_ = {};
-    if (densify) {
-        // If outputs are requested to be dense, make them dense
-        for (const SymbolicVector &out_i : out) {
-            out_.push_back(SymbolicVector::densify(out_i));
-        }
-    } else {
-        out_ = out;
-    }
-
-    // Create function
-    Function f = Function(name, in, out_);
-
-    // If function is to be code-generated, do so.
-    if (codegen) {
-        return bopt::casadi::codegen(f);
-    }
-
-    return f;
-}
-
 }  // namespace casadi
-
 }  // namespace bopt

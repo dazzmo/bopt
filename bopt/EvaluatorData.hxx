@@ -115,4 +115,10 @@ QuadraticDataTpl<ScalarType, Sparsity>::QuadraticDataTpl(const Size &n,
     c = Scalar(0);
 }
 
+template <typename ScalarType, SparsityType Sparsity>
+QuadraticDataTpl<ScalarType, Sparsity>::QuadraticDataTpl(
+    const EvaluatorTpl<ScalarType, 1, Sparsity> &evaluator)
+    : QuadraticDataTpl(evaluator.dimInputTangentSpace(),
+                       evaluator.numParameters()) {}
+
 }  // namespace bopt

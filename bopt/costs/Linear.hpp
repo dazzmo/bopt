@@ -20,9 +20,9 @@ class LinearCostTpl
 
     static constexpr SparsityType Sparsity = CostBase::Sparsity;
 
-    LinearCostTpl(const String &name, const Size &n_in,
+    LinearCostTpl(const String &name, const Size &n_in, const Size &n_p = 0,
                   const String &description = "")
-        : CostTpl<ScalarType>(name, n_in, description),
+        : CostTpl<ScalarType>(name, n_in, n_p, description),
           PolynomialEvaluator<LinearDataTpl<ScalarType, 1, Sparsity>>() {}
 };
 

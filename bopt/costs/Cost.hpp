@@ -26,10 +26,10 @@ class CostTpl : public EvaluatorTpl<ScalarType, 1, _Sparsity> {
      *
      * @param evaluator
      */
-    CostTpl(const String &name, const Size &n_in,
+    CostTpl(const String &name, const Size &n_in, const Size &n_p = 0,
             const String &description = "")
         : name_(name),
-          EvaluatorTpl<ScalarType, 1, Sparsity>(n_in, description) {}
+          EvaluatorTpl<ScalarType, 1, Sparsity>(n_in, n_p, description) {}
 
     /**
      * @brief Name of the constraint

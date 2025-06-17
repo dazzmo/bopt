@@ -35,9 +35,9 @@ class ConstraintTpl
     static constexpr SparsityType Sparsity = _Sparsity;
 
     ConstraintTpl(const String &name, const Size &n_in, const Size &n_out,
-                  const ConstraintBoundType &type,
+                  const ConstraintBoundType &type, const Size &n_p = 0,
                   const String &description = "")
-        : name_(name), type_(type), Base(n_in, n_out, description) {}
+        : name_(name), type_(type), Base(n_in, n_out, n_p, description) {}
 
     /**
      * @brief Name of the constraint

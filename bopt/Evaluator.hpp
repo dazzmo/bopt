@@ -213,24 +213,34 @@ class EvaluatorTpl {
     }
 
    protected:
+    /**
+     * @brief Construct a new Evaluator Tpl object
+     *
+     * @tparam B
+     * @tparam std::enable_if<B, int>::type
+     * @param n_in Number of inputs
+     * @param n_p Number of parameters
+     * @param description Description of the evaluator
+     */
     template <bool B = IsOutputScalar,
               typename std::enable_if<B, int>::type = 0>
-    EvaluatorTpl(const Index &n_in, const String &description = "")
+    EvaluatorTpl(const Index &n_in, const Index &n_p = 0,
+                 const String &description = "")
         : n_in_(n_in),
           dim_tangent_space_(n_in),
           n_out_(1),
-          n_parameters_(0),
+          n_parameters_(n_p),
           parameters_(DenseVector::Zero(n_parameters_)),
           description_(description) {}
 
     template <bool B = IsOutputScalar,
               typename std::enable_if<!B, int>::type = 0>
-    EvaluatorTpl(const Index &n_in, const Index &n_out,
+    EvaluatorTpl(const Index &n_in, const Index &n_out, const Index &n_p = 0,
                  const String &description = "")
         : n_in_(n_in),
           dim_tangent_space_(n_in),
           n_out_(n_out),
-          n_parameters_(0),
+          n_parameters_(n_p),
           parameters_(DenseVector::Zero(n_parameters_)),
           description_(description) {}
 

@@ -27,8 +27,9 @@ class LinearConstraintTpl
     static constexpr SparsityType Sparsity = _Sparsity;
 
     LinearConstraintTpl(const String &name, const Size &n_in, const Size &n_out,
-                        const ConstraintBoundType &bounds)
-        : Base(name, n_in, n_out, bounds), PolynomialEvaluator<LinearData>() {}
+                        const ConstraintBoundType &bounds, const Size &n_p = 0)
+        : Base(name, n_in, n_out, bounds, n_p),
+          PolynomialEvaluator<LinearData>() {}
 };
 
 }  // namespace bopt
