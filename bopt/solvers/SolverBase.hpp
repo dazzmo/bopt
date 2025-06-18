@@ -8,6 +8,8 @@ namespace bopt {
 namespace solvers {
 
 struct SolverInfoBase {
+    SolverInfoBase() : success(false), num_iterations(0), wall_time(0) {}
+
     bool success;
     Index num_iterations;
     Real wall_time;

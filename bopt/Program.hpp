@@ -31,7 +31,11 @@ class MathematicalProgram {
         // Linear dense costs
         Binding<LinearCostTpl<double, SparsityType::DENSE>>,
         // Linear sparse costs
-        Binding<LinearCostTpl<double, SparsityType::SPARSE>>>;
+        Binding<LinearCostTpl<double, SparsityType::SPARSE>>,
+        // Quadratic dense costs
+        Binding<QuadraticCostTpl<double, SparsityType::DENSE>>,
+        // Quadratic sparse costs
+        Binding<QuadraticCostTpl<double, SparsityType::SPARSE>>>;
 
     using ConstraintVariant =
         std::variant<Binding<ConstraintTpl<Real, SparsityType::DENSE>>,
@@ -195,6 +199,23 @@ class MathematicalProgram {
             data);
     }
 
+    template <typename QuadraticCostDerived>
+    void addQuadraticCost(
+        const std::shared_ptr<QuadraticCostDerived> &cost,
+        const Eigen::Ref<const VariableVector> &x,
+        const std::shared_ptr<typename QuadraticCostDerived::Data> &data =
+            nullptr) {
+        static constexpr SparsityType Sparsity = QuadraticCostDerived::Sparsity;
+
+        // Ensure the type is convertible
+        static_assert(std::is_base_of<QuadraticCostTpl<double, Sparsity>,
+                                      QuadraticCostDerived>::value,
+                      "Error: Cost must be derived from QuadraticCostTpl.");
+        addQuadraticCost<Sparsity>(
+            std::static_pointer_cast<QuadraticCostTpl<double, Sparsity>>(cost),
+            x, data);
+    }
+
     template <typename ConstraintDerived>
     void addConstraint(const std::shared_ptr<ConstraintDerived> &cost,
                        const Eigen::Ref<const VariableVector> &x,
@@ -351,7 +372,7 @@ class MathematicalProgram {
     }
 
     /**
-     * @brief Add a dense linear cost to the program
+     * @brief Add a linear cost to the program
      *
      * @param cost
      * @param data
@@ -374,6 +395,34 @@ class MathematicalProgram {
             cost->setupPolynomialDataSparsity(*data_new);
             cost_bindings_.emplace_back(
                 Binding<LinearCostTpl<double, Sparsity>>(
+                    cost, data_new, getVariableIndices(x)));
+        }
+    }
+
+    /**
+     * @brief Add a quadratic cost to the program
+     *
+     * @param cost
+     * @param data
+     * @param x
+     */
+    template <SparsityType Sparsity>
+    void addQuadraticCost(
+        const std::shared_ptr<QuadraticCostTpl<double, Sparsity>> &cost,
+        const Eigen::Ref<const VariableVector> &x,
+        const std::shared_ptr<typename QuadraticCostTpl<double, Sparsity>::Data>
+            &data = nullptr) {
+        if (data) {
+            // Create binding
+            cost_bindings_.emplace_back(
+                Binding<QuadraticCostTpl<double, Sparsity>>(
+                    cost, data, getVariableIndices(x)));
+        } else {
+            auto data_new = std::make_shared<
+                typename QuadraticCostTpl<double, Sparsity>::Data>(*cost);
+            cost->setupPolynomialDataSparsity(*data_new);
+            cost_bindings_.emplace_back(
+                Binding<QuadraticCostTpl<double, Sparsity>>(
                     cost, data_new, getVariableIndices(x)));
         }
     }

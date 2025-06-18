@@ -355,6 +355,8 @@ class QuadraticFunctionGenerator {
                 "x!");
         }
 
+        A = SX::tril(A);
+
         if constexpr (Sparsity == SparsityType::DENSE) {
             A = SX::densify(A);
             b = SX::densify(b);
@@ -374,7 +376,7 @@ class QuadraticFunctionGenerator {
                                       typename Traits::OutputHessianType &A,
                                       typename Traits::OutputGradientType &b,
                                       typename Traits::OutputType &c) const {
-        std::vector<ScalarType *> out = {nullptr, nullptr};
+        std::vector<ScalarType *> out = {nullptr, nullptr, nullptr};
         if constexpr (Sparsity == SparsityType::SPARSE) {
             out[0] = A.valuePtr();
             out[1] = b.valuePtr();

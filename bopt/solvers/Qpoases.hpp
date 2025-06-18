@@ -7,18 +7,20 @@
 #include <qpOASES.hpp>
 
 #include "bopt/Logging.hpp"
-#include "bopt/profiler.hpp"
-#include "bopt/program.hpp"
-#include "bopt/solvers/base.hpp"
+#include "bopt/Profiler.hpp"
+#include "bopt/Program.hpp"
+#include "bopt/solvers/SolverBase.hpp"
 
 namespace bopt {
 namespace solvers {
+
+namespace internal {
 
 /**
  * @brief Details for the qpOASES solver
  *
  */
-struct qpoases_info : public solver_information<double> {
+struct QpoasesSolverInfo : public SolverInfoBase {
     qpOASES::QProblemStatus status;
     // Return status for the qpOASES solver
     int returnStatus;
@@ -26,96 +28,97 @@ struct qpoases_info : public solver_information<double> {
     int errorCode;
     // Number of working sets performed
     int nWSR;
-
-    bopt_index number_of_solves = 0;
 };
 
-struct qpoases_options : public solver_options<double>,
-                         public qpOASES::Options {
+struct QpoasesOptions : public qpOASES::Options {
     // Number of working sets performed
     int nWSR = 100;
     bool perform_hotstart = false;
 };
 
-struct QPData {
-    typedef Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-        MatrixXdRowMajor;
+struct QpoasesData {
+    using VectorX = typename MathTypes<Real>::VectorX;
+    using MatrixX = typename MathTypes<Real>::MatrixX;
+    using MatrixXRM =
+        Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
-    QPData(const MathematicalProgram& program) {
-        // Create matrix data
-        H.resize(program.numVariables(), program.numVariables());
-        H.setZero();
+    QpoasesData(const Index& nx, const Index& nc)
+        : H(MatrixXRM::Zero(nx, nx)),
+          g(VectorX::Zero(nx)),
+          c(0),
+          xlb(VectorX::Constant(nx, -1e9)),
+          xub(VectorX::Constant(nx, 1e9)),
+          A(MatrixXRM::Zero(nc, nx)),
+          Alb(VectorX::Zero(nc)),
+          Aub(VectorX::Zero(nc)) {}
 
-        g.resize(program.numVariables());
-        g.setZero();
+    /// @brief Quadratic cost hessian component
+    MatrixXRM H;
+    /// @brief Quadratic cost linear component
+    VectorX g;
+    /// @brief Quadratic cost linear component
+    Real c;
 
-        A.resize(program.numConstraints(), program.numVariables());
-        A.setZero();
+    /// @brief Variable lower bound
+    VectorX xlb;
+    /// @brief Variable upper bound
+    VectorX xub;
 
-        lbA.resize(program.numConstraints());
-        ubA.resize(program.numConstraints());
-
-        lbx.resize(program.numVariables());
-        ubx.resize(program.numVariables());
-
-        lbx = program.variableLowerBounds();
-        ubx = program.variableUpperBounds();
-    }
+    /// @brief Constraint matrix
+    MatrixXRM A;
+    /// @brief Constraint lower bound
+    VectorX Alb;
+    /// @brief Constraint upper bound
+    VectorX Aub;
 
     void clear() {
         H.setZero();
         g.setZero();
         A.setZero();
-        ubA.setZero();
-        lbA.setZero();
     }
-
-    MatrixXdRowMajor H;
-    Eigen::VectorXd g;
-
-    MatrixXdRowMajor A;
-
-    Eigen::VectorXd ubA;
-    Eigen::VectorXd lbA;
-
-    Eigen::VectorXd lbx;
-    Eigen::VectorXd ubx;
 };
 
-class qpoases_solver : public solver<double> {
+}  // namespace internal
+
+class QpoasesSolver : public SolverBase<internal::QpoasesSolverInfo> {
+    using VectorX = typename MathTypes<Real>::VectorX;
+    using MatrixX = typename MathTypes<Real>::MatrixX;
+    using SparseMatrix = typename MathTypes<Real>::SparseMatrix;
+    using SparseVector = typename MathTypes<Real>::SparseVector;
+
    public:
-    qpoases_solver() = default;
-    qpoases_solver(MathematicalProgram& program);
+    QpoasesSolver() = default;
+    QpoasesSolver(MathematicalProgram& program);
 
-    ~qpoases_solver();
+    ~QpoasesSolver();
 
-    qpoases_options& options() { return options_; }
+    void initImpl() override;
+    void solveImpl() override;
 
-    void reset();
-    void solve(MathematicalProgram& program);
+    const internal::QpoasesSolverInfo& getInfo() const override {
+        return info_;
+    }
+
+    const SolverResultsBase& getResults() const override { return results_; }
 
    private:
-    bool first_solve_ = true;
-    int n_solves_ = 0;
-
-    std::vector<Binding<DenseLinearCost>> dense_linear_costs_;
-    std::vector<Binding<SparseLinearCost>> sparse_linear_costs_;
-
-    std::vector<Binding<DenseQuadraticCost>> dense_quadratic_costs_;
-    std::vector<Binding<SparseQuadraticCost>> sparse_quadratic_costs_;
-
-    std::vector<Binding<DenseLinearConstraint>> dense_linear_constraints_;
-    std::vector<Binding<SparseLinearConstraint>> sparse_linear_constraints_;
-
-    // std::vector<LinearCostData> linear_cost_data_;
-    // std::vector<ConstraintData> bounding_box_constraint_data_;
-
     std::unique_ptr<qpOASES::SQProblem> qp_;
 
-    qpoases_options options_;
-    qpoases_info info_;
+    std::vector<Binding<LinearCostTpl<Real>>> dense_linear_costs_;
+    std::vector<Binding<LinearCostTpl<Real, SparsityType::SPARSE>>>
+        sparse_linear_costs_;
 
-    QPData data_;
+    std::vector<Binding<QuadraticCostTpl<Real>>> dense_quadratic_costs_;
+    std::vector<Binding<QuadraticCostTpl<Real, SparsityType::SPARSE>>>
+        sparse_quadratic_costs_;
+
+    std::vector<Binding<LinearConstraintTpl<Real>>> dense_linear_constraints_;
+    std::vector<Binding<LinearConstraintTpl<Real, SparsityType::SPARSE>>>
+        sparse_linear_constraints_;
+
+    internal::QpoasesSolverInfo info_;
+    std::unique_ptr<internal::QpoasesData> data_;
+    SolverResultsBase results_;
 };
 
 }  // namespace solvers
