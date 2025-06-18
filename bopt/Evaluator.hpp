@@ -337,13 +337,13 @@ class PolynomialEvaluator {
         evalCoefficientsImpl(data);
     }
 
-    void setupDataSparsity(PolynomialData &data) const {
-        setupDataSparsityImpl(data);
+    void setupPolynomialDataSparsity(PolynomialData &data) const {
+        setupPolynomialDataSparsityImpl(data);
     }
 
    protected:
     virtual void evalCoefficientsImpl(PolynomialData &data) const {}
-    virtual void setupDataSparsityImpl(PolynomialData &data) const {}
+    virtual void setupPolynomialDataSparsityImpl(PolynomialData &data) const {}
 };
 
 }  // namespace bopt

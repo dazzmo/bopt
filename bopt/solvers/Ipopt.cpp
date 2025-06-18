@@ -9,7 +9,7 @@ IpoptProgramInstance::IpoptProgramInstance(MathematicalProgram& program)
     : Ipopt::TNLP(),
       program_(program),
       cache_(program.numVariables(), program.numConstraints()),
-      primal_solution_(VectorX::Zero(program.numVariables())) {
+      results_() {
     // Create data
     dense_costs_ =
         program.getCostBindings<CostTpl<Real, SparsityType::DENSE>>();
@@ -559,9 +559,10 @@ void IpoptProgramInstance::finalize_solution(
     Number obj_value, const Ipopt::IpoptData* ip_data,
     Ipopt::IpoptCalculatedQuantities* ip_cq) {
     // Logger::debug() << "finalize_solution()";
-
+    results_.objective = obj_value;
+    results_.primal = VectorX::Zero(n);
     for (Index i = 0; i < n; ++i) {
-        primal_solution_[i] = x[i];
+        results_.primal[i] = x[i];
     }
 }
 }  // namespace internal
@@ -598,8 +599,8 @@ void IpoptSolver::solveImpl() {
         (status == Ipopt::ApplicationReturnStatus::Solve_Succeeded);
 }
 
-IpoptSolver::VectorX IpoptSolver::getPrimalSolution() const {
-    return instance_->getPrimalSolution();
+const SolverResultsBase& IpoptSolver::getResults() const {
+    return instance_->getResults();
 }
 
 }  // namespace solvers

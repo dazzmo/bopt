@@ -109,7 +109,7 @@ class LinearCost
         }
     }
 
-    void setupDataSparsityImpl(Data &data) const override {
+    void setupPolynomialDataSparsityImpl(Data &data) const override {
         if constexpr (Sparsity == SparsityType::SPARSE) {
             setupSparseEigenMatrix(data.a, this->coefficients.sparsity_out(0));
         }
@@ -174,7 +174,7 @@ class QuadraticCost
         }
     }
 
-    void setupDataSparsityImpl(Data &data) const override {
+    void setupPolynomialDataSparsityImpl(Data &data) const override {
         if constexpr (Sparsity == SparsityType::SPARSE) {
             setupSparseEigenMatrix(data.A, this->coefficients.sparsity_out(0));
             setupSparseEigenMatrix(data.b, this->coefficients.sparsity_out(1));

@@ -33,11 +33,11 @@ class MathematicalProgram {
         // Linear sparse costs
         Binding<LinearCostTpl<double, SparsityType::SPARSE>>>;
 
-    using ConstraintVariant = std::variant<
-        Binding<ConstraintTpl<double, SparsityType::DENSE>>,
-        Binding<ConstraintTpl<double, SparsityType::SPARSE>>,
-        Binding<LinearConstraintTpl<double, SparsityType::DENSE>>,
-        Binding<LinearConstraintTpl<double, SparsityType::SPARSE>>>;
+    using ConstraintVariant =
+        std::variant<Binding<ConstraintTpl<Real, SparsityType::DENSE>>,
+                     Binding<ConstraintTpl<Real, SparsityType::SPARSE>>,
+                     Binding<LinearConstraintTpl<Real, SparsityType::DENSE>>,
+                     Binding<LinearConstraintTpl<Real, SparsityType::SPARSE>>>;
 
    public:
     /**
@@ -107,6 +107,12 @@ class MathematicalProgram {
     const VectorXd &variableLowerBounds() const { return x_lb_; }
 
     const VectorXd &variableUpperBounds() const { return x_ub_; }
+
+    void setVariableBounds(const Variable &v, const Real &lb, const Real &ub) {
+        const auto idx = getVariableIndex(v);
+        x_lb_[idx] = lb;
+        x_ub_[idx] = ub;
+    }
 
     Variable addVariable(const String &name, const double &initial_value = 0.0,
                          const double &lower_bound = -kInf,
@@ -219,6 +225,8 @@ class MathematicalProgram {
             std::is_base_of<LinearConstraintTpl<double, Sparsity>,
                             LinearConstraintDerived>::value,
             "Error: Constraint must be derived from LinearConstraintTpl.");
+
+        std::cout << "Sparsity: " << (int)Sparsity << std::endl;
         addLinearConstraint<Sparsity>(
             std::static_pointer_cast<LinearConstraintTpl<double, Sparsity>>(
                 cost),
@@ -298,6 +306,9 @@ class MathematicalProgram {
                     using T = std::decay_t<decltype(binding)>;
                     if constexpr (std::is_base_of_v<ConstraintType,
                                                     typename T::Evaluator>) {
+                        std::cout
+                            << "Adding Constraint: " << binding.get()->getName()
+                            << std::endl;
                         vec.push_back(binding);
                     }
                 },
@@ -360,7 +371,7 @@ class MathematicalProgram {
         } else {
             auto data_new = std::make_shared<
                 typename LinearCostTpl<double, Sparsity>::Data>(*cost);
-            cost->setupDataSparsity(*data_new);
+            cost->setupPolynomialDataSparsity(*data_new);
             cost_bindings_.emplace_back(
                 Binding<LinearCostTpl<double, Sparsity>>(
                     cost, data_new, getVariableIndices(x)));
@@ -410,6 +421,7 @@ class MathematicalProgram {
             typename LinearConstraintTpl<double, Sparsity>::Data> &data =
             nullptr) {
         using LinearConstraintType = LinearConstraintTpl<double, Sparsity>;
+        std::cout << "Adding Linear Constraint!" << std::endl;
         // Create binding
         if (data) {
             constraint_bindings_.emplace_back(Binding<LinearConstraintType>(
@@ -418,7 +430,7 @@ class MathematicalProgram {
             auto data_new =
                 std::make_shared<typename LinearConstraintType::Data>(
                     *constraint);
-            constraint->setupDataSparsity(*data_new);
+            constraint->setupPolynomialDataSparsity(*data_new);
             constraint_bindings_.emplace_back(Binding<LinearConstraintType>(
                 constraint, data_new, getVariableIndices(x)));
         }

@@ -101,8 +101,8 @@ struct LinearDataTpl
     using Scalar = typename DataBase::Scalar;
 
     using OutputType = typename DataBase::OutputType;
-    using JacobianType = typename DataBase::OutputJacobianType;
-    using HessianType = typename DataBase::OutputHessianType;
+    using JacobianType = typename DataBase::JacobianType;
+    using HessianType = typename DataBase::HessianType;
 
     LinearDataTpl(const Size &n, const Size &m, const Size &p);
     LinearDataTpl(const EvaluatorTpl<ScalarType, OutputSizeAtCompileTime,
@@ -145,8 +145,7 @@ struct LinearDataTpl<ScalarType, 1, Sparsity>
  * @tparam EvaluatorTraits Traits of the evaluator function
  */
 template <typename ScalarType, SparsityType Sparsity = SparsityType::DENSE>
-struct QuadraticDataTpl
-    : public EvaluatorDataTpl<ScalarType, 1, Sparsity> {
+struct QuadraticDataTpl : public EvaluatorDataTpl<ScalarType, 1, Sparsity> {
     using DataBase = EvaluatorDataTpl<ScalarType, 1, Sparsity>;
     using Scalar = typename DataBase::Scalar;
     using OutputType = typename DataBase::OutputType;

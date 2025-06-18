@@ -18,12 +18,12 @@ class LinearCostTpl
     using CostBase = CostTpl<ScalarType, _Sparsity>;
     using Data = LinearDataTpl<ScalarType, 1, _Sparsity>;
 
-    static constexpr SparsityType Sparsity = CostBase::Sparsity;
+    static constexpr SparsityType Sparsity = _Sparsity;
 
     LinearCostTpl(const String &name, const Size &n_in, const Size &n_p = 0,
                   const String &description = "")
-        : CostTpl<ScalarType>(name, n_in, n_p, description),
-          PolynomialEvaluator<LinearDataTpl<ScalarType, 1, Sparsity>>() {}
+        : CostTpl<ScalarType, _Sparsity>(name, n_in, n_p, description),
+          PolynomialEvaluator<LinearDataTpl<ScalarType, 1, _Sparsity>>() {}
 };
 
 }  // namespace bopt

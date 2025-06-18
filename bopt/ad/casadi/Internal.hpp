@@ -277,7 +277,6 @@ class LinearFunctionGenerator {
         this->coefficients({p.data()}, out);
     }
 
-   private:
     Function coefficients;
 };
 
@@ -332,7 +331,6 @@ class LinearFunctionGenerator<ScalarType, 1, Sparsity> {
         this->coefficients({p.data()}, out);
     }
 
-   private:
     Function coefficients;
 };
 
@@ -390,7 +388,6 @@ class QuadraticFunctionGenerator {
         this->coefficients({p.data()}, out);
     }
 
-   private:
     Function coefficients;
 };
 

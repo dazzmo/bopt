@@ -13,6 +13,12 @@ struct SolverInfoBase {
     Real wall_time;
 };
 
+struct SolverResultsBase {
+    using VectorX = typename MathTypes<Real>::VectorX;
+    Real objective;
+    VectorX primal;
+};
+
 template <typename SolverInfoType>
 class SolverBase {
    public:
@@ -47,12 +53,7 @@ class SolverBase {
         solveImpl();
     }
 
-    /**
-     * @brief Get the Primal Solution object
-     *
-     * @return VectorX
-     */
-    virtual VectorX getPrimalSolution() const = 0;
+    virtual const SolverResultsBase& getResults() const = 0;
 
    protected:
     SolverBase(MathematicalProgram& program, const std::string& name)

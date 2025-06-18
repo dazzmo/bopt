@@ -8,52 +8,37 @@
 #include "bopt/solvers/Clp.hpp"
 
 TEST(Program, SimpleProgram) {
-    using sym = ::casadi::SX;
-    using sym_vec = ::casadi::SXVector;
-
     // Create variables
 
     bopt::MathematicalProgram p("program");
-    auto x = p.addVariable("x", 0.0, 0.0, 1.0);
-    auto y = p.addVariable("y", 0.0);
-    auto z = p.addVariable("z", 0.0);
 
-    // Add variables
+    auto x = p.addVariables("x", 10);
 
-    bopt::VariableVector v(3);
-    v << x, y, z;
-
-    sym xs = sym::sym("x");
-    sym ys = sym::sym("y");
-    sym zs = sym::sym("z");
-
-    auto c0 = std::make_shared<bopt::casadi::DenseConstraint>(
-        xs + ys - zs, sym::vertcat({xs, ys, zs}), sym(), 1.0, 1.0, false);
-    auto d0 = c0->createData();
-    p.addConstraint<bopt::DenseConstraint>(c0, d0, v);
-
-    auto c1 = std::make_shared<bopt::casadi::DenseConstraint>(
-        ys + zs, sym::vertcat({xs, ys, zs}), sym(),
-        bopt::ConstraintBounds::POSITIVE, false);
-    bopt::DenseConstraint::Data d(c);
-    c1->evalBounds(*d1);
-
-    p.addConstraint<bopt::DenseConstraint>(c1, d1, v);
-
-    // todo - solution changes with sparsity
-    auto f = std::make_shared<bopt::DenseLinearCost>(
-        std::make_shared<bopt::casadi::DenseLinearCost>(
-            xs + ys + zs, sym::vertcat({xs, ys, zs}), sym(), false));
-    auto df = f->createData();
-    p.addLinearCost(f, df, v);
-
-    p.addBoundingBoxConstraint(v, Eigen::Vector3d(0.0, 0.0, 0.0),
-                               Eigen::Vector3d(1.0, 1.0, 1.0));
-
-    auto nlp = bopt::solvers::ClpSolver(p);
-    for (int i = 0; i < 1; ++i) {
-        nlp.solve(p);
+    for (const auto &xi : x) {
+        p.setVariableBounds(xi, -1.0, 1.0);
     }
+
+    using SX = ::casadi::SX;
+
+    SX xs = SX::sym("x", 10);
+
+    auto c0 = std::make_shared<
+        bopt::casadi::LinearConstraint<double, bopt::SparsityType::SPARSE>>(
+        xs(0) + 5 * xs(7) - 0.1 * xs(5) - 1e-6, xs, SX(),
+        bopt::ConstraintBoundType::STRICTLY_POSITIVE);
+    p.addLinearConstraint(c0, x);
+
+    auto f = std::make_shared<
+        bopt::casadi::LinearCost<double, bopt::SparsityType::DENSE>>(
+        SX::sum1(xs) + 100, xs, SX());
+    p.addLinearCost(f, x);
+
+    auto lp = bopt::solvers::ClpSolver(p);
+    lp.init();
+    lp.solve();
+
+    bopt::Logger::info() << lp.getResults().objective;
+    bopt::Logger::info() << lp.getResults().primal;
 }
 
 int main(int argc, char **argv) {
@@ -64,6 +49,6 @@ int main(int argc, char **argv) {
     google::ParseCommandLineFlags(&argc, &argv, true);
     testing::InitGoogleTest(&argc, argv);
     int status = RUN_ALL_TESTS();
-    bopt::profiler summary;
+    bopt::Profiler summary;
     return status;
 }

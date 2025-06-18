@@ -18,18 +18,16 @@ class LinearConstraintTpl
       public PolynomialEvaluator<
           LinearDataTpl<ScalarType, Eigen::Dynamic, _Sparsity>> {
    private:
-    using Base = ConstraintTpl<ScalarType, _Sparsity>;
-
    public:
-    using Data = typename Base::Data;
-    using LinearData = LinearDataTpl<ScalarType, Eigen::Dynamic, _Sparsity>;
+    using ConstraintBase = ConstraintTpl<ScalarType, _Sparsity>;
+    using Data = LinearDataTpl<ScalarType, Eigen::Dynamic, _Sparsity>;
 
     static constexpr SparsityType Sparsity = _Sparsity;
 
     LinearConstraintTpl(const String &name, const Size &n_in, const Size &n_out,
                         const ConstraintBoundType &bounds, const Size &n_p = 0)
-        : Base(name, n_in, n_out, bounds, n_p),
-          PolynomialEvaluator<LinearData>() {}
+        : ConstraintBase(name, n_in, n_out, bounds, n_p),
+          PolynomialEvaluator<Data>() {}
 };
 
 }  // namespace bopt

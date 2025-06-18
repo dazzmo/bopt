@@ -71,7 +71,7 @@ class IpoptProgramInstance : public Ipopt::TNLP {
 
     ~IpoptProgramInstance() { VLOG(10) << "Destructing!"; }
 
-    const VectorX& getPrimalSolution() const { return primal_solution_; }
+    const SolverResultsBase& getResults() const { return results_; }
 
    private:
     bool get_nlp_info(Index& n, Index& m, Index& nnz_jac_g, Index& nnz_h_lag,
@@ -107,6 +107,7 @@ class IpoptProgramInstance : public Ipopt::TNLP {
     MathematicalProgram& program_;
     internal::IpoptData cache_;
 
+    SolverResultsBase results_;
     VectorX primal_solution_;
 
     std::vector<Binding<CostTpl<Real>>> dense_costs_;
@@ -148,15 +149,13 @@ class IpoptSolver : public SolverBase<SolverInfoBase> {
     using VectorX = typename Base::VectorX;
 
     IpoptSolver(MathematicalProgram& program);
-    ~IpoptSolver() {
-        instance_.reset();
-    }
+    ~IpoptSolver() { instance_.reset(); }
+
+    const SolverResultsBase& getResults() const override;
 
     const SolverInfo& getInfo() const override { return solver_info_; }
 
     Ipopt::SmartPtr<Ipopt::OptionsList> options() { return app_->Options(); }
-
-    VectorX getPrimalSolution() const override;
 
    protected:
     void initImpl() override;
@@ -167,8 +166,6 @@ class IpoptSolver : public SolverBase<SolverInfoBase> {
     Ipopt::SmartPtr<Ipopt::IpoptApplication> app_;
 
     SolverInfo solver_info_;
-
-    VectorX x_primal_;
 };
 
 }  // namespace solvers
