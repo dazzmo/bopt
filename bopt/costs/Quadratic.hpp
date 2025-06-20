@@ -20,7 +20,7 @@ class QuadraticCostTpl
 
     QuadraticCostTpl(const String &name, const Size &n_in, const Size &n_p = 0,
                      const String &description = "")
-        : CostTpl<ScalarType>(name, n_in, n_p, description),
+        : CostTpl<ScalarType, Sparsity>(name, n_in, n_p, description),
           PolynomialEvaluator<QuadraticDataTpl<ScalarType, Sparsity>>() {}
 };
 }  // namespace bopt

@@ -1,7 +1,4 @@
-#ifndef SOLVERS_QPOASES_H
-#define SOLVERS_QPOASES_H
-
-// #ifdef WITH_QPOASES
+#pragma once
 
 #include <boost/numeric/ublas/matrix.hpp>
 #include <qpOASES.hpp>
@@ -28,12 +25,6 @@ struct QpoasesSolverInfo : public SolverInfoBase {
     int errorCode;
     // Number of working sets performed
     int nWSR;
-};
-
-struct QpoasesOptions : public qpOASES::Options {
-    // Number of working sets performed
-    int nWSR = 100;
-    bool perform_hotstart = false;
 };
 
 struct QpoasesData {
@@ -101,6 +92,18 @@ class QpoasesSolver : public SolverBase<internal::QpoasesSolverInfo> {
 
     const SolverResultsBase& getResults() const override { return results_; }
 
+    struct QpoasesOptions : public qpOASES::Options {
+        // Number of working sets performed
+        int nWSR = 100;
+        bool perform_hotstart = false;
+    };
+
+    qpOASES::Options& getOptions() { return options_; }
+
+    void setNumberOfWorkingSetRecalculations(const int& nWSR) { nWSR_ = nWSR; }
+    void enableHotStarting() { hotstarting_ = true; }
+    void disableHotStarting() { hotstarting_ = false; }
+
    private:
     std::unique_ptr<qpOASES::SQProblem> qp_;
 
@@ -117,12 +120,13 @@ class QpoasesSolver : public SolverBase<internal::QpoasesSolverInfo> {
         sparse_linear_constraints_;
 
     internal::QpoasesSolverInfo info_;
+    qpOASES::Options options_;
     std::unique_ptr<internal::QpoasesData> data_;
     SolverResultsBase results_;
+
+    int nWSR_{100};
+    bool hotstarting_{false};
 };
 
 }  // namespace solvers
 }  // namespace bopt
-
-// #endif /* WITH_QPOASES */
-#endif /* SOLVERS_QPOASES_H */

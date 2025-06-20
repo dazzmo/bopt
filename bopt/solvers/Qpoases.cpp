@@ -13,8 +13,6 @@ void QpoasesSolver::initImpl() {
     int nx = getProgram().numVariables();
     int ng = getProgram().numConstraints();
 
-    qp_ = std::make_unique<qpOASES::SQProblem>(nx, ng);
-
     // Store bindings of each set of constraints relevant to the problem
     dense_linear_costs_ = getProgram().getCostBindings<LinearCostTpl<Real>>();
     sparse_linear_costs_ =
@@ -34,8 +32,12 @@ void QpoasesSolver::initImpl() {
             .getConstraintBindings<
                 LinearConstraintTpl<Real, SparsityType::SPARSE>>();
 
+    qp_ = std::make_unique<qpOASES::SQProblem>(nx, ng);
     data_ = std::make_unique<internal::QpoasesData>(
         getProgram().numVariables(), getProgram().numConstraints());
+
+    qp_->setHessianType(qpOASES::HessianType::HST_POSDEF);
+    qp_->setOptions(options_);
 }
 
 void QpoasesSolver::solveImpl() {
@@ -182,30 +184,24 @@ void QpoasesSolver::solveImpl() {
         }
     }
 
-    int nWSR = 100;  // fixme
-
-    qp_->setHessianType(qpOASES::HessianType::HST_POSDEF);
-    // todo - set this only once?
-    // qp_->setOptions(options_);
-
     // Solve
     {
         bopt::Profiler profiler("qpoases: solve");
-        if (info_.num_iterations > 0) {
+        if (info_.num_iterations > 0 && hotstarting_) {
             // Use previous solution to hot-start the program
             qp_->hotstart(data_->H.data(), data_->g.data(), data_->A.data(),
                           data_->xlb.data(), data_->xub.data(),
-                          data_->Alb.data(), data_->Aub.data(), nWSR);
+                          data_->Alb.data(), data_->Aub.data(), nWSR_);
         } else {
             // Initialise the program and solve it
             qp_->init(data_->H.data(), data_->g.data(), data_->A.data(),
                       data_->xlb.data(), data_->xub.data(), data_->Alb.data(),
-                      data_->Aub.data(), nWSR);
+                      data_->Aub.data(), nWSR_);
         }
     }
 
     // Collect information
-    info_.nWSR = nWSR;
+    info_.nWSR = nWSR_;
     info_.status = qp_->getStatus();
 
     info_.num_iterations++;

@@ -29,17 +29,18 @@ TEST(Program, SimpleProgram) {
     p.addLinearConstraint(c0, x);
 
     auto f = std::make_shared<
-        bopt::casadi::QuadraticCost<double, bopt::SparsityType::DENSE>>(
+        bopt::casadi::QuadraticCost<double, bopt::SparsityType::SPARSE>>(
         -SX::dot(xs, xs) - SX::dot(casadi::DM::rand(xs.size1()), xs) + 100, xs,
         SX(), false);
     p.addQuadraticCost(f, x);
 
-    auto lp = bopt::solvers::QpoasesSolver(p);
-    lp.init();
-    lp.solve();
+    auto qp = bopt::solvers::QpoasesSolver(p);
+    qp.getOptions().printLevel = qpOASES::PL_NONE;
+    qp.init();
+    qp.solve();
 
-    bopt::Logger::info() << lp.getResults().objective;
-    bopt::Logger::info() << lp.getResults().primal;
+    bopt::Logger::info() << qp.getResults().objective;
+    bopt::Logger::info() << qp.getResults().primal;
 }
 
 int main(int argc, char **argv) {

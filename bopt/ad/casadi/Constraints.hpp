@@ -109,7 +109,6 @@ class LinearConstraint
     }
 
     void evalCoefficientsImpl(Data &data) const override {
-        Logger::info() << "evalCoefficients!";
         this->computeLinearCoefficients(this->getParameters(), data.A, data.b);
     }
 
@@ -125,7 +124,6 @@ class LinearConstraint
 
     void setupPolynomialDataSparsityImpl(Data &data) const override {
         if constexpr (Sparsity == SparsityType::SPARSE) {
-            Logger::info() << "Setting Sparsity";
             setupSparseEigenMatrix(data.A, this->coefficients.sparsity_out(0));
         }
         setupDataSparsityImpl(static_cast<ConstraintBaseData &>(data));

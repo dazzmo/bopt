@@ -155,7 +155,7 @@ class IpoptSolver : public SolverBase<SolverInfoBase> {
 
     const SolverInfo& getInfo() const override { return solver_info_; }
 
-    Ipopt::SmartPtr<Ipopt::OptionsList> options() { return app_->Options(); }
+    Ipopt::SmartPtr<Ipopt::OptionsList> getOptions() { return app_->Options(); }
 
    protected:
     void initImpl() override;
